@@ -9,7 +9,7 @@
 ## Overview
 
 - Priority: P0
-- Status: Pending
+- Status: Complete
 - Goal: make the first real call reproducible without understanding Asterisk internals.
 
 ## Key insights
@@ -74,13 +74,13 @@ Create in new repository:
 
 ## Todo list
 
-- [ ] Python SDK
-- [ ] Node SDK
-- [ ] Real examples
-- [ ] Operator documentation
-- [ ] Partner documentation
-- [ ] AI Coding skill and metadata
-- [ ] Skill validation and forward tests
+- [x] Python SDK
+- [x] Node SDK
+- [x] Real examples
+- [x] Operator documentation
+- [x] Partner documentation
+- [x] AI Coding skill and metadata
+- [x] Skill validation and forward tests
 
 ## Success criteria
 
@@ -110,4 +110,3 @@ Run production hardening and a controlled partner pilot in Phase 06.
 
 - Which AI providers need first-party adapter examples at launch.
 - Whether SDK packages will be public or distributed from a private registry.
-

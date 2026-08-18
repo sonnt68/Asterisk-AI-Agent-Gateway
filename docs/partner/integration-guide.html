@@ -1,0 +1,1313 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Asterisk AI Agent Gateway — tài liệu tích hợp song ngữ cho đối tác / bilingual partner integration guide.">
+<title>Asterisk AI Gateway Integration</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+
+<style>
+:root {
+  --pair-blue: #1B4F9C;
+  --pair-orange: #C2570E;
+  --pair-green: #1F7A54;
+
+  --ground: #F1F3F6;
+  --surface: #FFFFFF;
+  --surface-2: #E7EBF1;
+  --ink: #12171F;
+  --ink-2: #48525F;
+  --ink-3: #6E7889;
+  --rule: #CFD6E0;
+  --rule-soft: #E1E6ED;
+
+  --accent: var(--pair-blue);
+  --accent-soft: #E4EBF7;
+  --warn: var(--pair-orange);
+  --warn-soft: #F8E9DD;
+  --good: var(--pair-green);
+  --good-soft: #DFEDE7;
+
+  --code-bg: #EDF0F5;
+  --code-ink: #1B2430;
+
+  --measure: 70ch;
+  --step--1: 0.8125rem;
+  --step-0: 1rem;
+  --step-1: 1.1875rem;
+  --step-2: 1.5rem;
+  --step-3: 2rem;
+  --step-4: 2.75rem;
+
+  --sans: "IBM Plex Sans", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --cond: "IBM Plex Sans Condensed", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #0E1319;
+    --surface: #161C25;
+    --surface-2: #1D2530;
+    --ink: #DDE3EC;
+    --ink-2: #A3AEBE;
+    --ink-3: #7B8697;
+    --rule: #2A3441;
+    --rule-soft: #212A35;
+
+    --accent: #7FA9E8;
+    --accent-soft: #16233A;
+    --warn: #E8935A;
+    --warn-soft: #2E1F13;
+    --good: #5FBF95;
+    --good-soft: #12271E;
+
+    --code-bg: #10161E;
+    --code-ink: #CBD4E1;
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground: #0E1319;
+  --surface: #161C25;
+  --surface-2: #1D2530;
+  --ink: #DDE3EC;
+  --ink-2: #A3AEBE;
+  --ink-3: #7B8697;
+  --rule: #2A3441;
+  --rule-soft: #212A35;
+
+  --accent: #7FA9E8;
+  --accent-soft: #16233A;
+  --warn: #E8935A;
+  --warn-soft: #2E1F13;
+  --good: #5FBF95;
+  --good-soft: #12271E;
+
+  --code-bg: #10161E;
+  --code-ink: #CBD4E1;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: var(--step-0);
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- bilingual switching ---------- */
+.e { display: none; }
+html[data-lang="en"] .v { display: none; }
+html[data-lang="en"] .e { display: inline; }
+html[data-lang="en"] li > .e,
+html[data-lang="en"] td > .e,
+html[data-lang="en"] th > .e { display: inline; }
+
+/* ---------- masthead ---------- */
+.masthead {
+  border-bottom: 1px solid var(--rule);
+  background: var(--surface);
+}
+.masthead-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 2.75rem 1.5rem 2.25rem;
+  display: grid;
+  gap: 1.25rem;
+}
+.pair-rule {
+  display: flex;
+  height: 5px;
+  width: 148px;
+  border-radius: 1px;
+  overflow: hidden;
+}
+.pair-rule span { flex: 1; }
+.pair-rule span:nth-child(1) { background: var(--pair-blue); }
+.pair-rule span:nth-child(2) { background: var(--pair-orange); }
+.pair-rule span:nth-child(3) { background: var(--pair-green); }
+.pair-rule span:nth-child(4) { background: var(--ink-3); }
+
+.masthead h1 {
+  font-family: var(--cond);
+  font-weight: 700;
+  font-size: var(--step-4);
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  margin: 0;
+  text-wrap: balance;
+  max-width: 22ch;
+}
+.masthead p.lede {
+  margin: 0;
+  max-width: 64ch;
+  color: var(--ink-2);
+  font-size: var(--step-1);
+}
+.masthead-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.75rem;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: var(--step--1);
+  color: var(--ink-3);
+}
+.masthead-meta b {
+  color: var(--ink-2);
+  font-weight: 500;
+}
+
+/* ---------- language switch ---------- */
+.langbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--rule);
+}
+.langbar-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0.5rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.wordmark {
+  font-family: var(--cond);
+  font-weight: 600;
+  font-size: var(--step--1);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.switch {
+  display: inline-flex;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  overflow: hidden;
+  flex: none;
+}
+.switch button {
+  font: 600 var(--step--1)/1 var(--mono);
+  letter-spacing: 0.06em;
+  padding: 0.5rem 0.85rem;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: background 120ms linear, color 120ms linear;
+}
+.switch button + button { border-left: 1px solid var(--rule); }
+.switch button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--surface);
+}
+.switch button:focus-visible {
+  outline: 2px solid var(--warn);
+  outline-offset: -2px;
+}
+
+/* ---------- shell ---------- */
+.shell {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 5rem;
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr);
+  gap: 3.5rem;
+  align-items: start;
+}
+@media (max-width: 940px) {
+  .shell { grid-template-columns: minmax(0, 1fr); gap: 2rem; }
+  .toc { display: none; }
+}
+
+.toc {
+  position: sticky;
+  top: 4rem;
+  font-size: var(--step--1);
+  border-left: 1px solid var(--rule);
+  padding-left: 1rem;
+  max-height: calc(100vh - 6rem);
+  overflow-y: auto;
+}
+.toc-title {
+  font-family: var(--cond);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+  margin: 0 0 0.75rem;
+}
+.toc a {
+  display: block;
+  padding: 0.28rem 0;
+  color: var(--ink-2);
+  text-decoration: none;
+  border-left: 2px solid transparent;
+  margin-left: -1rem;
+  padding-left: 1rem;
+}
+.toc a:hover { color: var(--ink); }
+.toc a.active {
+  color: var(--accent);
+  border-left-color: var(--accent);
+  font-weight: 600;
+}
+.toc a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.doc { min-width: 0; }
+.doc > section + section { margin-top: 3.5rem; }
+.doc > section { scroll-margin-top: 4.5rem; }
+
+/* ---------- headings & text ---------- */
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 0 0 0.4rem;
+}
+h2 {
+  font-family: var(--cond);
+  font-weight: 700;
+  font-size: var(--step-3);
+  line-height: 1.18;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.75rem;
+  text-wrap: balance;
+  padding-bottom: 0.6rem;
+  border-bottom: 2px solid var(--rule);
+}
+h3 {
+  font-family: var(--cond);
+  font-weight: 600;
+  font-size: var(--step-2);
+  line-height: 1.25;
+  margin: 2rem 0 0.5rem;
+  text-wrap: balance;
+}
+h4 {
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: var(--step-0);
+  margin: 1.5rem 0 0.4rem;
+}
+p, li { max-width: var(--measure); }
+p { margin: 0 0 1rem; }
+ul, ol { margin: 0 0 1rem; padding-left: 1.25rem; }
+li { margin-bottom: 0.4rem; }
+li::marker { color: var(--ink-3); }
+a { color: var(--accent); text-underline-offset: 2px; }
+strong { font-weight: 600; }
+
+code {
+  font-family: var(--mono);
+  font-size: 0.875em;
+  background: var(--code-bg);
+  color: var(--code-ink);
+  padding: 0.1em 0.34em;
+  border-radius: 2px;
+  word-break: break-word;
+}
+
+/* ---------- code blocks ---------- */
+.code {
+  background: var(--code-bg);
+  border: 1px solid var(--rule-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: 3px;
+  margin: 0 0 1.25rem;
+  overflow: hidden;
+}
+.code-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.45rem 0.85rem;
+  border-bottom: 1px solid var(--rule-soft);
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.code pre {
+  margin: 0;
+  padding: 0.9rem 0.85rem;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: var(--step--1);
+  line-height: 1.6;
+  color: var(--code-ink);
+}
+.code pre code { background: none; padding: 0; font-size: inherit; }
+
+/* ---------- tables ---------- */
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  margin: 0 0 1.25rem;
+  background: var(--surface);
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+}
+th, td {
+  text-align: left;
+  padding: 0.6rem 0.85rem;
+  border-bottom: 1px solid var(--rule-soft);
+  vertical-align: top;
+}
+thead th {
+  font-family: var(--cond);
+  font-weight: 600;
+  font-size: 0.75rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  background: var(--surface-2);
+  white-space: nowrap;
+}
+tbody tr:last-child td { border-bottom: 0; }
+td code { white-space: nowrap; }
+
+/* ---------- chips ---------- */
+.chip {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 2px;
+  border: 1px solid;
+  white-space: nowrap;
+}
+.chip-scope { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); background: var(--warn-soft); }
+.chip-in { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); background: var(--accent-soft); }
+.chip-out { color: var(--good); border-color: color-mix(in srgb, var(--good) 40%, transparent); background: var(--good-soft); }
+
+/* ---------- callouts ---------- */
+.note {
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--ink-3);
+  background: var(--surface);
+  border-radius: 3px;
+  padding: 0.9rem 1rem;
+  margin: 0 0 1.25rem;
+}
+.note p:last-child { margin-bottom: 0; }
+.note-title {
+  font-family: var(--cond);
+  font-weight: 600;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 0 0 0.3rem;
+}
+.note-warn { border-left-color: var(--warn); }
+.note-warn .note-title { color: var(--warn); }
+
+/* ---------- flow strip ---------- */
+.flow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--surface);
+  margin: 0 0 1.5rem;
+}
+@media (max-width: 640px) { .flow { grid-template-columns: minmax(0, 1fr); } }
+.flow-node { padding: 1rem; border-right: 1px solid var(--rule); }
+.flow-node:last-child { border-right: 0; }
+@media (max-width: 640px) {
+  .flow-node { border-right: 0; border-bottom: 1px solid var(--rule); }
+  .flow-node:last-child { border-bottom: 0; }
+}
+.flow-node h4 {
+  margin: 0.35rem 0 0.25rem;
+  font-family: var(--cond);
+  font-size: var(--step-1);
+}
+.flow-node p { margin: 0; font-size: var(--step--1); color: var(--ink-2); max-width: none; }
+.flow-tag {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.flow-node:nth-child(1) .flow-tag { color: var(--pair-orange); }
+.flow-node:nth-child(2) .flow-tag { color: var(--accent); }
+.flow-node:nth-child(3) .flow-tag { color: var(--pair-green); }
+
+/* ---------- byte frame diagram ---------- */
+.frame {
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--surface);
+  padding: 1.25rem 1rem 1rem;
+  margin: 0 0 1.25rem;
+  overflow-x: auto;
+}
+.frame-strip {
+  display: grid;
+  grid-template-columns: 16fr 22fr;
+  min-width: 460px;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.frame-cell {
+  padding: 0.85rem 0.75rem;
+  font-family: var(--mono);
+  font-size: var(--step--1);
+  line-height: 1.4;
+}
+.frame-cell b { display: block; font-weight: 600; font-size: var(--step-0); margin-bottom: 0.2rem; }
+.frame-uuid {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-right: 1px solid var(--rule);
+}
+.frame-pcm {
+  background: var(--good-soft);
+  color: var(--good);
+  background-image: repeating-linear-gradient(90deg, transparent 0 9px, color-mix(in srgb, var(--good) 22%, transparent) 9px 10px);
+}
+.frame-ruler {
+  display: grid;
+  grid-template-columns: 16fr 22fr;
+  min-width: 460px;
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+  padding-top: 0.35rem;
+}
+.frame-ruler span { display: flex; justify-content: space-between; padding: 0 0.2rem; }
+.frame-ruler em { font-style: normal; }
+.frame-note { font-size: var(--step--1); color: var(--ink-2); margin: 0.85rem 0 0; max-width: none; }
+
+/* ---------- step list ---------- */
+ol.steps { list-style: none; padding: 0; counter-reset: step; margin: 0; }
+ol.steps > li {
+  counter-increment: step;
+  position: relative;
+  padding-left: 3rem;
+  margin-bottom: 1.5rem;
+  max-width: var(--measure);
+}
+ol.steps > li::before {
+  content: counter(step, decimal-leading-zero);
+  position: absolute;
+  left: 0;
+  top: 0.1rem;
+  font-family: var(--mono);
+  font-size: var(--step--1);
+  font-weight: 600;
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  background: var(--accent-soft);
+  border-radius: 2px;
+  padding: 0.05rem 0.4rem;
+}
+ol.steps h4 { margin: 0 0 0.25rem; }
+
+/* ---------- checklist ---------- */
+ul.check { list-style: none; padding: 0; }
+ul.check li {
+  position: relative;
+  padding-left: 1.7rem;
+  margin-bottom: 0.65rem;
+}
+ul.check li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 1.5px solid var(--good);
+  border-radius: 2px;
+  background: var(--good-soft);
+}
+
+footer.doc-footer {
+  border-top: 1px solid var(--rule);
+  margin-top: 4rem;
+  padding-top: 1.5rem;
+  font-size: var(--step--1);
+  color: var(--ink-3);
+}
+footer.doc-footer p { max-width: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+html { scroll-behavior: smooth; }
+</style>
+
+<script>
+  (function () {
+    var stored = null;
+    try { stored = localStorage.getItem("gw-doc-lang"); } catch (e) { stored = null; }
+    var lang = stored === "en" ? "en" : "vi";
+    document.documentElement.setAttribute("data-lang", lang);
+    document.documentElement.lang = lang;
+  })();
+</script>
+</head>
+<body>
+<div class="langbar">
+  <div class="langbar-inner">
+    <span class="wordmark">Asterisk AI Agent Gateway · Partner v1</span>
+    <div class="switch" role="group" aria-label="Ngôn ngữ tài liệu / Document language">
+      <button type="button" data-lang="vi" aria-pressed="true">VI</button>
+      <button type="button" data-lang="en" aria-pressed="false">EN</button>
+    </div>
+  </div>
+</div>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <div class="pair-rule" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+    <h1>
+      <span class="v">Tài liệu tích hợp cho đối tác</span>
+      <span class="e">Partner integration guide</span>
+    </h1>
+    <p class="lede">
+      <span class="v">Kết nối AI agent của bạn vào tổng đài Asterisk qua một API key và một kết nối WebSocket. Bạn không cần — và sẽ không được cấp — thông tin ARI, SIP, AudioSocket hay RTP.</span>
+      <span class="e">Connect your AI agent to an Asterisk PBX with one API key and one WebSocket. You never need — and are never given — ARI, SIP, AudioSocket, or RTP credentials.</span>
+    </p>
+    <div class="masthead-meta">
+      <span><b>Control API</b> 1.0.0</span>
+      <span><b>Realtime protocol</b> v1</span>
+      <span><b>Audio</b> PCM s16le · 16 kHz · mono</span>
+      <span><b>Token TTL</b> 300s</span>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="toc" aria-label="Mục lục / Table of contents">
+    <p class="toc-title"><span class="v">Nội dung</span><span class="e">Contents</span></p>
+    <a href="#overview"><span class="v">Tổng quan</span><span class="e">Overview</span></a>
+    <a href="#quickstart"><span class="v">Bắt đầu nhanh</span><span class="e">Quickstart</span></a>
+    <a href="#auth"><span class="v">Xác thực &amp; token</span><span class="e">Authentication</span></a>
+    <a href="#connect"><span class="v">Kết nối realtime</span><span class="e">Realtime session</span></a>
+    <a href="#events"><span class="v">Sự kiện vòng đời</span><span class="e">Lifecycle events</span></a>
+    <a href="#audio"><span class="v">Khung audio</span><span class="e">Audio frames</span></a>
+    <a href="#control"><span class="v">Điều khiển cuộc gọi</span><span class="e">Call control</span></a>
+    <a href="#outbound"><span class="v">Gọi ra</span><span class="e">Outbound calls</span></a>
+    <a href="#scopes"><span class="v">Scope</span><span class="e">Scopes</span></a>
+    <a href="#errors"><span class="v">Mã lỗi</span><span class="e">Error codes</span></a>
+    <a href="#sdk"><span class="v">SDK mẫu</span><span class="e">SDK samples</span></a>
+    <a href="#golive"><span class="v">Trước khi lên production</span><span class="e">Before go-live</span></a>
+  </nav>
+
+  <main class="doc">
+
+    <!-- ============ OVERVIEW ============ -->
+    <section id="overview">
+      <p class="eyebrow"><span class="v">Tổng quan</span><span class="e">Overview</span></p>
+      <h2><span class="v">Gateway làm gì cho bạn</span><span class="e">What the gateway does for you</span></h2>
+
+      <p>
+        <span class="v">Gateway đứng giữa tổng đài Asterisk và AI agent của bạn. Nó giữ toàn bộ phần telephony — kênh thoại, bridge, ARI, chuyển mã âm thanh — ở phía trong, và chỉ phơi ra hai bề mặt công khai: một REST endpoint để đổi token, và một WebSocket realtime để nhận sự kiện, truyền audio hai chiều, và gửi lệnh điều khiển cuộc gọi.</span>
+        <span class="e">The gateway sits between the Asterisk PBX and your AI agent. It keeps all telephony — channels, bridges, ARI, audio transport — on its side of the boundary and exposes exactly two public surfaces: a REST endpoint that exchanges your key for a token, and a realtime WebSocket that carries events, bidirectional audio, and scoped call-control commands.</span>
+      </p>
+
+      <div class="flow">
+        <div class="flow-node">
+          <p class="flow-tag">Asterisk</p>
+          <h4><span class="v">Tổng đài</span><span class="e">The PBX</span></h4>
+          <p><span class="v">Nhận cuộc gọi, đẩy kênh vào ứng dụng Stasis của gateway. Bạn không chạm vào lớp này.</span><span class="e">Takes the call and hands the channel to the gateway's Stasis app. You never touch this layer.</span></p>
+        </div>
+        <div class="flow-node">
+          <p class="flow-tag">Gateway</p>
+          <h4><span class="v">Biên bảo mật</span><span class="e">The boundary</span></h4>
+          <p><span class="v">Xác thực API key, cấp token 5 phút, kiểm tra scope và allowlist đích trước khi gọi ARI.</span><span class="e">Authenticates the key, mints a 5-minute token, and checks scope and destination allowlist before it calls ARI.</span></p>
+        </div>
+        <div class="flow-node">
+          <p class="flow-tag">Partner</p>
+          <h4><span class="v">AI agent của bạn</span><span class="e">Your AI agent</span></h4>
+          <p><span class="v">Một WebSocket: nhận audio PCM, trả audio PCM, gửi lệnh giữ máy, chuyển máy, DTMF.</span><span class="e">One WebSocket: receive PCM audio, send PCM audio, issue hold, transfer, and DTMF commands.</span></p>
+        </div>
+      </div>
+
+      <h3><span class="v">Những khái niệm cần nắm</span><span class="e">Concepts you need</span></h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th><span class="v">Khái niệm</span><span class="e">Concept</span></th>
+              <th><span class="v">Ý nghĩa</span><span class="e">What it means</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>agent_slug</code></td>
+              <td><span class="v">Định danh agent của bạn, do quản trị viên đặt khi tạo partner app. Mỗi slug chỉ cho phép <strong>một</strong> kết nối realtime tại một thời điểm.</span><span class="e">Your agent's identifier, set by the operator when the partner app is created. Each slug allows exactly <strong>one</strong> live realtime connection at a time.</span></td>
+            </tr>
+            <tr>
+              <td><code>call_id</code></td>
+              <td><span class="v">UUID cuộc gọi do gateway cấp. Luôn dùng giá trị này để đối chiếu và phân luồng — <strong>không bao giờ</strong> dùng channel ID của Asterisk.</span><span class="e">The gateway-issued call UUID. Always correlate on this — <strong>never</strong> on an Asterisk channel ID.</span></td>
+            </tr>
+            <tr>
+              <td><span class="v">Scope</span><span class="e">Scope</span></td>
+              <td><span class="v">Quyền gắn vào API key. Lệnh không có scope tương ứng bị từ chối trước khi gateway chạm tới Asterisk.</span><span class="e">A permission attached to the API key. A command without its scope is rejected before the gateway touches Asterisk.</span></td>
+            </tr>
+            <tr>
+              <td><span class="v">Allowlist đích</span><span class="e">Destination allowlist</span></td>
+              <td><span class="v">Danh sách <code>context:extension</code> mà partner app được phép chuyển máy hoặc gọi ra. Khớp chính xác, không hỗ trợ wildcard.</span><span class="e">The list of <code>context:extension</code> pairs your app may transfer or dial to. Matched exactly; no wildcards.</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ QUICKSTART ============ -->
+    <section id="quickstart">
+      <p class="eyebrow"><span class="v">Bắt đầu nhanh</span><span class="e">Quickstart</span></p>
+      <h2><span class="v">Năm bước để nghe được cuộc gọi đầu tiên</span><span class="e">Five steps to your first call</span></h2>
+
+      <ol class="steps">
+        <li>
+          <h4><span class="v">Nhận API key</span><span class="e">Receive your API key</span></h4>
+          <p><span class="v">Quản trị viên tạo partner app (đặt <code>agent_slug</code>, scope, allowlist đích) rồi cấp key cho bạn. Key có dạng <code>agw_live_&lt;prefix&gt;_&lt;secret&gt;</code> và chỉ hiển thị <strong>đúng một lần</strong>.</span><span class="e">The operator creates a partner app (setting your <code>agent_slug</code>, scopes, and destination allowlist) and issues you a key. Keys look like <code>agw_live_&lt;prefix&gt;_&lt;secret&gt;</code> and are shown <strong>exactly once</strong>.</span></p>
+        </li>
+        <li>
+          <h4><span class="v">Đổi key lấy token realtime</span><span class="e">Exchange the key for a realtime token</span></h4>
+          <p><span class="v"><code>POST /api/v1/realtime/tokens</code> với header <code>Authorization: Bearer agw_live_…</code>. Token sống 300 giây.</span><span class="e"><code>POST /api/v1/realtime/tokens</code> with <code>Authorization: Bearer agw_live_…</code>. The token lives 300 seconds.</span></p>
+        </li>
+        <li>
+          <h4><span class="v">Mở WebSocket</span><span class="e">Open the WebSocket</span></h4>
+          <p><span class="v">Kết nối tới <code>wss://&lt;gateway&gt;/v1/realtime?token=&lt;token&gt;</code>. Lưu ý đường dẫn này <strong>không</strong> nằm dưới <code>/api/v1</code>.</span><span class="e">Connect to <code>wss://&lt;gateway&gt;/v1/realtime?token=&lt;token&gt;</code>. Note this path is <strong>not</strong> under <code>/api/v1</code>.</span></p>
+        </li>
+        <li>
+          <h4><span class="v">Đăng ký phiên</span><span class="e">Register the session</span></h4>
+          <p><span class="v">Gửi <code>session.register</code> ngay sau khi mở. Gateway trả <code>session.ready</code> kèm <code>connection_id</code>. Sau đó gửi <code>heartbeat</code> mỗi 10 giây.</span><span class="e">Send <code>session.register</code> immediately. The gateway answers <code>session.ready</code> with a <code>connection_id</code>. Then send <code>heartbeat</code> every 10 seconds.</span></p>
+        </li>
+        <li>
+          <h4><span class="v">Xử lý cuộc gọi</span><span class="e">Handle the call</span></h4>
+          <p><span class="v">Khi có cuộc gọi, bạn nhận <code>call.started</code>, rồi các khung nhị phân chứa audio. Trả audio bằng khung nhị phân cùng định dạng, và giải phóng trạng thái khi nhận <code>call.ended</code>.</span><span class="e">On a call you receive <code>call.started</code>, then binary frames of audio. Answer with binary frames in the same format, and release call state on <code>call.ended</code>.</span></p>
+        </li>
+      </ol>
+    </section>
+
+    <!-- ============ AUTH ============ -->
+    <section id="auth">
+      <p class="eyebrow"><span class="v">Xác thực</span><span class="e">Authentication</span></p>
+      <h2><span class="v">API key và token realtime</span><span class="e">API keys and realtime tokens</span></h2>
+
+      <p>
+        <span class="v">API key là bí mật dài hạn, chỉ dùng cho đúng một việc: đổi lấy token realtime. Không bao giờ đặt API key lên query string, không log, không commit vào repo.</span>
+        <span class="e">The API key is a long-lived secret with exactly one job: exchanging it for a realtime token. Never put the key in a query string, a log line, or a repository.</span>
+      </p>
+
+      <div class="code">
+        <div class="code-head"><span>HTTP</span><span>POST /api/v1/realtime/tokens</span></div>
+        <pre><code>curl -X POST https://&lt;gateway&gt;/api/v1/realtime/tokens \
+  -H "Authorization: Bearer agw_live_a1b2c3d4_e5f6…"
+
+200 OK
+{
+  "token": "&lt;short-lived realtime token&gt;",
+  "expires_in": "300"
+}</code></pre>
+      </div>
+
+      <div class="note note-warn">
+        <p class="note-title"><span class="v">Lưu ý</span><span class="e">Watch out</span></p>
+        <p><span class="v"><code>expires_in</code> trả về dưới dạng <strong>chuỗi</strong> <code>"300"</code>, không phải số. Hãy ép kiểu trước khi tính toán thời hạn.</span><span class="e"><code>expires_in</code> comes back as the <strong>string</strong> <code>"300"</code>, not a number. Cast it before you do any expiry arithmetic.</span></p>
+      </div>
+
+      <h3><span class="v">Quy tắc vận hành</span><span class="e">Operating rules</span></h3>
+      <ul>
+        <li><span class="v"><strong>Token là dùng một lần cho mỗi kết nối.</strong> Mỗi lần kết nối lại phải xin token mới; không phát lại token cũ.</span><span class="e"><strong>One token per connection.</strong> Mint a fresh token on every reconnect; never replay an expired one.</span></li>
+        <li><span class="v"><strong>Giới hạn tần suất.</strong> Mặc định 60 lần đổi token mỗi phút cho mỗi key. Vượt ngưỡng trả <code>429</code>.</span><span class="e"><strong>Rate limit.</strong> 60 token exchanges per minute per key by default. Exceeding it returns <code>429</code>.</span></li>
+        <li><span class="v"><strong>Thu hồi có hiệu lực tức thì.</strong> Khi key bị thu hồi hoặc hết hạn, gateway chặn cả việc cấp token mới lẫn kết nối WebSocket mới.</span><span class="e"><strong>Revocation is immediate.</strong> A revoked or expired key blocks both token minting and new WebSocket sessions.</span></li>
+        <li><span class="v"><strong>Xoay vòng key không có thời gian ân hạn.</strong> Lệnh rotate cấp key mới và thu hồi key cũ ngay lập tức.</span><span class="e"><strong>Rotation has no grace period.</strong> Rotating issues the replacement and revokes the old key at the same moment.</span></li>
+      </ul>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>HTTP</th>
+              <th><span class="v">Nguyên nhân</span><span class="e">Cause</span></th>
+              <th><span class="v">Cách xử lý</span><span class="e">What to do</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>401</code></td>
+              <td><span class="v">Key sai định dạng, sai secret, đã thu hồi hoặc hết hạn</span><span class="e">Malformed, wrong, revoked, or expired key</span></td>
+              <td><span class="v">Dừng thử lại; liên hệ quản trị viên để cấp key mới</span><span class="e">Stop retrying; ask the operator for a new key</span></td>
+            </tr>
+            <tr>
+              <td><code>403</code></td>
+              <td><span class="v">Partner app đã bị vô hiệu hoá</span><span class="e">The partner app is disabled</span></td>
+              <td><span class="v">Dừng thử lại; đây là quyết định của bên vận hành</span><span class="e">Stop retrying; this is an operator decision</span></td>
+            </tr>
+            <tr>
+              <td><code>429</code></td>
+              <td><span class="v">Vượt giới hạn đổi token</span><span class="e">Token exchange rate limit</span></td>
+              <td><span class="v">Backoff và tái sử dụng token còn hạn thay vì xin liên tục</span><span class="e">Back off and reuse the live token instead of re-minting</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ CONNECT ============ -->
+    <section id="connect">
+      <p class="eyebrow"><span class="v">Kết nối realtime</span><span class="e">Realtime session</span></p>
+      <h2><span class="v">Mở phiên và giữ phiên sống</span><span class="e">Opening and holding the session</span></h2>
+
+      <div class="code">
+        <div class="code-head"><span>WebSocket</span><span>wss://&lt;gateway&gt;/v1/realtime?token=…</span></div>
+        <pre><code>// 1 — partner → gateway, ngay sau khi mở / immediately after open
+{"type":"session.register","agent_slug":"support-agent","protocol_version":"1"}
+
+// 2 — gateway → partner
+{"type":"session.ready","connection_id":"1f0c…"}
+
+// 3 — partner → gateway, mỗi 10 giây / every 10 seconds
+{"type":"heartbeat"}
+
+// 4 — gateway → partner
+{"type":"heartbeat.ack"}</code></pre>
+      </div>
+
+      <p>
+        <span class="v"><code>agent_slug</code> bạn gửi phải trùng đúng slug gắn với API key, và <code>protocol_version</code> phải là chuỗi <code>"1"</code>. Sai một trong hai, gateway trả lỗi <code>registration-rejected</code>.</span>
+        <span class="e">The <code>agent_slug</code> you send must match the slug bound to your API key, and <code>protocol_version</code> must be the string <code>"1"</code>. Either mismatch returns <code>registration-rejected</code>.</span>
+      </p>
+      <p>
+        <span class="v">Chỉ một kết nối cho mỗi slug. Nếu một tiến trình khác đang giữ slug, kết nối thứ hai nhận lỗi <code>agent-in-use</code>. Hãy chạy một worker duy nhất cho mỗi slug, hoặc dùng slug riêng cho từng instance.</span>
+        <span class="e">One connection per slug. If another process already holds it, the second connection gets <code>agent-in-use</code>. Run a single worker per slug, or give each instance its own slug.</span>
+      </p>
+
+      <h3><span class="v">Mã đóng kết nối</span><span class="e">Close codes</span></h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th><span class="v">Mã</span><span class="e">Code</span></th>
+              <th><span class="v">Ý nghĩa</span><span class="e">Meaning</span></th>
+              <th><span class="v">Phản ứng đúng</span><span class="e">Correct response</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>4401</code></td>
+              <td><span class="v">Token không hợp lệ, hết hạn, hoặc key đã bị thu hồi</span><span class="e">Invalid or expired token, or a revoked key</span></td>
+              <td><span class="v">Xin token mới rồi kết nối lại; nếu vẫn 4401 thì key đã chết</span><span class="e">Mint a new token and reconnect; a repeat means the key is dead</span></td>
+            </tr>
+            <tr>
+              <td><code>1012</code></td>
+              <td><span class="v">Mất quyền giữ slug (một instance khác đã chiếm)</span><span class="e">Lost the slug lease to another instance</span></td>
+              <td><span class="v">Kết nối lại sau backoff; đừng chạy song song hai worker cùng slug</span><span class="e">Reconnect after a backoff; do not run two workers on one slug</span></td>
+            </tr>
+            <tr>
+              <td><code>1013</code></td>
+              <td><span class="v">Kho lưu trạng thái kết nối của gateway không sẵn sàng</span><span class="e">The gateway's connection lease store is unavailable</span></td>
+              <td><span class="v">Backoff rồi thử lại; đây là sự cố phía gateway</span><span class="e">Back off and retry; this is a gateway-side incident</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note note-warn">
+        <p class="note-title"><span class="v">Ngắt kết nối làm rớt cuộc gọi</span><span class="e">Disconnecting drops calls</span></p>
+        <p><span class="v">Khi WebSocket của bạn đóng, gateway sẽ cúp máy toàn bộ cuộc gọi mà kết nối đó đang sở hữu. Hãy chờ <code>call.ended</code> cho các cuộc gọi đang chạy trước khi triển khai phiên bản mới.</span><span class="e">When your WebSocket closes, the gateway hangs up every call that connection owned. Drain in-flight calls to <code>call.ended</code> before you deploy a new version.</span></p>
+      </div>
+    </section>
+
+    <!-- ============ EVENTS ============ -->
+    <section id="events">
+      <p class="eyebrow"><span class="v">Sự kiện</span><span class="e">Events</span></p>
+      <h2><span class="v">Gateway gửi gì cho bạn</span><span class="e">What the gateway sends you</span></h2>
+
+      <p>
+        <span class="v">Toàn bộ sự kiện là khung text JSON. Mỗi cuộc gọi bắt đầu bằng <code>call.started</code> và kết thúc bằng <code>call.ended</code>; hãy giữ đúng một chuỗi xử lý và một buffer cho mỗi <code>call_id</code>.</span>
+        <span class="e">Every event is a JSON text frame. A call opens with <code>call.started</code> and closes with <code>call.ended</code>; keep exactly one handler and buffer chain per <code>call_id</code>.</span>
+      </p>
+
+      <div class="code">
+        <div class="code-head"><span class="chip chip-in">gateway → partner</span><span>call.started</span></div>
+        <pre><code>{
+  "type": "call.started",
+  "call_id": "8c1f4b2e-0d5a-4f77-9a51-6b0c7e2d3a44",
+  "sequence": 1,
+  "agent_slug": "support-agent",
+  "media": { "encoding": "pcm_s16le", "sample_rate": 16000, "channels": 1 },
+  "caller": { "name": "…", "number": "…" }
+}</code></pre>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th><span class="v">Sự kiện</span><span class="e">Event</span></th>
+              <th><span class="v">Trường</span><span class="e">Fields</span></th>
+              <th><span class="v">Khi nào xảy ra</span><span class="e">When it fires</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>call.started</code></td>
+              <td><code>call_id</code>, <code>sequence</code>, <code>agent_slug</code>, <code>media</code>, <code>caller</code></td>
+              <td><span class="v">Kênh đã được trả lời và ghép bridge; audio bắt đầu chảy ngay sau đó</span><span class="e">The channel is answered and bridged; audio starts flowing right after</span></td>
+            </tr>
+            <tr>
+              <td><code>dtmf.received</code></td>
+              <td><code>call_id</code>, <code>digit</code></td>
+              <td><span class="v">Người gọi bấm phím trên bàn phím điện thoại</span><span class="e">The caller presses a key on the handset</span></td>
+            </tr>
+            <tr>
+              <td><code>call.control.accepted</code></td>
+              <td><code>call_id</code>, <code>request_id</code></td>
+              <td><span class="v">Lệnh điều khiển của bạn đã qua kiểm tra và được thực thi</span><span class="e">Your control command passed validation and ran</span></td>
+            </tr>
+            <tr>
+              <td><code>audio.cleared</code></td>
+              <td><code>call_id</code></td>
+              <td><span class="v">Phản hồi riêng cho lệnh <code>audio.clear</code>, kèm theo <code>call.control.accepted</code></span><span class="e">The specific answer to <code>audio.clear</code>, sent alongside <code>call.control.accepted</code></span></td>
+            </tr>
+            <tr>
+              <td><code>outbound.accepted</code></td>
+              <td><code>call_id</code>, <code>request_id</code></td>
+              <td><span class="v">Yêu cầu gọi ra đã được Asterisk nhận; cuộc gọi chưa chắc đã được trả lời</span><span class="e">Asterisk accepted the origination; the call is not answered yet</span></td>
+            </tr>
+            <tr>
+              <td><code>transfer.consulting</code></td>
+              <td><code>call_id</code></td>
+              <td><span class="v">Nhánh tư vấn của chuyển máy có giám sát đã vào bridge</span><span class="e">The consulting leg of an attended transfer joined the bridge</span></td>
+            </tr>
+            <tr>
+              <td><code>transfer.ended</code></td>
+              <td><code>call_id</code></td>
+              <td><span class="v">Nhánh tư vấn rời đi (hoàn tất hoặc bị huỷ)</span><span class="e">The consulting leg left, completed or cancelled</span></td>
+            </tr>
+            <tr>
+              <td><code>call.ended</code></td>
+              <td><code>call_id</code></td>
+              <td><span class="v">Cuộc gọi kết thúc. Giải phóng toàn bộ trạng thái gắn với <code>call_id</code> này</span><span class="e">The call is over. Release every piece of state keyed on this <code>call_id</code></span></td>
+            </tr>
+            <tr>
+              <td><code>error</code></td>
+              <td><code>code</code>, <code>message</code></td>
+              <td><span class="v">Một khung của bạn bị từ chối. Xem bảng mã lỗi bên dưới</span><span class="e">One of your frames was rejected. See the error table below</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ AUDIO ============ -->
+    <section id="audio">
+      <p class="eyebrow"><span class="v">Audio</span><span class="e">Audio</span></p>
+      <h2><span class="v">Khung nhị phân: 16 byte UUID rồi tới PCM</span><span class="e">The binary frame: 16 UUID bytes, then PCM</span></h2>
+
+      <p>
+        <span class="v">Audio đi theo cả hai chiều trên cùng WebSocket, dưới dạng khung nhị phân. Mỗi khung bắt đầu bằng <strong>16 byte thô</strong> của <code>call_id</code> (UUID RFC 4122, dạng nhị phân — không phải chuỗi 36 ký tự), phần còn lại là audio thuần.</span>
+        <span class="e">Audio travels both directions on the same WebSocket as binary frames. Each frame opens with the <strong>16 raw bytes</strong> of the <code>call_id</code> (an RFC 4122 UUID in binary form — not its 36-character string), and everything after that is raw audio.</span>
+      </p>
+
+      <div class="frame">
+        <div class="frame-strip">
+          <div class="frame-cell frame-uuid">
+            <b>call_id</b>
+            <span class="v">16 byte thô của UUID</span><span class="e">16 raw UUID bytes</span>
+          </div>
+          <div class="frame-cell frame-pcm">
+            <b>PCM s16le</b>
+            <span class="v">16 kHz · mono · little-endian</span><span class="e">16 kHz · mono · little-endian</span>
+          </div>
+        </div>
+        <div class="frame-ruler">
+          <span><em>byte 0</em><em>byte 15</em></span>
+          <span><em>byte 16</em><em>byte N</em></span>
+        </div>
+        <p class="frame-note">
+          <span class="v">Cùng một định dạng cho cả chiều gateway → partner và partner → gateway. SDK chính thức tự đóng và gỡ lớp bọc này; nếu tự dựng khung, ngoài 16 byte UUID đừng chèn thêm byte nào khác.</span>
+          <span class="e">The same layout in both directions. The official SDKs add and strip this envelope for you; if you frame by hand, never prepend anything beyond the 16 UUID bytes.</span>
+        </p>
+      </div>
+
+      <h3><span class="v">Điều kiện để khung audio được chấp nhận</span><span class="e">What makes an audio frame valid</span></h3>
+      <ul>
+        <li><span class="v">Bạn phải <code>session.register</code> thành công trước; gửi audio sớm hơn sẽ nhận <code>protocol-invalid</code>.</span><span class="e">You must have completed <code>session.register</code>; audio sent earlier returns <code>protocol-invalid</code>.</span></li>
+        <li><span class="v">Khung phải dài <strong>hơn</strong> 16 byte. Khung chỉ có UUID mà không có audio bị từ chối với <code>audio-invalid</code>.</span><span class="e">The frame must be <strong>longer</strong> than 16 bytes. A UUID with no audio behind it is rejected with <code>audio-invalid</code>.</span></li>
+        <li><span class="v"><code>call_id</code> phải thuộc một cuộc gọi đang hoạt động của chính kết nối này, nếu không sẽ nhận <code>call-not-active</code>.</span><span class="e">The <code>call_id</code> must belong to an active call owned by this connection, or you get <code>call-not-active</code>.</span></li>
+        <li><span class="v">Nếu đường media phía Asterisk chưa sẵn sàng, gateway trả <code>media-unavailable</code> thay vì im lặng bỏ khung.</span><span class="e">If the Asterisk-side media path is not ready, the gateway answers <code>media-unavailable</code> rather than dropping the frame silently.</span></li>
+      </ul>
+    </section>
+
+    <!-- ============ CONTROL ============ -->
+    <section id="control">
+      <p class="eyebrow"><span class="v">Điều khiển</span><span class="e">Control</span></p>
+      <h2><span class="v">Lệnh điều khiển cuộc gọi</span><span class="e">Call-control commands</span></h2>
+
+      <div class="code">
+        <div class="code-head"><span class="chip chip-out">partner → gateway</span><span>call.control</span></div>
+        <pre><code>{
+  "type": "call.control",
+  "request_id": "0c6b1f52-0a3e-4a1b-9f2c-7d8e5a4b3c21",
+  "call_id": "8c1f4b2e-0d5a-4f77-9a51-6b0c7e2d3a44",
+  "command": "transfer.blind",
+  "payload": { "context": "from-internal", "extension": "1001" }
+}</code></pre>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th><span class="v">Lệnh</span><span class="e">Command</span></th>
+              <th><span class="v">Scope bắt buộc</span><span class="e">Required scope</span></th>
+              <th><span class="v">Payload</span><span class="e">Payload</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>call.hangup</code></td><td><span class="chip chip-scope">calls:hangup</span></td><td>—</td></tr>
+            <tr><td><code>call.hold</code> / <code>call.resume</code></td><td><span class="chip chip-scope">calls:hold</span></td><td>—</td></tr>
+            <tr><td><code>call.mute</code> / <code>call.unmute</code></td><td><span class="chip chip-scope">calls:mute</span></td><td>—</td></tr>
+            <tr><td><code>dtmf.send</code></td><td><span class="chip chip-scope">calls:dtmf</span></td><td><code>{ "digits": "123" }</code></td></tr>
+            <tr><td><code>audio.clear</code></td><td><span class="chip chip-scope">media:control</span></td><td><span class="v">—, chỉ xoá buffer phát, không gọi Asterisk</span><span class="e">— clears the playback buffer only; no ARI call</span></td></tr>
+            <tr><td><code>transfer.blind</code></td><td><span class="chip chip-scope">calls:transfer</span></td><td><code>{ "context": …, "extension": … }</code></td></tr>
+            <tr><td><code>transfer.attended</code></td><td><span class="chip chip-scope">calls:transfer</span></td><td><code>{ "context": …, "extension": … }</code></td></tr>
+            <tr><td><code>transfer.cancel</code></td><td><span class="chip chip-scope">calls:transfer</span></td><td><span class="v">— không kiểm tra allowlist</span><span class="e">— no allowlist check</span></td></tr>
+            <tr><td><code>route.queue</code></td><td><span class="chip chip-scope">calls:route</span></td><td><code>{ "context": …, "extension": … }</code></td></tr>
+            <tr><td><code>route.ring_group</code></td><td><span class="chip chip-scope">calls:route</span></td><td><code>{ "context": …, "extension": … }</code></td></tr>
+            <tr><td><code>route.voicemail</code></td><td><span class="chip chip-scope">calls:route</span></td><td><code>{ "context": …, "extension": … }</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3><span class="v">Chống trùng lặp bằng <code>request_id</code></span><span class="e">Idempotency with <code>request_id</code></span></h3>
+      <p>
+        <span class="v">Đặt một UUID vào <code>request_id</code> cho mọi lệnh bạn có thể phải gửi lại. Kết nối hiện tại ghi nhớ kết quả đã chấp nhận và trả lại đúng phản hồi cũ thay vì chạy lại hành động ARI lần thứ hai. Bộ nhớ này giữ 256 request gần nhất và <strong>mất khi kết nối đóng</strong>.</span>
+        <span class="e">Put a UUID in <code>request_id</code> on every command you might retry. The current connection remembers accepted results and replays the original response instead of running the ARI action twice. That memory holds the last 256 requests and <strong>is lost when the connection closes</strong>.</span>
+      </p>
+
+      <h3><span class="v">Allowlist đích</span><span class="e">Destination allowlist</span></h3>
+      <p>
+        <span class="v">Mọi lệnh <code>transfer.*</code> (trừ <code>transfer.cancel</code>), <code>route.*</code> và <code>outbound.originate</code> đều phải có <code>context</code> và <code>extension</code> ghép thành chuỗi <code>context:extension</code> nằm <strong>chính xác</strong> trong allowlist của partner app. Không có wildcard, không có so khớp tiền tố.</span>
+        <span class="e">Every <code>transfer.*</code> (except <code>transfer.cancel</code>), <code>route.*</code>, and <code>outbound.originate</code> must carry a <code>context</code> and <code>extension</code> whose <code>context:extension</code> pair is <strong>exactly</strong> in your partner app's allowlist. No wildcards, no prefix matching.</span>
+      </p>
+      <ul>
+        <li><span class="v"><code>context</code> — 1–80 ký tự thuộc <code>A–Z a–z 0–9 _ -</code></span><span class="e"><code>context</code> — 1–80 characters from <code>A–Z a–z 0–9 _ -</code></span></li>
+        <li><span class="v"><code>extension</code> — 1–80 ký tự thuộc <code>A–Z a–z 0–9 * # + _ -</code></span><span class="e"><code>extension</code> — 1–80 characters from <code>A–Z a–z 0–9 * # + _ -</code></span></li>
+      </ul>
+      <p>
+        <span class="v">Sai cú pháp hoặc không có trong allowlist đều trả <code>command-denied</code>. Đây là lỗi cấu hình, không phải lỗi tạm thời — thử lại không giúp ích.</span>
+        <span class="e">Bad syntax and a missing allowlist entry both return <code>command-denied</code>. That is a configuration error, not a transient one — retrying will not help.</span>
+      </p>
+    </section>
+
+    <!-- ============ OUTBOUND ============ -->
+    <section id="outbound">
+      <p class="eyebrow"><span class="v">Gọi ra</span><span class="e">Outbound</span></p>
+      <h2><span class="v">Agent chủ động khởi tạo cuộc gọi</span><span class="e">Calls your agent starts</span></h2>
+
+      <div class="code">
+        <div class="code-head"><span class="chip chip-out">partner → gateway</span><span>outbound.originate</span></div>
+        <pre><code>{
+  "type": "outbound.originate",
+  "request_id": "3f9a7c11-5d2b-4e88-a0c4-91b2d6f0e7a3",
+  "payload": { "context": "from-internal", "extension": "1002", "timeout": 30 }
+}
+
+// gateway → partner
+{"type":"outbound.accepted","call_id":"…","request_id":"3f9a7c11-…"}</code></pre>
+      </div>
+
+      <ul>
+        <li><span class="v">Cần scope <span class="chip chip-scope">calls:originate</span> và đích phải nằm trong allowlist.</span><span class="e">Requires the <span class="chip chip-scope">calls:originate</span> scope, and the destination must be allowlisted.</span></li>
+        <li><span class="v"><code>timeout</code> tính bằng giây, từ 1 đến 120; mặc định 30. Ngoài khoảng này trả <code>outbound-failed</code>.</span><span class="e"><code>timeout</code> is in seconds, from 1 to 120, defaulting to 30. Anything outside that returns <code>outbound-failed</code>.</span></li>
+        <li><span class="v"><code>outbound.accepted</code> nghĩa là Asterisk đã nhận yêu cầu, <strong>chưa</strong> phải đã được trả lời. Cuộc gọi chỉ thực sự sống khi bạn nhận <code>call.started</code> cho cùng <code>call_id</code>.</span><span class="e"><code>outbound.accepted</code> means Asterisk took the request, <strong>not</strong> that anyone answered. The call is live only when <code>call.started</code> arrives for the same <code>call_id</code>.</span></li>
+        <li><span class="v">Huỷ bằng <code>{"type":"outbound.cancel","call_id":"…"}</code>; gateway sẽ cúp kênh tương ứng.</span><span class="e">Cancel with <code>{"type":"outbound.cancel","call_id":"…"}</code>; the gateway hangs the channel up.</span></li>
+      </ul>
+    </section>
+
+    <!-- ============ SCOPES ============ -->
+    <section id="scopes">
+      <p class="eyebrow"><span class="v">Phân quyền</span><span class="e">Permissions</span></p>
+      <h2><span class="v">Danh mục scope</span><span class="e">The scope catalogue</span></h2>
+
+      <p>
+        <span class="v">Key của bạn chỉ mang được tập con scope của partner app. Hãy yêu cầu đúng những scope bạn dùng — lệnh nằm ngoài scope bị chặn ngay tại gateway, trước khi Asterisk được gọi.</span>
+        <span class="e">Your key can only carry a subset of the partner app's scopes. Ask for the ones you actually use — anything outside them is blocked at the gateway, before Asterisk is ever called.</span>
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Scope</th>
+              <th><span class="v">Cho phép</span><span class="e">Grants</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>calls:read</code></td><td><span class="v">Nhận sự kiện vòng đời cuộc gọi</span><span class="e">Receiving call lifecycle events</span></td></tr>
+            <tr><td><code>media:stream</code></td><td><span class="v">Truyền và nhận audio PCM</span><span class="e">Streaming PCM audio in and out</span></td></tr>
+            <tr><td><code>media:control</code></td><td><code>audio.clear</code></td></tr>
+            <tr><td><code>calls:dtmf</code></td><td><code>dtmf.send</code></td></tr>
+            <tr><td><code>calls:hold</code></td><td><code>call.hold</code>, <code>call.resume</code></td></tr>
+            <tr><td><code>calls:mute</code></td><td><code>call.mute</code>, <code>call.unmute</code></td></tr>
+            <tr><td><code>calls:hangup</code></td><td><code>call.hangup</code></td></tr>
+            <tr><td><code>calls:transfer</code></td><td><code>transfer.blind</code>, <code>transfer.attended</code>, <code>transfer.cancel</code></td></tr>
+            <tr><td><code>calls:route</code></td><td><code>route.queue</code>, <code>route.ring_group</code>, <code>route.voicemail</code></td></tr>
+            <tr><td><code>calls:originate</code></td><td><code>outbound.originate</code>, <code>outbound.cancel</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ ERRORS ============ -->
+    <section id="errors">
+      <p class="eyebrow"><span class="v">Lỗi</span><span class="e">Errors</span></p>
+      <h2><span class="v">Mã lỗi realtime</span><span class="e">Realtime error codes</span></h2>
+
+      <p>
+        <span class="v">Lỗi luôn tới dưới dạng <code>{"type":"error","code":…,"message":…}</code> và <strong>không</strong> tự đóng kết nối. Hãy phân biệt lỗi cấu hình (không thử lại) với lỗi tạm thời (thử lại có backoff).</span>
+        <span class="e">Errors always arrive as <code>{"type":"error","code":…,"message":…}</code> and do <strong>not</strong> close the connection. Separate configuration errors, which you must not retry, from transient ones, which you should.</span>
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th><span class="v">Mã</span><span class="e">Code</span></th>
+              <th><span class="v">Nguyên nhân</span><span class="e">Cause</span></th>
+              <th><span class="v">Thử lại?</span><span class="e">Retry?</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>registration-rejected</code></td>
+              <td><span class="v"><code>agent_slug</code> không khớp key, hoặc <code>protocol_version</code> khác <code>"1"</code></span><span class="e"><code>agent_slug</code> does not match the key, or <code>protocol_version</code> is not <code>"1"</code></span></td>
+              <td><span class="v">Không</span><span class="e">No</span></td>
+            </tr>
+            <tr>
+              <td><code>agent-in-use</code></td>
+              <td><span class="v">Slug đang có kết nối khác giữ</span><span class="e">Another connection already holds the slug</span></td>
+              <td><span class="v">Có, sau backoff</span><span class="e">Yes, after a backoff</span></td>
+            </tr>
+            <tr>
+              <td><code>protocol-invalid</code></td>
+              <td><span class="v">Gửi khung trước khi đăng ký, hoặc loại thông điệp không được hỗ trợ</span><span class="e">A frame sent before registration, or an unsupported message type</span></td>
+              <td><span class="v">Không</span><span class="e">No</span></td>
+            </tr>
+            <tr>
+              <td><code>audio-invalid</code></td>
+              <td><span class="v">Khung nhị phân dài không quá 16 byte</span><span class="e">A binary frame of 16 bytes or fewer</span></td>
+              <td><span class="v">Không</span><span class="e">No</span></td>
+            </tr>
+            <tr>
+              <td><code>call-not-active</code></td>
+              <td><span class="v"><code>call_id</code> đã kết thúc hoặc không thuộc kết nối của bạn</span><span class="e">The <code>call_id</code> has ended or is not owned by your connection</span></td>
+              <td><span class="v">Không</span><span class="e">No</span></td>
+            </tr>
+            <tr>
+              <td><code>media-unavailable</code></td>
+              <td><span class="v">Đường media phía Asterisk chưa sẵn sàng</span><span class="e">The Asterisk-side media path is not ready</span></td>
+              <td><span class="v">Có, khung tiếp theo</span><span class="e">Yes, on the next frame</span></td>
+            </tr>
+            <tr>
+              <td><code>command-denied</code></td>
+              <td><span class="v">Thiếu scope, đích không nằm trong allowlist, hoặc sai cú pháp đích</span><span class="e">Missing scope, destination not allowlisted, or bad destination syntax</span></td>
+              <td><span class="v">Không</span><span class="e">No</span></td>
+            </tr>
+            <tr>
+              <td><code>command-failed</code></td>
+              <td><span class="v">Asterisk từ chối lệnh, hoặc kênh chưa sẵn sàng</span><span class="e">Asterisk rejected the command, or the channel is not ready yet</span></td>
+              <td><span class="v">Có, một lần với <code>request_id</code></span><span class="e">Yes, once, with a <code>request_id</code></span></td>
+            </tr>
+            <tr>
+              <td><code>outbound-failed</code></td>
+              <td><span class="v">Đích bị từ chối, timeout ngoài khoảng 1–120, hoặc ARI báo lỗi</span><span class="e">Destination refused, timeout outside 1–120, or ARI returned an error</span></td>
+              <td><span class="v">Tuỳ nội dung <code>message</code></span><span class="e">Depends on the <code>message</code></span></td>
+            </tr>
+            <tr>
+              <td><code>presence-unavailable</code></td>
+              <td><span class="v">Kho lưu trạng thái kết nối của gateway gặp sự cố</span><span class="e">The gateway's connection lease store is failing</span></td>
+              <td><span class="v">Có, sau backoff</span><span class="e">Yes, after a backoff</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ SDK ============ -->
+    <section id="sdk">
+      <p class="eyebrow">SDK</p>
+      <h2><span class="v">Mẫu tích hợp</span><span class="e">Reference clients</span></h2>
+
+      <p>
+        <span class="v">SDK chính thức lo phần đổi token, đăng ký phiên, heartbeat 10 giây, kết nối lại kèm token mới, và đóng/gỡ khung audio. Mọi lệnh điều khiển đều có helper tương ứng và tự sinh <code>request_id</code>. Chỉ tự dựng khung thô khi môi trường của bạn không dùng được SDK.</span>
+        <span class="e">The official SDKs handle token exchange, registration, 10-second heartbeats, reconnect with a fresh token, and the audio envelope. Every control command has a helper that generates its own <code>request_id</code>. Hand-roll the raw framing only when your runtime cannot use an SDK.</span>
+      </p>
+
+      <div class="code">
+        <div class="code-head"><span>Python</span><span>pip install ./sdks/python</span></div>
+        <pre><code>import asyncio, os
+from asterisk_ai_gateway import GatewayClient
+
+client = GatewayClient(
+    gateway_url=os.environ["GATEWAY_URL"],
+    api_key=os.environ["GATEWAY_API_KEY"],   # không hard-code / never hard-code
+    agent_slug="support-agent",
+)
+
+async def on_event(event):
+    if event["type"] == "call.started":
+        print("call up:", event["call_id"])
+    elif event["type"] == "error":
+        print("denied:", event["code"], event["message"])
+    elif event["type"] == "call.ended":
+        print("call down:", event["call_id"])
+
+async def on_audio(call_id, pcm):        # PCM s16le, 16 kHz, mono
+    await client.send_audio(call_id, pcm)   # vọng âm / echo back
+
+# Token, register, heartbeat và reconnect do SDK lo / handled by the SDK
+asyncio.run(client.run(on_event=on_event, on_audio=on_audio))</code></pre>
+      </div>
+
+      <div class="code">
+        <div class="code-head"><span>Node</span><span>npm install ./sdks/node</span></div>
+        <pre><code>import { GatewayClient } from "@asterisk-ai-agent-gateway/sdk";
+
+const client = new GatewayClient({
+  gatewayUrl: process.env.GATEWAY_URL,
+  apiKey: process.env.GATEWAY_API_KEY,
+  agentSlug: "support-agent",
+});
+
+client.on("call.started", (event) => console.log("call up:", event.call_id));
+client.on("call.ended", (event) => console.log("call down:", event.call_id));
+client.on("audio", ({ callId, pcm }) => client.sendAudio(callId, pcm));
+
+// Chuyển máy có kiểm tra scope + allowlist / scoped, allowlisted transfer
+// client.transferBlind(callId, "from-internal", "1001");
+
+await client.start();</code></pre>
+      </div>
+
+      <div class="code">
+        <div class="code-head"><span>Node</span><span class="v">Khung audio thô</span><span class="e">Raw audio framing</span></div>
+        <pre><code>// partner → gateway: 16 byte UUID + PCM s16le 16 kHz mono
+function audioFrame(callId, pcm) {
+  const uuid = Buffer.from(callId.replace(/-/g, ""), "hex"); // 16 bytes
+  return Buffer.concat([uuid, pcm]);
+}
+
+// gateway → partner
+socket.on("message", (data, isBinary) => {
+  if (!isBinary) return handleEvent(JSON.parse(data));
+  const callId = formatUuid(data.subarray(0, 16));
+  const pcm = data.subarray(16);
+  playInto(callId, pcm);
+});</code></pre>
+      </div>
+    </section>
+
+    <!-- ============ GO LIVE ============ -->
+    <section id="golive">
+      <p class="eyebrow"><span class="v">Vận hành</span><span class="e">Operations</span></p>
+      <h2><span class="v">Danh mục kiểm tra trước khi lên production</span><span class="e">Before you go live</span></h2>
+
+      <ul class="check">
+        <li><span class="v">API key nằm trong kho bí mật, được che khỏi log và thông báo lỗi.</span><span class="e">The API key lives in a secret store and is redacted from logs and error reports.</span></li>
+        <li><span class="v">Mỗi lần kết nối lại đều xin token mới, có backoff luỹ tiến và giới hạn số lần thử.</span><span class="e">Every reconnect mints a fresh token, with exponential backoff and a retry ceiling.</span></li>
+        <li><span class="v">Heartbeat 10 giây một lần, và bạn xử lý đúng các mã đóng 4401 / 1012 / 1013.</span><span class="e">Heartbeats go out every 10 seconds, and close codes 4401 / 1012 / 1013 are handled distinctly.</span></li>
+        <li><span class="v">Mỗi <code>call_id</code> có đúng một chuỗi xử lý, và trạng thái được giải phóng khi <code>call.ended</code>.</span><span class="e">Exactly one handler chain per <code>call_id</code>, and state is released on <code>call.ended</code>.</span></li>
+        <li><span class="v">Mọi lệnh có thể gửi lại đều mang <code>request_id</code> dạng UUID.</span><span class="e">Every retryable command carries a UUID <code>request_id</code>.</span></li>
+        <li><span class="v">Chỉ một worker giữ mỗi <code>agent_slug</code>; kịch bản triển khai chờ cuộc gọi kết thúc trước khi tắt tiến trình cũ.</span><span class="e">One worker per <code>agent_slug</code>, and your deploy drains in-flight calls before the old process exits.</span></li>
+        <li><span class="v">Bạn đã thử nghiệm với gateway thật và xác nhận allowlist đích đủ cho mọi luồng chuyển máy.</span><span class="e">You have tested against a real gateway and confirmed the allowlist covers every transfer path you use.</span></li>
+      </ul>
+
+      <div class="note">
+        <p class="note-title"><span class="v">Giới hạn phạm vi</span><span class="e">Scope of this boundary</span></p>
+        <p><span class="v">Đừng yêu cầu quyền truy cập ARI, SIP, AudioSocket, RTP, Docker hay máy chủ. Mọi thứ bạn cần đều nằm trong tài liệu này; nếu một tình huống không giải quyết được bằng các bề mặt trên, hãy trao đổi với bên vận hành gateway thay vì đi vòng qua biên bảo mật.</span><span class="e">Do not request ARI, SIP, AudioSocket, RTP, Docker, or host access. Everything you need is in this document; if a case cannot be solved with these surfaces, raise it with the gateway operator rather than routing around the boundary.</span></p>
+      </div>
+    </section>
+
+    <footer class="doc-footer">
+      <p>
+        <span class="v">Asterisk AI Agent Gateway · Control API 1.0.0 · Realtime protocol v1. Tài liệu này mô tả các bề mặt công khai dành cho đối tác; mọi thay đổi phá vỡ tương thích sẽ đi kèm phiên bản protocol mới.</span>
+        <span class="e">Asterisk AI Agent Gateway · Control API 1.0.0 · Realtime protocol v1. This document covers the partner-facing surfaces only; any breaking change ships as a new protocol version.</span>
+      </p>
+    </footer>
+
+  </main>
+</div>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    var buttons = document.querySelectorAll(".switch button");
+
+    function setLang(lang) {
+      root.setAttribute("data-lang", lang);
+      root.lang = lang;
+      buttons.forEach(function (button) {
+        button.setAttribute("aria-pressed", String(button.dataset.lang === lang));
+      });
+      try { localStorage.setItem("gw-doc-lang", lang); } catch (e) { /* private mode */ }
+    }
+
+    buttons.forEach(function (button) {
+      button.addEventListener("click", function () { setLang(button.dataset.lang); });
+    });
+
+    setLang(root.getAttribute("data-lang") === "en" ? "en" : "vi");
+
+    var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+    var byId = {};
+    links.forEach(function (link) { byId[link.getAttribute("href").slice(1)] = link; });
+
+    if ("IntersectionObserver" in window) {
+      var observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          links.forEach(function (link) { link.classList.remove("active"); });
+          var active = byId[entry.target.id];
+          if (active) active.classList.add("active");
+        });
+      }, { rootMargin: "-15% 0px -75% 0px" });
+
+      document.querySelectorAll(".doc > section").forEach(function (section) {
+        observer.observe(section);
+      });
+    }
+  })();
+</script>
+</body>
+</html>

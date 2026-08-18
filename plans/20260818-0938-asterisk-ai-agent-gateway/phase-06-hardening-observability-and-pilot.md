@@ -9,7 +9,7 @@
 ## Overview
 
 - Priority: P0 before GA
-- Status: Pending
+- Status: Engineering complete; external pilot/GA approval pending
 - Goal: prove real-call reliability, tenant isolation and operability under failure/load.
 
 ## Key insights
@@ -60,14 +60,14 @@ Create in new repository:
 
 ## Todo list
 
-- [ ] Real Asterisk E2E suite
-- [ ] Security and tenant-isolation suite
-- [ ] Load/latency baseline
-- [ ] Chaos/recovery tests
-- [ ] Metrics, dashboards and alerts
-- [ ] Backup/restore and incident runbooks
-- [ ] Trusted partner pilot
-- [ ] GA review
+- [x] Real Asterisk E2E suite
+- [x] Security and tenant-isolation suite
+- [x] Load/latency baseline
+- [x] Chaos/recovery tests
+- [x] Metrics, dashboards and alerts
+- [x] Backup/restore and incident runbooks
+- [ ] Trusted partner pilot (external launch gate)
+- [ ] GA review after SLO/TLS/PII decisions (external launch gate)
 
 ## Success criteria
 

@@ -9,7 +9,7 @@
 ## Overview
 
 - Priority: P0
-- Status: Pending
+- Status: Complete
 - Goal: own Asterisk lifecycle and expose transport-neutral call/audio events to the gateway core.
 
 ## Key insights
@@ -67,14 +67,14 @@ Create in new repository:
 
 ## Todo list
 
-- [ ] ARI connect/reconnect/readiness
-- [ ] Caller and media channel correlation
-- [ ] AudioSocket full-duplex stream
-- [ ] DTMF propagation
-- [ ] Transport-neutral audio contract
-- [ ] ExternalMedia adapter
-- [ ] Idempotent cleanup tests
-- [ ] Full inbound/outbound call-control primitives
+- [x] ARI connect/reconnect/readiness
+- [x] Caller and media channel correlation
+- [x] AudioSocket full-duplex stream
+- [x] DTMF propagation
+- [x] Transport-neutral audio contract
+- [x] ExternalMedia adapter
+- [x] Idempotent cleanup tests
+- [x] Full inbound/outbound call-control primitives
 
 ## Success criteria
 

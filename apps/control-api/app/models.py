@@ -47,9 +47,10 @@ class PartnerApp(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
     name: Mapped[str] = mapped_column(String(120))
-    agent_slug: Mapped[str] = mapped_column(String(80))
+    agent_slug: Mapped[str] = mapped_column(String(80), unique=True, index=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     scopes: Mapped[str] = mapped_column(Text, default="calls:read,media:stream")
+    allowed_destinations: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 

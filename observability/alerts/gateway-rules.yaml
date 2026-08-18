@@ -1,0 +1,35 @@
+groups:
+  - name: asterisk-ai-agent-gateway
+    rules:
+      - alert: GatewayAriDisconnected
+        expr: gateway_ari_connected == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Gateway lost its ARI event connection
+      - alert: GatewayPartnerAudioDrops
+        expr: increase(gateway_partner_audio_drops_total[5m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: Slow partner caused gateway audio drops
+      - alert: GatewayPartnerQueueHigh
+        expr: gateway_partner_audio_queue_depth > 75
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: Partner audio queue is approaching its bound
+      - alert: GatewayCallFailureSpike
+        expr: increase(gateway_calls_total{outcome="failed"}[5m]) > 3
+        labels:
+          severity: critical
+        annotations:
+          summary: Gateway call setup failures increased
+      - alert: GatewayTokenRateLimitSpike
+        expr: increase(gateway_rate_limit_rejections_total[5m]) > 20
+        labels:
+          severity: warning
+        annotations:
+          summary: Realtime token requests are being rate limited

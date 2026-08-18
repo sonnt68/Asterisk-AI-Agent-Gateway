@@ -1,6 +1,6 @@
 # Plan: Asterisk AI Agent Gateway
 
-Status: Scope confirmed — ready for implementation, chưa implement  
+Status: 6/6 engineering phases complete — external GA gates pending
 Proposed project: `/Users/mac/workspace/sonnt/Asterisk-AI-Agent-Gateway`
 
 ## Outcome
@@ -45,12 +45,12 @@ Dashboard -> Control API ---------------------+
 
 | Phase | Status | Scope |
 |---|---|---|
-| [01](phase-01-project-foundation-and-contracts.md) | Pending | New repo, boundaries, schemas, OpenAPI/AsyncAPI |
-| [02](phase-02-asterisk-control-and-media-plane.md) | Pending | ARI lifecycle, AudioSocket MVP, RTP adapter |
-| [03](phase-03-third-party-realtime-gateway-api.md) | Pending | Partner WSS, session token, routing, call control |
-| [04](phase-04-multi-tenant-auth-api-key-dashboard.md) | Pending | Auth, RBAC, API keys, AVA-derived dashboard |
-| [05](phase-05-sdk-docs-and-ai-coding-skill.md) | Pending | SDKs, connection docs, examples, coding skill |
-| [06](phase-06-hardening-observability-and-pilot.md) | Pending | E2E, security, load, deployment, pilot |
+| [01](phase-01-project-foundation-and-contracts.md) | Complete | New repo, boundaries, schemas, OpenAPI/AsyncAPI |
+| [02](phase-02-asterisk-control-and-media-plane.md) | Complete | ARI lifecycle, AudioSocket MVP, RTP adapter |
+| [03](phase-03-third-party-realtime-gateway-api.md) | Complete | Partner WSS, session token, routing, call control |
+| [04](phase-04-multi-tenant-auth-api-key-dashboard.md) | Complete | Auth, RBAC, API keys, AVA-derived dashboard |
+| [05](phase-05-sdk-docs-and-ai-coding-skill.md) | Complete | SDKs, connection docs, examples, coding skill |
+| [06](phase-06-hardening-observability-and-pilot.md) | Engineering complete | E2E, security, load, deployment; external pilot is a GA gate |
 
 ## Acceptance criteria
 

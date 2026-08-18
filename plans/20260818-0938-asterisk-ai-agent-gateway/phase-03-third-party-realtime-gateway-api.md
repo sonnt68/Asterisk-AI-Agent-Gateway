@@ -9,7 +9,7 @@
 ## Overview
 
 - Priority: P0
-- Status: Pending
+- Status: Complete
 - Goal: make partner integration a single authenticated outbound WSS connection hidden behind SDKs.
 
 ## Key insights
@@ -65,14 +65,14 @@ Create in new repository:
 
 ## Todo list
 
-- [ ] Realtime token endpoint
-- [ ] Authenticated WSS handshake
-- [ ] Protocol/version negotiation
-- [ ] Connection presence and routing
-- [ ] Binary audio stream
-- [ ] Control command authorization
-- [ ] Outbound originate/cancel lifecycle
-- [ ] Slow consumer/disconnect policies
+- [x] Realtime token endpoint
+- [x] Authenticated WSS handshake
+- [x] Protocol/version negotiation
+- [x] Connection presence and routing
+- [x] Binary audio stream
+- [x] Control command authorization
+- [x] Outbound originate/cancel lifecycle
+- [x] Slow consumer/disconnect policies
 
 ## Success criteria
 

@@ -43,7 +43,11 @@ def token_serializer(settings: Settings) -> URLSafeTimedSerializer:
 
 
 def issue_realtime_token(subject: dict[str, str], settings: Settings) -> str:
-    payload = {**subject, "issuer": settings.realtime_issuer, "expires_at": (datetime.now(UTC) + timedelta(minutes=5)).isoformat()}
+    payload = {
+        **subject,
+        "issuer": settings.realtime_issuer,
+        "expires_at": (datetime.now(UTC) + timedelta(minutes=5)).isoformat(),
+    }
     return token_serializer(settings).dumps(payload)
 
 
@@ -53,3 +57,10 @@ def verify_realtime_token(token: str, settings: Settings) -> dict[str, str] | No
     except BadSignature:
         return None
     return payload if payload.get("issuer") == settings.realtime_issuer else None
+
+
+def timestamp_expired(value: datetime | None) -> bool:
+    if value is None:
+        return False
+    comparable = value if value.tzinfo else value.replace(tzinfo=UTC)
+    return comparable <= datetime.now(UTC)

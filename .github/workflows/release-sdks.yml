@@ -1,0 +1,141 @@
+name: Release partner SDKs
+
+# Tag a release to publish both SDKs at the same version:
+#   git tag sdk-v0.1.0 && git push origin sdk-v0.1.0
+#
+# Publishing uses Trusted Publishing (OIDC) on both registries, so no PyPI or
+# npm token is ever stored in this repository. Configure once before the first
+# release:
+#   PyPI  — pypi.org > Publishing > add a GitHub publisher for this repo,
+#           workflow `release-sdks.yml`, environment `pypi`.
+#   npm   — npmjs.com > package settings > Trusted publisher, same repo and
+#           workflow. The @asterisk-ai-agent-gateway scope must exist first.
+#
+# Rehearse with a pre-release tag (sdk-v0.1.0-rc.1): it publishes to TestPyPI
+# and skips npm entirely.
+
+on:
+  push:
+    tags:
+      - "sdk-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify version matches the tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+      prerelease: ${{ steps.tag.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: tag
+        name: Read version from the tag
+        run: |
+          version="${GITHUB_REF_NAME#sdk-v}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [[ "$version" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Both SDKs must carry the tagged version
+        run: |
+          version="${{ steps.tag.outputs.version }}"
+          python_version=$(grep -m1 '^version = ' sdks/python/pyproject.toml | cut -d'"' -f2)
+          node_version=$(node -p "require('./sdks/node/package.json').version")
+          echo "tag=$version python=$python_version node=$node_version"
+          if [ "$python_version" != "$version" ] || [ "$node_version" != "$version" ]; then
+            echo "::error::Tag $version does not match sdks/python ($python_version) or sdks/node ($node_version)"
+            exit 1
+          fi
+
+  test:
+    name: Test before publishing
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Python SDK
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          pip install -e ./sdks/python
+          pytest -q tests/test_partner_sdk.py
+
+      - name: Node SDK
+        working-directory: sdks/node
+        run: |
+          npm install
+          npm test
+
+  pypi:
+    name: Publish to PyPI
+    needs: [verify, test]
+    runs-on: ubuntu-latest
+    environment: ${{ needs.verify.outputs.prerelease == 'true' && 'testpypi' || 'pypi' }}
+    permissions:
+      id-token: write # required for Trusted Publishing
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build sdist and wheel
+        working-directory: sdks/python
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+
+      - name: Publish to TestPyPI
+        if: needs.verify.outputs.prerelease == 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: sdks/python/dist
+          repository-url: https://test.pypi.org/legacy/
+
+      - name: Publish to PyPI
+        if: needs.verify.outputs.prerelease != 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: sdks/python/dist
+
+  npm:
+    name: Publish to npm
+    needs: [verify, test]
+    # npm has no staging registry equivalent to TestPyPI, so pre-release tags
+    # rehearse the Python side only.
+    if: needs.verify.outputs.prerelease != 'true'
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      id-token: write # required for Trusted Publishing and provenance
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: https://registry.npmjs.org
+
+      - name: Publish
+        working-directory: sdks/node
+        run: |
+          npm install --package-lock-only
+          npm publish --provenance --access public

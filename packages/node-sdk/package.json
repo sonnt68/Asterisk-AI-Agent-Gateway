@@ -1,0 +1,11 @@
+{
+  "name": "@asterisk-ai-agent-gateway/sdk",
+  "version": "0.1.0",
+  "description": "Node realtime client for Asterisk AI Agent Gateway",
+  "type": "module",
+  "main": "dist/client.js",
+  "types": "dist/client.d.ts",
+  "scripts": { "build": "tsc -p tsconfig.json" },
+  "dependencies": { "ws": "^8.18.0" },
+  "devDependencies": { "@types/node": "^22.10.0", "@types/ws": "^8.5.13", "typescript": "^5.7.0" }
+}

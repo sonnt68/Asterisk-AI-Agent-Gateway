@@ -1,7 +1,36 @@
 {
   "name": "@asterisk-ai-agent-gateway/sdk",
   "version": "0.1.0",
-  "private": true,
+  "description": "Partner SDK for the Asterisk AI Agent Gateway realtime protocol v1",
+  "license": "MIT",
   "type": "module",
-  "exports": "./src/index.js"
+  "main": "./src/index.js",
+  "types": "./types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./frames": {
+      "types": "./types/index.d.ts",
+      "default": "./src/frames.js"
+    }
+  },
+  "files": [
+    "src",
+    "types",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

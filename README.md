@@ -4,7 +4,11 @@ A SaaS gateway that connects one Asterisk instance to third-party AI agents. The
 
 ## Status
 
-Phase 01 foundation. The public REST and realtime contracts are versioned before telephony and dashboard implementation.
+MVP engineering is complete and deployed against the pilot Asterisk. AudioSocket
+and ExternalMedia RTP completed bidirectional PCM through the partner WSS;
+attended transfer, idempotency, security, load and dependency-recovery probes
+also pass without orphan channels. Public GA still requires an approved SLO,
+TLS hostname and a real third-party pilot.
 
 ## Architecture
 
@@ -42,6 +46,8 @@ npm --prefix apps/admin-ui install
 .venv/bin/ruff check apps tests
 .venv/bin/pytest
 npm run admin:build
+# Or run every provider-neutral validation gate:
+bash scripts/validate.sh
 ```
 
 To run the local container stack, copy `.env.example` to `.env`, replace the
@@ -51,6 +57,6 @@ placeholder PostgreSQL and Asterisk values, then run:
 docker compose up --build
 ```
 
-The Asterisk adapter is intentionally not connected in this foundation phase;
-the API health endpoint is available at `http://localhost:8080/api/v1/system/health`
-and the dashboard shell at `http://localhost:5173`.
+Run `alembic upgrade head` before starting the API outside Compose. The health
+endpoint is `http://localhost:8080/api/v1/system/health`, metrics are at
+`/api/v1/system/metrics`, and the dashboard is at `http://localhost:5173`.

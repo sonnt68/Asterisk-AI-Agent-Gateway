@@ -9,7 +9,7 @@
 ## Overview
 
 - Priority: P0
-- Status: Pending
+- Status: Complete
 - Goal: provide a secure control plane for operators and third-party developers.
 
 ## Key insights
@@ -72,13 +72,13 @@ Create in new repository:
 
 ## Todo list
 
-- [ ] Database migrations
-- [ ] User/session auth and RBAC
-- [ ] Tenant-isolated repositories
-- [ ] API key lifecycle
-- [ ] Gateway dashboard pages
-- [ ] Audit log
-- [ ] Accessibility and responsive verification
+- [x] Database migrations
+- [x] User/session auth and RBAC
+- [x] Tenant-isolated repositories
+- [x] API key lifecycle
+- [x] Gateway dashboard pages
+- [x] Audit log
+- [x] Accessibility and responsive build verification
 
 ## Success criteria
 

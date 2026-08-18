@@ -11,11 +11,14 @@ version = "0.1.0"
 description = "SaaS gateway between Asterisk and third-party AI agents"
 requires-python = ">=3.12,<3.15"
 dependencies = [
+  "alembic>=1.14,<2.0",
   "aiohttp>=3.10,<4.0",
   "argon2-cffi>=23.1,<24.0",
   "fastapi>=0.115,<1.0",
   "itsdangerous>=2.2,<3.0",
   "psycopg[binary]>=3.2,<4.0",
+  "prometheus-client>=0.21,<1.0",
+  "redis>=5.2,<6.0",
   "SQLAlchemy>=2.0,<3.0",
   "uvicorn[standard]>=0.30,<1.0",
 ]
@@ -29,12 +32,15 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-pythonpath = ["apps/control-api", "apps/gateway"]
+pythonpath = ["apps/control-api", "apps/gateway", "sdks/python"]
 testpaths = ["tests"]
 
 [tool.ruff]
 target-version = "py312"
 line-length = 100
+# Vendored harness tooling ships as-is; it is not this project's code to restyle.
+exclude = [".agents", ".harness-core"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
+ignore = ["E501"]

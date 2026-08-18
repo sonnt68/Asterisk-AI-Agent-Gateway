@@ -20,8 +20,18 @@
   configuration.
 - `.env` is local-only. Use `.env.example` for non-secret configuration names.
 
-## Current Limit
+## Enforced controls
 
-Authentication, key issuance, and authorization endpoints do not exist in
-Phase 01. This document defines their required security boundary; it does not
-claim that it is enforced yet.
+- Argon2id browser passwords; signed, time-bounded, HttpOnly, SameSite session
+  cookies; configured-Origin checks on cookie-authenticated writes.
+- Tenant-scoped RBAC on management resources and scope/destination checks on
+  call control.
+- HMAC-hashed API secrets, one-time plaintext reveal, expiry and revocation.
+- Five-minute realtime tokens checked against live key revocation at WSS
+  handshake.
+- Redis token exchange limits per key, organization and source IP. The default
+  is 60 requests/minute and is configurable for an approved traffic profile.
+- Bounded partner audio queues use drop-oldest behavior with drop metrics.
+
+Public production still requires TLS termination, private ARI connectivity,
+MFA/SSO policy, approved traffic SLOs and a caller-PII retention decision.

@@ -2,12 +2,108 @@ openapi: 3.1.0
 info:
   title: Asterisk AI Agent Gateway Control API
   version: 1.0.0
-  description: >-
-    Versioned control-plane API. Partner authentication, API-key lifecycle, and
-    call-control resources are introduced in later compatible revisions.
+  description: Versioned SaaS control-plane and partner authentication API.
 servers:
   - url: https://gateway.example.com/api/v1
 paths:
+  /auth/login:
+    post:
+      operationId: login
+      summary: Create an HttpOnly dashboard session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 12 }
+      responses:
+        '200': { description: Authenticated }
+        '401': { description: Invalid credentials }
+  /organizations/{organization_id}/partner-apps:
+    parameters:
+      - in: path
+        name: organization_id
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: listPartnerApps
+      responses:
+        '200': { description: Tenant-scoped partner applications }
+    post:
+      operationId: createPartnerApp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PartnerAppRequest' }
+      responses:
+        '201': { description: Partner application created }
+  /partner-apps/{app_id}/api-keys:
+    parameters:
+      - in: path
+        name: app_id
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: listApiKeys
+      responses:
+        '200': { description: Key metadata without recoverable secrets }
+    post:
+      operationId: createApiKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ApiKeyRequest' }
+      responses:
+        '201':
+          description: Plaintext key returned once
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IssuedApiKey' }
+  /api-keys/{key_id}:
+    delete:
+      operationId: revokeApiKey
+      parameters:
+        - in: path
+          name: key_id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Key revoked }
+  /api-keys/{key_id}/rotate:
+    post:
+      operationId: rotateApiKey
+      parameters:
+        - in: path
+          name: key_id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '201':
+          description: Old key revoked and replacement plaintext returned once
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IssuedApiKey' }
+  /realtime/tokens:
+    post:
+      operationId: createRealtimeToken
+      security: [{ partnerApiKey: [] }]
+      responses:
+        '200':
+          description: Five-minute realtime token
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token, expires_in]
+                properties:
+                  token: { type: string }
+                  expires_in: { type: string, const: '300' }
   /system/health:
     get:
       operationId: getSystemHealth
@@ -19,8 +115,66 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+  /asterisk:
+    get:
+      operationId: getAsteriskConfiguration
+      responses:
+        '200': { description: Sanitized singular Asterisk configuration and transport }
+  /runtime:
+    get:
+      operationId: getRuntimeSummary
+      responses:
+        '200': { description: Tenant-scoped readiness and active counts }
+  /connections:
+    get:
+      operationId: listActiveConnections
+      responses:
+        '200': { description: Tenant-scoped active partner connections }
+  /calls:
+    get:
+      operationId: listActiveCalls
+      responses:
+        '200': { description: Tenant-scoped active gateway calls }
+  /audit-events:
+    get:
+      operationId: listAuditEvents
+      responses:
+        '200': { description: Latest tenant audit events }
+  /organization/members:
+    get:
+      operationId: listOrganizationMembers
+      responses:
+        '200': { description: Tenant membership and roles }
 components:
+  securitySchemes:
+    partnerApiKey:
+      type: http
+      scheme: bearer
   schemas:
+    PartnerAppRequest:
+      type: object
+      required: [name, agent_slug]
+      properties:
+        name: { type: string, maxLength: 120 }
+        agent_slug: { type: string, pattern: '^[a-z0-9-]{3,80}$' }
+        scopes: { type: array, items: { type: string } }
+        allowed_destinations: { type: array, items: { type: string } }
+    ApiKeyRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, maxLength: 120 }
+        scopes: { type: array, items: { type: string } }
+        expires_at: { type: [string, 'null'], format: date-time }
+    IssuedApiKey:
+      type: object
+      required: [id, prefix, key, scopes]
+      properties:
+        id: { type: string, format: uuid }
+        prefix: { type: string }
+        key: { type: string, writeOnly: true }
+        scopes: { type: array, items: { type: string } }
+        replaces: { type: string, format: uuid }
     HealthResponse:
       type: object
       additionalProperties: false

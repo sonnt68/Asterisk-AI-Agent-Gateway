@@ -3,8 +3,9 @@ info:
   title: Asterisk AI Agent Gateway Realtime Protocol
   version: 1.0.0
   description: >-
-    Partner-facing realtime protocol. Session authentication and production
-    channels are added only with their matching gateway implementation.
+    Partner-facing realtime protocol. JSON text frames carry lifecycle and
+    control events. Binary frames carry a 16-byte RFC 4122 gateway call UUID
+    followed by PCM signed 16-bit little-endian mono 16 kHz audio.
 servers:
   partner:
     host: gateway.example.com
@@ -20,6 +21,16 @@ channels:
         $ref: '#/components/messages/CallStarted'
       callControl:
         $ref: '#/components/messages/CallControl'
+      callEnded:
+        $ref: '#/components/messages/CallEnded'
+      outboundOriginate:
+        $ref: '#/components/messages/OutboundOriginate'
+      outboundAccepted:
+        $ref: '#/components/messages/OutboundAccepted'
+      transferConsulting:
+        $ref: '#/components/messages/TransferConsulting'
+      error:
+        $ref: '#/components/messages/Error'
 components:
   messages:
     SessionRegister:
@@ -38,11 +49,63 @@ components:
           type: { const: call.started }
           call_id: { type: string }
           sequence: { type: integer, minimum: 1 }
+          media:
+            type: object
+            properties:
+              encoding: { const: pcm_s16le }
+              sample_rate: { const: 16000 }
+              channels: { const: 1 }
     CallControl:
       payload:
         type: object
         required: [type, call_id, command]
         properties:
           type: { const: call.control }
+          request_id: { type: string, format: uuid }
           call_id: { type: string }
           command: { type: string }
+          payload: { type: object }
+    CallEnded:
+      payload:
+        type: object
+        required: [type, call_id]
+        properties:
+          type: { const: call.ended }
+          call_id: { type: string, format: uuid }
+    OutboundOriginate:
+      payload:
+        type: object
+        required: [type, payload]
+        properties:
+          type: { const: outbound.originate }
+          request_id: { type: string, format: uuid }
+          payload:
+            type: object
+            required: [context, extension]
+            properties:
+              context: { type: string }
+              extension: { type: string }
+              timeout: { type: integer, minimum: 1, maximum: 120 }
+    OutboundAccepted:
+      payload:
+        type: object
+        required: [type, call_id]
+        properties:
+          type: { const: outbound.accepted }
+          call_id: { type: string, format: uuid }
+          request_id: { type: string, format: uuid }
+    TransferConsulting:
+      payload:
+        type: object
+        required: [type, call_id]
+        properties:
+          type: { const: transfer.consulting }
+          call_id: { type: string, format: uuid }
+    Error:
+      payload:
+        type: object
+        required: [type, code, message]
+        properties:
+          type: { const: error }
+          code: { type: string }
+          message: { type: string }

@@ -2,6 +2,21 @@
 
 Start with the smallest authoritative surface.
 
+## Gateway guides
+
+- [`getting-started.md`](getting-started.md): first partner call.
+- [`operations/asterisk-connection.md`](operations/asterisk-connection.md):
+  connect and verify the single Asterisk.
+- [`partner/authentication.md`](partner/authentication.md): API keys and tokens.
+- [`partner/realtime-protocol.md`](partner/realtime-protocol.md): events/audio.
+- [`partner/call-control.md`](partner/call-control.md): scopes and commands.
+- [`partner/integration-guide.html`](partner/integration-guide.html): the
+  handout for third parties. Bilingual Vietnamese/English, self-contained,
+  covers the same surfaces as the three files above in one page.
+- [`operations/deployment.md`](operations/deployment.md) and
+  [`operations/observability-and-chaos.md`](operations/observability-and-chaos.md):
+  deployment, metrics and recovery.
+
 ## Current Product
 
 - `WORKFLOW.md`: request shape, planning, judgment, operation, validation, and

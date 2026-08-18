@@ -9,7 +9,7 @@
 ## Overview
 
 - Priority: P0
-- Status: Pending approval
+- Status: Complete
 - Goal: create the independent repository and freeze its public/internal boundaries before implementation.
 
 ## Key insights
@@ -63,11 +63,11 @@ Create in new repository:
 
 ## Todo list
 
-- [ ] New repository initialized
-- [ ] AVA attribution recorded
-- [ ] Module boundaries compile
-- [ ] OpenAPI and AsyncAPI validate
-- [ ] CI runs focused tests, lint, typecheck and build
+- [x] New repository initialized
+- [x] AVA attribution recorded
+- [x] Module boundaries compile
+- [x] OpenAPI and AsyncAPI validate
+- [x] Provider-neutral validation script runs tests, lint, typecheck and build
 
 ## Success criteria
 

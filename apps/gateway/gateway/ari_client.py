@@ -23,7 +23,9 @@ class AriClient:
         self.ready = False
 
     async def connect(self) -> None:
-        self._session = aiohttp.ClientSession(auth=aiohttp.BasicAuth(self.config.username, self.config.password))
+        self._session = aiohttp.ClientSession(
+            auth=aiohttp.BasicAuth(self.config.username, self.config.password)
+        )
         async with self._session.get(f"{self.config.base_url}/asterisk/info") as response:
             if response.status != 200:
                 raise ConnectionError(f"ARI info request returned {response.status}")
@@ -38,7 +40,9 @@ class AriClient:
     async def command(self, method: str, path: str, **params: str) -> dict[str, object]:
         if not self._session or not self.ready:
             raise ConnectionError("ARI is not ready")
-        async with self._session.request(method, f"{self.config.base_url}{path}", params=params) as response:
+        async with self._session.request(
+            method, f"{self.config.base_url}{path}", params=params
+        ) as response:
             if response.status >= 400:
                 raise RuntimeError(f"ARI {method} {path} returned {response.status}")
             return await response.json() if response.content_type == "application/json" else {}
@@ -53,16 +57,32 @@ class AriClient:
         await self.command("POST", f"/channels/{quote(channel_id, safe='')}/dtmf", dtmf=digits)
 
     async def hold(self, channel_id: str, enabled: bool) -> None:
-        await self.command("POST" if enabled else "DELETE", f"/channels/{quote(channel_id, safe='')}/hold")
+        await self.command(
+            "POST" if enabled else "DELETE", f"/channels/{quote(channel_id, safe='')}/hold"
+        )
 
     async def mute(self, channel_id: str, enabled: bool) -> None:
-        await self.command("POST" if enabled else "DELETE", f"/channels/{quote(channel_id, safe='')}/mute", direction="both")
+        await self.command(
+            "POST" if enabled else "DELETE",
+            f"/channels/{quote(channel_id, safe='')}/mute",
+            direction="both",
+        )
 
-    async def redirect(self, channel_id: str, context: str, extension: str, priority: str = "1") -> None:
-        await self.command("POST", f"/channels/{quote(channel_id, safe='')}/redirect", context=context, extension=extension, priority=priority)
+    async def redirect(
+        self, channel_id: str, context: str, extension: str, priority: str = "1"
+    ) -> None:
+        await self.command(
+            "POST",
+            f"/channels/{quote(channel_id, safe='')}/redirect",
+            context=context,
+            extension=extension,
+            priority=priority,
+        )
 
     async def originate(self, endpoint: str, app_args: str) -> dict[str, object]:
-        return await self.command("POST", "/channels", endpoint=endpoint, app=self.config.app_name, appArgs=app_args)
+        return await self.command(
+            "POST", "/channels", endpoint=endpoint, app=self.config.app_name, appArgs=app_args
+        )
 
 
 class AriSupervisor:

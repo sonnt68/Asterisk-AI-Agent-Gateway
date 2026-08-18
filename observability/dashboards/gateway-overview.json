@@ -1,0 +1,14 @@
+{
+  "title": "Asterisk AI Agent Gateway",
+  "schemaVersion": 39,
+  "panels": [
+    {"type": "stat", "title": "ARI connected", "targets": [{"expr": "gateway_ari_connected"}]},
+    {"type": "stat", "title": "Active calls", "targets": [{"expr": "gateway_active_calls"}]},
+    {"type": "stat", "title": "Partner sessions", "targets": [{"expr": "gateway_active_partner_connections"}]},
+    {"type": "timeseries", "title": "Call setup p95", "targets": [{"expr": "histogram_quantile(0.95, sum(rate(gateway_call_setup_seconds_bucket[5m])) by (le))"}]},
+    {"type": "timeseries", "title": "Audio bytes", "targets": [{"expr": "sum(rate(gateway_audio_bytes_total[1m])) by (direction)"}]},
+    {"type": "timeseries", "title": "Queue and drops", "targets": [{"expr": "gateway_partner_audio_queue_depth"}, {"expr": "rate(gateway_partner_audio_drops_total[1m])"}]},
+    {"type": "timeseries", "title": "Call outcomes", "targets": [{"expr": "sum(rate(gateway_calls_total[5m])) by (outcome)"}]},
+    {"type": "timeseries", "title": "Command outcomes", "targets": [{"expr": "sum(rate(gateway_call_commands_total[5m])) by (outcome)"}]}
+  ]
+}
