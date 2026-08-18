@@ -78,6 +78,8 @@ class ActiveCall:
     media_connection_id: str | None = None
     transfer_channel_id: str | None = None
     media_transport: str = "audiosocket"
+    # Playback ids this call started, so a partner can only stop its own.
+    playbacks: set[str] = field(default_factory=set)
 
 
 class ConnectionRegistry:

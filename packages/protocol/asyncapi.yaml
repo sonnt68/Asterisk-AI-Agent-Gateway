@@ -21,6 +21,8 @@ channels:
         $ref: '#/components/messages/CallStarted'
       callControl:
         $ref: '#/components/messages/CallControl'
+      callControlAccepted:
+        $ref: '#/components/messages/CallControlAccepted'
       callEnded:
         $ref: '#/components/messages/CallEnded'
       outboundOriginate:
@@ -65,6 +67,22 @@ components:
           call_id: { type: string }
           command: { type: string }
           payload: { type: object }
+    CallControlAccepted:
+      payload:
+        type: object
+        required: [type, call_id]
+        properties:
+          type: { const: call.control.accepted }
+          call_id: { type: string, format: uuid }
+          request_id: { type: string, format: uuid }
+          result:
+            type: object
+            description: >-
+              Present only when the command produces a value the partner needs
+              later. playback.start returns the playback_id that playback.stop
+              requires.
+            properties:
+              playback_id: { type: string, format: uuid }
     CallEnded:
       payload:
         type: object

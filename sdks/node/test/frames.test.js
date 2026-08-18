@@ -56,3 +56,32 @@ test("control without a session fails loudly", () => {
 test("constructor requires every credential", () => {
   assert.throws(() => new GatewayClient({ gatewayUrl: "https://x", apiKey: "k" }), TypeError);
 });
+
+test("new capability helpers build the documented payloads", () => {
+  const client = new GatewayClient({
+    gatewayUrl: "https://gateway.example.com",
+    apiKey: "agw_live_a_b",
+    agentSlug: "support-agent",
+  });
+  const sent = [];
+  client.control = (callId, command, payload) => {
+    sent.push({ callId, command, payload });
+    return "req-1";
+  };
+
+  client.startPlayback(CALL_ID, "sound:hello");
+  client.stopPlayback(CALL_ID, "pb-1");
+  client.setVariable(CALL_ID, "AI_INTENT", "book_flight");
+  client.continueInDialplan(CALL_ID, "from-internal", "1001");
+
+  assert.deepEqual(sent.map((s) => s.command), [
+    "playback.start",
+    "playback.stop",
+    "channel.set_var",
+    "dialplan.continue",
+  ]);
+  assert.deepEqual(sent[0].payload, { media: "sound:hello" });
+  assert.deepEqual(sent[1].payload, { playback_id: "pb-1" });
+  assert.deepEqual(sent[2].payload, { variable: "AI_INTENT", value: "book_flight" });
+  assert.deepEqual(sent[3].payload, { context: "from-internal", extension: "1001" });
+});

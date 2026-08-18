@@ -14,6 +14,10 @@ COMMAND_SCOPES = {
     "route.queue": "calls:route",
     "route.ring_group": "calls:route",
     "route.voicemail": "calls:route",
+    "playback.start": "media:playback",
+    "playback.stop": "media:playback",
+    "channel.set_var": "channel:variables",
+    "dialplan.continue": "calls:dialplan",
     "outbound.originate": "calls:originate",
     "outbound.cancel": "calls:originate",
 }

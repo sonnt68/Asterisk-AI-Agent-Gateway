@@ -237,6 +237,43 @@ class GatewayClient:
         """Drop buffered playback audio. Requires ``media:control``."""
         return await self.control(call_id, "audio.clear", **kwargs)
 
+    async def start_playback(self, call_id: str, media: str, **kwargs: Any) -> str:
+        """Play an Asterisk media file into the call. Requires ``media:playback``.
+
+        ``media`` must be ``sound:<name>`` or ``recording:<name>``; the gateway
+        refuses every other scheme. The accepted response carries the
+        ``playback_id`` needed to stop it.
+        """
+        return await self.control(call_id, "playback.start", {"media": media}, **kwargs)
+
+    async def stop_playback(self, call_id: str, playback_id: str, **kwargs: Any) -> str:
+        """Stop a playback this call started. Requires ``media:playback``."""
+        return await self.control(
+            call_id, "playback.stop", {"playback_id": playback_id}, **kwargs
+        )
+
+    async def set_variable(self, call_id: str, variable: str, value: object, **kwargs: Any) -> str:
+        """Set a channel variable. Requires ``channel:variables``.
+
+        Names live in the partner namespace and must match ``AI_[A-Z0-9_]``;
+        dialplan functions such as ``CHANNEL(...)`` are refused.
+        """
+        return await self.control(
+            call_id, "channel.set_var", {"variable": variable, "value": value}, **kwargs
+        )
+
+    async def continue_in_dialplan(
+        self, call_id: str, context: str, extension: str, **kwargs: Any
+    ) -> str:
+        """Hand the call back to the dialplan. Requires ``calls:dialplan``.
+
+        The destination must be allowlisted on the partner app, exactly as for
+        a transfer.
+        """
+        return await self.control(
+            call_id, "dialplan.continue", {"context": context, "extension": extension}, **kwargs
+        )
+
     async def transfer_blind(self, call_id: str, context: str, extension: str, **kwargs: Any) -> str:
         """Redirect the call. Destination must be allowlisted; ``calls:transfer``."""
         return await self.control(

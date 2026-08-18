@@ -1006,6 +1006,10 @@ html { scroll-behavior: smooth; }
             <tr><td><code>route.queue</code></td><td><span class="chip chip-scope">calls:route</span></td><td><code>{ "context": …, "extension": … }</code></td></tr>
             <tr><td><code>route.ring_group</code></td><td><span class="chip chip-scope">calls:route</span></td><td><code>{ "context": …, "extension": … }</code></td></tr>
             <tr><td><code>route.voicemail</code></td><td><span class="chip chip-scope">calls:route</span></td><td><code>{ "context": …, "extension": … }</code></td></tr>
+            <tr><td><code>dialplan.continue</code></td><td><span class="chip chip-scope">calls:dialplan</span></td><td><code>{ "context": …, "extension": … }</code></td></tr>
+            <tr><td><code>playback.start</code></td><td><span class="chip chip-scope">media:playback</span></td><td><code>{ "media": "sound:hello" }</code></td></tr>
+            <tr><td><code>playback.stop</code></td><td><span class="chip chip-scope">media:playback</span></td><td><code>{ "playback_id": … }</code></td></tr>
+            <tr><td><code>channel.set_var</code></td><td><span class="chip chip-scope">channel:variables</span></td><td><code>{ "variable": "AI_X", "value": … }</code></td></tr>
           </tbody>
         </table>
       </div>
@@ -1029,6 +1033,18 @@ html { scroll-behavior: smooth; }
         <span class="v">Sai cú pháp hoặc không có trong allowlist đều trả <code>command-denied</code>. Đây là lỗi cấu hình, không phải lỗi tạm thời — thử lại không giúp ích.</span>
         <span class="e">Bad syntax and a missing allowlist entry both return <code>command-denied</code>. That is a configuration error, not a transient one — retrying will not help.</span>
       </p>
+
+      <h3><span class="v">Phát media và biến kênh</span><span class="e">Playback and channel variables</span></h3>
+      <p>
+        <span class="v">Hai lệnh này chạm tới Asterisk bằng chuỗi do bạn chọn, nên gateway kiểm tra chặt và <strong>fail closed</strong>: cái gì không chứng minh được là an toàn thì bị từ chối trước khi ARI được gọi.</span>
+        <span class="e">These two hand Asterisk a string you chose, so the gateway validates hard and <strong>fails closed</strong>: anything not provably safe is refused before ARI is called.</span>
+      </p>
+      <ul>
+        <li><span class="v"><code>media</code> chỉ nhận <code>sound:&lt;tên&gt;</code> hoặc <code>recording:&lt;tên&gt;</code>. Các scheme khác như <code>file:</code> hay <code>http:</code> bị chặn vì sẽ đọc được file trên host qua ARI. Tên chỉ gồm <code>A-Za-z0-9/_-</code> và không được chứa <code>..</code>.</span><span class="e"><code>media</code> accepts only <code>sound:&lt;name&gt;</code> or <code>recording:&lt;name&gt;</code>. Schemes like <code>file:</code> or <code>http:</code> are refused because they would read host files through ARI. Names allow <code>A-Za-z0-9/_-</code> and may not contain <code>..</code>.</span></li>
+        <li><span class="v"><code>playback_id</code> do gateway sinh và trả về trong <code>result</code> của <code>call.control.accepted</code>. Bạn chỉ dừng được playback của chính cuộc gọi mình sở hữu; mỗi cuộc gọi tối đa 8 playback đồng thời.</span><span class="e">The <code>playback_id</code> is minted by the gateway and returned in the <code>result</code> of <code>call.control.accepted</code>. You can only stop a playback your own call started; a call holds at most 8 concurrent playbacks.</span></li>
+        <li><span class="v">Tên biến phải khớp <code>AI_[A-Z0-9_]{1,60}</code>. Tiền tố giữ bạn trong namespace riêng, và việc cấm ký tự <code>(</code> chặn các hàm dialplan như <code>CHANNEL(...)</code>, <code>CDR(...)</code>, <code>SHELL(...)</code> — chúng <em>thực thi</em> chứ không phải gán giá trị.</span><span class="e">Variable names must match <code>AI_[A-Z0-9_]{1,60}</code>. The prefix keeps you in your own namespace, and rejecting <code>(</code> blocks dialplan functions such as <code>CHANNEL(...)</code>, <code>CDR(...)</code> and <code>SHELL(...)</code>, which <em>execute</em> rather than assign.</span></li>
+        <li><span class="v">Giá trị tối đa 512 ký tự, không chứa ký tự điều khiển.</span><span class="e">Values are capped at 512 characters and may not contain control characters.</span></li>
+      </ul>
     </section>
 
     <!-- ============ OUTBOUND ============ -->
@@ -1084,6 +1100,9 @@ html { scroll-behavior: smooth; }
             <tr><td><code>calls:hangup</code></td><td><code>call.hangup</code></td></tr>
             <tr><td><code>calls:transfer</code></td><td><code>transfer.blind</code>, <code>transfer.attended</code>, <code>transfer.cancel</code></td></tr>
             <tr><td><code>calls:route</code></td><td><code>route.queue</code>, <code>route.ring_group</code>, <code>route.voicemail</code></td></tr>
+            <tr><td><code>calls:dialplan</code></td><td><code>dialplan.continue</code></td></tr>
+            <tr><td><code>media:playback</code></td><td><code>playback.start</code>, <code>playback.stop</code></td></tr>
+            <tr><td><code>channel:variables</code></td><td><code>channel.set_var</code></td></tr>
             <tr><td><code>calls:originate</code></td><td><code>outbound.originate</code>, <code>outbound.cancel</code></td></tr>
           </tbody>
         </table>

@@ -175,6 +175,39 @@ export class GatewayClient extends EventEmitter {
     return this.control(callId, "audio.clear", undefined, options);
   }
 
+  /**
+   * Play an Asterisk media file into the call. Requires `media:playback`.
+   *
+   * `media` must be `sound:<name>` or `recording:<name>`; every other scheme
+   * is refused. The accepted response carries the `playback_id`.
+   */
+  startPlayback(callId, media, options) {
+    return this.control(callId, "playback.start", { media }, options);
+  }
+
+  /** Stop a playback this call started. Requires `media:playback`. */
+  stopPlayback(callId, playbackId, options) {
+    return this.control(callId, "playback.stop", { playback_id: playbackId }, options);
+  }
+
+  /**
+   * Set a channel variable. Requires `channel:variables`.
+   *
+   * Names live in the partner namespace and must match `AI_[A-Z0-9_]`;
+   * dialplan functions such as `CHANNEL(...)` are refused.
+   */
+  setVariable(callId, variable, value, options) {
+    return this.control(callId, "channel.set_var", { variable, value }, options);
+  }
+
+  /**
+   * Hand the call back to the dialplan. Requires `calls:dialplan`.
+   * The destination must be allowlisted, exactly as for a transfer.
+   */
+  continueInDialplan(callId, context, extension, options) {
+    return this.control(callId, "dialplan.continue", { context, extension }, options);
+  }
+
   /** Redirect the call. Destination must be allowlisted; `calls:transfer`. */
   transferBlind(callId, context, extension, options) {
     return this.control(callId, "transfer.blind", { context, extension }, options);

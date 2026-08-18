@@ -76,6 +76,10 @@ export class GatewayClient extends EventEmitter {
   unmute(callId: string, options?: ControlOptions): string;
   sendDtmf(callId: string, digits: string, options?: ControlOptions): string;
   clearAudio(callId: string, options?: ControlOptions): string;
+  startPlayback(callId: string, media: string, options?: ControlOptions): string;
+  stopPlayback(callId: string, playbackId: string, options?: ControlOptions): string;
+  setVariable(callId: string, variable: string, value: string | number | boolean, options?: ControlOptions): string;
+  continueInDialplan(callId: string, context: string, extension: string, options?: ControlOptions): string;
   transferBlind(callId: string, context: string, extension: string, options?: ControlOptions): string;
   transferAttended(callId: string, context: string, extension: string, options?: ControlOptions): string;
   transferCancel(callId: string, options?: ControlOptions): string;

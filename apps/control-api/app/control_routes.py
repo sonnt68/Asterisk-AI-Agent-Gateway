@@ -34,7 +34,10 @@ ALLOWED_SCOPES = {
     "calls:hangup",
     "calls:transfer",
     "calls:route",
+    "calls:dialplan",
     "calls:originate",
+    "media:playback",
+    "channel:variables",
 }
 
 
