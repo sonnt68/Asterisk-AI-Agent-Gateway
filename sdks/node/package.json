@@ -3,6 +3,13 @@
   "version": "0.2.0",
   "description": "Partner SDK for the Asterisk AI Agent Gateway realtime protocol v1",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sonnt68/Asterisk-AI-Agent-Gateway.git",
+    "directory": "sdks/node"
+  },
+  "homepage": "https://github.com/sonnt68/Asterisk-AI-Agent-Gateway#readme",
+  "bugs": "https://github.com/sonnt68/Asterisk-AI-Agent-Gateway/issues",
   "type": "module",
   "main": "./src/index.js",
   "types": "./types/index.d.ts",

@@ -109,12 +109,15 @@ jobs:
         with:
           packages-dir: sdks/python/dist
           repository-url: https://test.pypi.org/legacy/
+          # A re-run after a failure on the other registry must not fail here.
+          skip-existing: true
 
       - name: Publish to PyPI
         if: needs.verify.outputs.prerelease != 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: sdks/python/dist
+          skip-existing: true
 
   npm:
     name: Publish to npm

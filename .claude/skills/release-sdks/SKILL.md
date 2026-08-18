@@ -119,6 +119,9 @@ Failures seen before, and what they actually mean:
 - **npm publish fails while provenance signing succeeded** — the OIDC exchange
   needs npm 11.5.1 or newer, but Node 22 bundles npm 10.x. The workflow
   installs a newer npm before publishing; do not remove that step.
+- **npm `E422` "Error verifying sigstore provenance bundle ... repository.url
+  is ..."** — `--provenance` requires `package.json` to carry a `repository.url`
+  matching the building repository. Do not remove that field.
 - **npm organisations cannot be created from a token or the CLI** — only the
   website. That is why the package is unscoped rather than
   `@asterisk-ai-agent-gateway/sdk`.
