@@ -134,6 +134,13 @@ jobs:
           node-version: "22"
           registry-url: https://registry.npmjs.org
 
+      - name: Use an npm that can do trusted publishing
+        # Node 22 bundles npm 10.x, which cannot perform the OIDC exchange.
+        # Trusted publishing needs npm 11.5.1 or newer.
+        run: |
+          npm install -g npm@^11
+          npm --version
+
       - name: Publish
         working-directory: sdks/node
         run: |
