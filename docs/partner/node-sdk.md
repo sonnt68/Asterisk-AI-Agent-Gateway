@@ -1,7 +1,7 @@
 # Node SDK quickstart
 
 ```bash
-npm install ./sdks/node
+npm install asterisk-ai-agent-gateway-sdk
 export GATEWAY_URL=https://gateway.example.com
 export GATEWAY_API_KEY=agw_live_REDACTED
 export AGENT_SLUG=support-agent
@@ -9,7 +9,7 @@ node sdks/node/examples/echo-agent.mjs
 ```
 
 ```js
-import { GatewayClient } from "@asterisk-ai-agent-gateway/sdk";
+import { GatewayClient } from "asterisk-ai-agent-gateway-sdk";
 
 const client = new GatewayClient({
   gatewayUrl: process.env.GATEWAY_URL,

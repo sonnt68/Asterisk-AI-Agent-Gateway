@@ -1,7 +1,7 @@
 # Python SDK quickstart
 
 ```bash
-pip install ./sdks/python
+pip install asterisk-ai-agent-gateway-sdk
 export GATEWAY_URL=https://gateway.example.com
 export GATEWAY_API_KEY=agw_live_REDACTED
 export AGENT_SLUG=support-agent

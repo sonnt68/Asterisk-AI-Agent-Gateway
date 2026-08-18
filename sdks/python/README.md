@@ -5,7 +5,7 @@ registers the agent slug, heartbeats, reconnects with a fresh token, and hides
 the 16-byte binary audio envelope.
 
 ```bash
-pip install ./sdks/python
+pip install asterisk-ai-agent-gateway-sdk
 ```
 
 ```python

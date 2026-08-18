@@ -8,7 +8,7 @@ shown once; store it in a secret manager.
 Choose one SDK:
 
 ```bash
-pip install ./sdks/python
+pip install asterisk-ai-agent-gateway-sdk
 export GATEWAY_URL=https://gateway.example.com
 export GATEWAY_API_KEY=agw_live_REDACTED
 export AGENT_SLUG=support-agent
@@ -18,7 +18,7 @@ python sdks/python/examples/echo_agent.py
 Node instead:
 
 ```bash
-npm install ./sdks/node
+npm install asterisk-ai-agent-gateway-sdk
 node sdks/node/examples/echo-agent.mjs
 ```
 

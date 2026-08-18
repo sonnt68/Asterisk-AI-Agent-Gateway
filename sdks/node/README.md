@@ -5,11 +5,11 @@ registers the agent slug, heartbeats, reconnects with a fresh token, and hides
 the 16-byte binary audio envelope.
 
 ```bash
-npm install ./sdks/node
+npm install asterisk-ai-agent-gateway-sdk
 ```
 
 ```js
-import { GatewayClient } from "@asterisk-ai-agent-gateway/sdk";
+import { GatewayClient } from "asterisk-ai-agent-gateway-sdk";
 
 const client = new GatewayClient({
   gatewayUrl: process.env.GATEWAY_URL,

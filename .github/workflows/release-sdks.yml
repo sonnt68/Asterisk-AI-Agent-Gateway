@@ -9,7 +9,7 @@ name: Release partner SDKs
 #   PyPI  — pypi.org > Publishing > add a GitHub publisher for this repo,
 #           workflow `release-sdks.yml`, environment `pypi`.
 #   npm   — npmjs.com > package settings > Trusted publisher, same repo and
-#           workflow. The @asterisk-ai-agent-gateway scope must exist first.
+#           workflow, for package `asterisk-ai-agent-gateway-sdk`.
 #
 # Rehearse with a pre-release tag (sdk-v0.1.0-rc.1): it publishes to TestPyPI
 # and skips npm entirely.
