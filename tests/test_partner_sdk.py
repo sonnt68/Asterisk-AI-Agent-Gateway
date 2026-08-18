@@ -71,3 +71,12 @@ def test_control_without_a_session_fails_loudly():
             await client.hangup(CALL_ID)
 
     asyncio.run(scenario())
+
+
+def test_version_constant_tracks_the_installed_distribution():
+    """A hand-maintained constant drifted from pyproject once; never again."""
+    from importlib.metadata import version
+
+    import asterisk_ai_gateway
+
+    assert asterisk_ai_gateway.__version__ == version("asterisk-ai-agent-gateway-sdk")
