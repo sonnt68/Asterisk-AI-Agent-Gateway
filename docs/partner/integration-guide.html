@@ -605,6 +605,7 @@ html { scroll-behavior: smooth; }
       <span><b>Realtime protocol</b> v1</span>
       <span><b>Audio</b> PCM s16le · 16 kHz · mono</span>
       <span><b>Token TTL</b> 300s</span>
+      <span><b>SDK</b> 0.1.0</span>
     </div>
   </div>
 </header>
@@ -1172,6 +1173,39 @@ html { scroll-behavior: smooth; }
       <p>
         <span class="v">SDK chính thức lo phần đổi token, đăng ký phiên, heartbeat 10 giây, kết nối lại kèm token mới, và đóng/gỡ khung audio. Mọi lệnh điều khiển đều có helper tương ứng và tự sinh <code>request_id</code>. Chỉ tự dựng khung thô khi môi trường của bạn không dùng được SDK.</span>
         <span class="e">The official SDKs handle token exchange, registration, 10-second heartbeats, reconnect with a fresh token, and the audio envelope. Every control command has a helper that generates its own <code>request_id</code>. Hand-roll the raw framing only when your runtime cannot use an SDK.</span>
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th><span class="v">Nền tảng</span><span class="e">Platform</span></th>
+              <th><span class="v">Cài đặt</span><span class="e">Install</span></th>
+              <th><span class="v">Yêu cầu</span><span class="e">Requires</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <a href="https://pypi.org/project/asterisk-ai-agent-gateway-sdk/" target="_blank" rel="noopener noreferrer">PyPI</a>
+              </td>
+              <td><code>pip install asterisk-ai-agent-gateway-sdk</code></td>
+              <td>Python 3.10+</td>
+            </tr>
+            <tr>
+              <td>
+                <a href="https://www.npmjs.com/package/asterisk-ai-agent-gateway-sdk" target="_blank" rel="noopener noreferrer">npm</a>
+              </td>
+              <td><code>npm install asterisk-ai-agent-gateway-sdk</code></td>
+              <td>Node 18.17+</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        <span class="v">Hai gói dùng chung một tên và luôn phát hành cùng số phiên bản, nên bạn ghim version giống nhau ở cả hai phía. Mã nguồn và ví dụ chạy được nằm trong <a href="https://github.com/sonnt68/Asterisk-AI-Agent-Gateway" target="_blank" rel="noopener noreferrer">kho GitHub</a>.</span>
+        <span class="e">Both packages share one name and ship at the same version, so you can pin them identically. Source and runnable examples live in the <a href="https://github.com/sonnt68/Asterisk-AI-Agent-Gateway" target="_blank" rel="noopener noreferrer">GitHub repository</a>.</span>
       </p>
 
       <div class="code">
