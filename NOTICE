@@ -1,0 +1,12 @@
+Asterisk AI Agent Gateway
+
+This repository is independent from Asterisk AI Voice Agent for Asterisk.
+
+Reference source used for architecture and selected UI patterns:
+https://github.com/hkjarral/AVA-AI-Voice-Agent-for-Asterisk
+Commit: 0d0a33a4f3f48ab63aac20d4be5b36a9c31a6427
+
+The reference project is licensed under the MIT License:
+Copyright (c) 2025 Asterisk AI Voice Agent contributors
+
+Any copied or adapted substantial portions retain the applicable MIT notice.

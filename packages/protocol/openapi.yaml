@@ -1,0 +1,36 @@
+openapi: 3.1.0
+info:
+  title: Asterisk AI Agent Gateway Control API
+  version: 1.0.0
+  description: >-
+    Versioned control-plane API. Partner authentication, API-key lifecycle, and
+    call-control resources are introduced in later compatible revisions.
+servers:
+  - url: https://gateway.example.com/api/v1
+paths:
+  /system/health:
+    get:
+      operationId: getSystemHealth
+      summary: Check control API availability
+      responses:
+        '200':
+          description: Control API is accepting requests.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required: [service, status, version]
+      properties:
+        service:
+          type: string
+          const: control-api
+        status:
+          type: string
+          const: ok
+        version:
+          type: string

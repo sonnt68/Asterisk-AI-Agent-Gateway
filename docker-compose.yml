@@ -1,0 +1,65 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/control-api/Dockerfile
+    environment:
+      GATEWAY_API_HOST: ${GATEWAY_API_HOST:-0.0.0.0}
+      GATEWAY_API_PORT: ${GATEWAY_API_PORT:-8080}
+      GATEWAY_WEB_ORIGIN: ${GATEWAY_WEB_ORIGIN:-http://localhost:5173}
+    ports:
+      - "${GATEWAY_API_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  gateway:
+    build:
+      context: .
+      dockerfile: apps/gateway/Dockerfile
+    environment:
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      ASTERISK_ARI_BASE_URL: ${ASTERISK_ARI_BASE_URL}
+      ASTERISK_ARI_USERNAME: ${ASTERISK_ARI_USERNAME}
+      ASTERISK_ARI_PASSWORD: ${ASTERISK_ARI_PASSWORD}
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  admin-ui:
+    build:
+      context: apps/admin-ui
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-asterisk_ai_gateway}
+      POSTGRES_USER: ${POSTGRES_USER:-asterisk_ai_gateway}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:
+  redis-data:

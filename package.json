@@ -1,0 +1,9 @@
+{
+  "name": "asterisk-ai-agent-gateway-workspace",
+  "private": true,
+  "scripts": {
+    "admin:dev": "npm --prefix apps/admin-ui run dev",
+    "admin:build": "npm --prefix apps/admin-ui run build",
+    "admin:typecheck": "npm --prefix apps/admin-ui run typecheck"
+  }
+}

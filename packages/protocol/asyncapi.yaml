@@ -1,0 +1,48 @@
+asyncapi: 3.0.0
+info:
+  title: Asterisk AI Agent Gateway Realtime Protocol
+  version: 1.0.0
+  description: >-
+    Partner-facing realtime protocol. Session authentication and production
+    channels are added only with their matching gateway implementation.
+servers:
+  partner:
+    host: gateway.example.com
+    protocol: wss
+    description: Partner realtime endpoint.
+channels:
+  /v1/realtime:
+    address: /v1/realtime
+    messages:
+      sessionRegister:
+        $ref: '#/components/messages/SessionRegister'
+      callStarted:
+        $ref: '#/components/messages/CallStarted'
+      callControl:
+        $ref: '#/components/messages/CallControl'
+components:
+  messages:
+    SessionRegister:
+      payload:
+        type: object
+        required: [type, agent_slug, protocol_version]
+        properties:
+          type: { const: session.register }
+          agent_slug: { type: string }
+          protocol_version: { const: '1' }
+    CallStarted:
+      payload:
+        type: object
+        required: [type, call_id, sequence]
+        properties:
+          type: { const: call.started }
+          call_id: { type: string }
+          sequence: { type: integer, minimum: 1 }
+    CallControl:
+      payload:
+        type: object
+        required: [type, call_id, command]
+        properties:
+          type: { const: call.control }
+          call_id: { type: string }
+          command: { type: string }

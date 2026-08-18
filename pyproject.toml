@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["apps/control-api/app", "apps/gateway/gateway"]
+
+[project]
+name = "asterisk-ai-agent-gateway"
+version = "0.1.0"
+description = "SaaS gateway between Asterisk and third-party AI agents"
+requires-python = ">=3.12,<3.15"
+dependencies = [
+  "aiohttp>=3.10,<4.0",
+  "argon2-cffi>=23.1,<24.0",
+  "fastapi>=0.115,<1.0",
+  "itsdangerous>=2.2,<3.0",
+  "psycopg[binary]>=3.2,<4.0",
+  "SQLAlchemy>=2.0,<3.0",
+  "uvicorn[standard]>=0.30,<1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "httpx2>=2.0,<3.0",
+  "PyYAML>=6.0,<7.0",
+  "pytest>=8.0,<9.0",
+  "ruff>=0.6,<1.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["apps/control-api", "apps/gateway"]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]

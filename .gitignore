@@ -1,0 +1,27 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+.venv-*/
+dist/
+build/
+*.egg-info/
+
+node_modules/
+coverage/
+apps/admin-ui/dist/
+
+postgres-data/
+redis-data/
+runtime-data/
+
+# Harness core maintenance binary
+scripts/bin/harness
+scripts/bin/harness.exe
