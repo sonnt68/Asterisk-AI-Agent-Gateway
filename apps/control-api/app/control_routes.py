@@ -1,6 +1,5 @@
 """Tenant-scoped browser and machine control-plane endpoints."""
 
-import re
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
@@ -11,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.audit_log import audit
 from app.auth import Principal, require_principal, require_role
 from app.database import get_session
+from app.destination_policy import validate_entry
 from app.models import ApiKey, PartnerApp
 from app.rate_limits import enforce_token_rate_limit
 from app.security import (
@@ -64,11 +64,13 @@ def validate_scopes(scopes: list[str]) -> list[str]:
 
 def validate_destinations(destinations: list[str]) -> list[str]:
     normalized = sorted(set(destinations))
-    pattern = re.compile(r"^[A-Za-z0-9_-]{1,80}:[A-Za-z0-9*#+_-]{1,80}$")
-    if len(normalized) > 100 or any(not pattern.fullmatch(item) for item in normalized):
-        raise HTTPException(
-            status_code=422, detail="Destinations must use context:extension syntax"
-        )
+    if len(normalized) > 100:
+        raise HTTPException(status_code=422, detail="At most 100 destinations are allowed")
+    for entry in normalized:
+        try:
+            validate_entry(entry)
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
     return normalized
 
 

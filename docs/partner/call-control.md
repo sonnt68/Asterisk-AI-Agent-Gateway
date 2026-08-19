@@ -20,6 +20,13 @@ Supported commands and scopes:
 | `channel.set_var` | `channel:variables` |
 | `outbound.originate`, `outbound.cancel` | `calls:originate` |
 
+Allowlist entries are exact `context:extension` pairs. An extension ending in
+`*` is a prefix rule instead: `from-trunk:84*` permits any longer extension
+starting `84` in that context, which is how outbound PSTN works when the callee
+differs on every call. Only a trailing asterisk is a wildcard, so feature codes
+like `*43` stay exact, a prefix needs at least two literal characters, and a
+rule never matches the bare prefix or crosses into another context.
+
 Destination commands require `{ "context": "...", "extension": "..." }`
 and must match the partner app allowlist exactly. `transfer.attended` creates a
 consult leg in the active bridge and emits `transfer.consulting`;

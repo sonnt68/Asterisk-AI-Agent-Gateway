@@ -6,6 +6,7 @@ import aiohttp
 from gateway.control_policy import require_command_scope
 
 from app.database import SessionLocal
+from app.destination_policy import destination_allowed
 from app.models import PartnerApp
 from app.realtime_registry import Connection, registry
 from app.settings import get_settings
@@ -29,7 +30,7 @@ async def originate(connection: Connection, message: dict[str, object]) -> None:
     with SessionLocal() as session:
         app = session.get(PartnerApp, connection.partner_app_id)
         allowed = set(app.allowed_destinations.split(",")) if app else set()
-    if f"{context}:{extension}" not in allowed:
+    if not destination_allowed(context, extension, allowed):
         raise PermissionError("Outbound destination is not in the partner app allowlist")
     timeout = int(payload.get("timeout", 30))
     if timeout < 1 or timeout > 120:

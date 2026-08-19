@@ -5,6 +5,7 @@ import re
 from gateway.control_policy import require_command_scope
 
 from app.database import SessionLocal
+from app.destination_policy import destination_allowed
 from app.media_policy import (
     MAX_PLAYBACKS_PER_CALL,
     validate_media_uri,
@@ -87,5 +88,5 @@ def validate_destination(connection: Connection, payload: object) -> None:
     with SessionLocal() as session:
         app = session.get(PartnerApp, connection.partner_app_id)
         allowed = set(app.allowed_destinations.split(",")) if app else set()
-    if f"{context}:{extension}" not in allowed:
+    if not destination_allowed(context, extension, allowed):
         raise PermissionError("Destination is not in the partner app allowlist")
