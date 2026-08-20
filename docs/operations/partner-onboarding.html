@@ -1,0 +1,667 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="Nội bộ — quy trình bàn giao gateway cho đối tác thứ ba / Internal partner handover runbook.">
+<title>Partner Handover Runbook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+
+<style>
+:root {
+  --ground: #F1F3F6;
+  --surface: #FFFFFF;
+  --surface-2: #E7EBF1;
+  --ink: #12171F;
+  --ink-2: #48525F;
+  --ink-3: #6E7889;
+  --rule: #CFD6E0;
+  --rule-soft: #E1E6ED;
+
+  /* Internal doc: the amber marks it as ours, not the partner's blue. */
+  --accent: #9A5B12;
+  --accent-soft: #F6EBDC;
+  --warn: #B23A2E;
+  --warn-soft: #F8E4E1;
+  --good: #1F7A54;
+  --good-soft: #DFEDE7;
+
+  --code-bg: #EDF0F5;
+  --code-ink: #1B2430;
+
+  --step--1: 0.8125rem;
+  --step-0: 1rem;
+  --step-1: 1.1875rem;
+  --step-2: 1.5rem;
+  --step-3: 2rem;
+
+  --sans: "IBM Plex Sans", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --cond: "IBM Plex Sans Condensed", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #0E1319;
+    --surface: #161C25;
+    --surface-2: #1D2530;
+    --ink: #DDE3EC;
+    --ink-2: #A3AEBE;
+    --ink-3: #7B8697;
+    --rule: #2A3441;
+    --rule-soft: #212A35;
+
+    --accent: #D9A05B;
+    --accent-soft: #2C2114;
+    --warn: #E5786A;
+    --warn-soft: #331A17;
+    --good: #5FBF95;
+    --good-soft: #12271E;
+
+    --code-bg: #10161E;
+    --code-ink: #CBD4E1;
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground: #0E1319;
+  --surface: #161C25;
+  --surface-2: #1D2530;
+  --ink: #DDE3EC;
+  --ink-2: #A3AEBE;
+  --ink-3: #7B8697;
+  --rule: #2A3441;
+  --rule-soft: #212A35;
+
+  --accent: #D9A05B;
+  --accent-soft: #2C2114;
+  --warn: #E5786A;
+  --warn-soft: #331A17;
+  --good: #5FBF95;
+  --good-soft: #12271E;
+
+  --code-bg: #10161E;
+  --code-ink: #CBD4E1;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: var(--step-0);
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- bilingual switching ---------- */
+.e { display: none; }
+html[data-lang="en"] .v { display: none; }
+html[data-lang="en"] .e { display: inline; }
+
+/* ---------- masthead ---------- */
+.masthead { border-bottom: 1px solid var(--rule); background: var(--surface); }
+.masthead-inner {
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 2rem;
+  display: grid;
+  gap: 1rem;
+}
+.stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  align-self: start;
+  font-family: var(--cond);
+  font-weight: 700;
+  font-size: var(--step--1);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--warn);
+  background: var(--warn-soft);
+  border: 1px solid var(--warn);
+  border-radius: 2px;
+  padding: 0.3rem 0.7rem;
+}
+h1 {
+  font-family: var(--cond);
+  font-size: var(--step-3);
+  line-height: 1.15;
+  margin: 0;
+  text-wrap: balance;
+}
+.lede { color: var(--ink-2); margin: 0; max-width: 62ch; }
+
+.langbar { display: flex; gap: 0.35rem; }
+.langbar button {
+  font-family: var(--cond);
+  font-weight: 700;
+  font-size: var(--step--1);
+  letter-spacing: 0.08em;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 0.3rem 0.75rem;
+  cursor: pointer;
+}
+.langbar button[aria-pressed="true"] {
+  color: var(--surface);
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.langbar button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- layout ---------- */
+.shell {
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 4rem;
+  display: grid;
+  gap: 2.75rem;
+}
+section { display: grid; gap: 1rem; }
+.eyebrow {
+  font-family: var(--cond);
+  font-weight: 700;
+  font-size: var(--step--1);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0;
+}
+h2 {
+  font-family: var(--cond);
+  font-size: var(--step-2);
+  line-height: 1.2;
+  margin: 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--rule);
+  text-wrap: balance;
+}
+h3 {
+  font-family: var(--cond);
+  font-size: var(--step-1);
+  margin: 0.75rem 0 0;
+}
+p { margin: 0; max-width: 68ch; }
+ul, ol { margin: 0; padding-left: 1.25rem; display: grid; gap: 0.4rem; max-width: 68ch; }
+code {
+  font-family: var(--mono);
+  font-size: 0.875em;
+  background: var(--code-bg);
+  color: var(--code-ink);
+  padding: 0.1em 0.35em;
+  border-radius: 2px;
+}
+strong { font-weight: 600; }
+
+/* ---------- tables ---------- */
+.table-wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 3px; }
+table { border-collapse: collapse; width: 100%; min-width: 34rem; background: var(--surface); }
+th, td {
+  text-align: left;
+  padding: 0.6rem 0.85rem;
+  border-bottom: 1px solid var(--rule-soft);
+  vertical-align: top;
+  font-size: var(--step--1);
+}
+th {
+  font-family: var(--cond);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  white-space: nowrap;
+}
+tr:last-child td { border-bottom: none; }
+td .chip-secret {
+  display: inline-block;
+  font-family: var(--cond);
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--warn);
+  background: var(--warn-soft);
+  border: 1px solid var(--warn);
+  border-radius: 2px;
+  padding: 0.05rem 0.4rem;
+}
+
+/* ---------- callouts ---------- */
+.note {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent);
+  border-radius: 3px;
+  padding: 1rem 1.15rem;
+  display: grid;
+  gap: 0.6rem;
+}
+.note-title {
+  font-family: var(--cond);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: var(--step--1);
+  color: var(--accent);
+  margin: 0;
+}
+.note-deny { border-left-color: var(--warn); }
+.note-deny .note-title { color: var(--warn); }
+
+.deny-list {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  max-width: none;
+}
+.deny-list li {
+  font-family: var(--mono);
+  font-size: var(--step--1);
+  color: var(--warn);
+  background: var(--warn-soft);
+  border: 1px solid var(--warn);
+  border-radius: 2px;
+  padding: 0.2rem 0.55rem;
+}
+
+/* ---------- incidents ---------- */
+.incident {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 1rem 1.15rem;
+  display: grid;
+  gap: 0.55rem;
+}
+.incident h3 { margin: 0; color: var(--ink); }
+.incident .tell {
+  font-size: var(--step--1);
+  color: var(--ink-2);
+  border-top: 1px dashed var(--rule);
+  padding-top: 0.55rem;
+}
+.incident .tell b {
+  font-family: var(--cond);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--good);
+}
+
+/* ---------- checklist ---------- */
+.checklist { list-style: none; padding: 0; display: grid; gap: 0.5rem; max-width: 68ch; }
+.checklist li {
+  display: grid;
+  grid-template-columns: 1.4rem 1fr;
+  gap: 0.6rem;
+  align-items: start;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 0.6rem 0.8rem;
+}
+.checklist li::before {
+  content: "";
+  width: 1.05rem;
+  height: 1.05rem;
+  margin-top: 0.2rem;
+  border: 1.5px solid var(--ink-3);
+  border-radius: 2px;
+}
+
+/* ---------- decisions ---------- */
+.decisions { list-style: none; padding: 0; counter-reset: d; display: grid; gap: 0.75rem; max-width: none; }
+.decisions > li {
+  counter-increment: d;
+  display: grid;
+  grid-template-columns: 2rem 1fr;
+  gap: 0.85rem;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 0.9rem 1rem;
+}
+.decisions > li::before {
+  content: counter(d);
+  font-family: var(--cond);
+  font-weight: 700;
+  font-size: var(--step-1);
+  color: var(--accent);
+  line-height: 1.2;
+}
+.decisions .d-body { display: grid; gap: 0.4rem; }
+.decisions .d-name { font-family: var(--mono); font-size: var(--step--1); color: var(--ink-2); }
+
+pre {
+  margin: 0;
+  overflow-x: auto;
+  background: var(--code-bg);
+  color: var(--code-ink);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 0.85rem 1rem;
+  font-family: var(--mono);
+  font-size: var(--step--1);
+  line-height: 1.55;
+}
+pre code { background: none; padding: 0; }
+
+footer {
+  border-top: 1px solid var(--rule);
+  padding-top: 1.25rem;
+  color: var(--ink-3);
+  font-size: var(--step--1);
+}
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <div class="langbar" role="group" aria-label="Language">
+      <button type="button" data-lang="vi" aria-pressed="true">VI</button>
+      <button type="button" data-lang="en" aria-pressed="false">EN</button>
+    </div>
+    <span class="stamp"><span class="v">Nội bộ — không gửi cho đối tác</span><span class="e">Internal — do not send to partners</span></span>
+    <h1>
+      <span class="v">Bàn giao gateway cho đối tác thứ ba</span>
+      <span class="e">Handing the gateway to a third party</span>
+    </h1>
+    <p class="lede">
+      <span class="v">Đối tác cần gì từ chúng ta, tuyệt đối không được đưa gì, và những sự cố đã thực sự xảy ra.</span>
+      <span class="e">What a partner needs from us, what they must never get, and the failures that have actually happened.</span>
+    </p>
+  </div>
+</header>
+
+<div class="shell">
+
+  <section>
+    <p class="eyebrow"><span class="v">Nguyên tắc</span><span class="e">The principle</span></p>
+    <h2><span class="v">Toàn bộ thiết kế nằm ở hai bề mặt</span><span class="e">The whole design is two surfaces</span></h2>
+    <p>
+      <span class="v">Đối tác tích hợp qua đúng hai thứ — một endpoint REST để đổi API key lấy token, và một WebSocket mang sự kiện, audio, lệnh điều khiển. Không có thứ ba. Mọi điều bên dưới tồn tại để giữ nguyên điều đó khi một đối tác đang bí và ngỏ ý xin thẳng thông tin ARI cho nhanh.</span>
+      <span class="e">A partner integrates with exactly two things — one REST endpoint that turns an API key into a token, and one WebSocket carrying events, audio, and control commands. There is no third. Everything below exists to keep that true under pressure from a partner who is stuck and would like ARI credentials to move faster.</span>
+    </p>
+    <p>
+      <span class="v">Nếu vấn đề của đối tác thật sự không giải được qua hai bề mặt này, đó là thiếu sót của gateway cần ta sửa — không phải lý do để đưa credential.</span>
+      <span class="e">If a partner's problem genuinely cannot be solved through these two surfaces, that is a gap in the gateway for us to fix — not a reason to hand over a credential.</span>
+    </p>
+  </section>
+
+  <section>
+    <p class="eyebrow"><span class="v">Bàn giao</span><span class="e">Handover</span></p>
+    <h2><span class="v">Gửi những gì, qua kênh nào</span><span class="e">What you send, and how</span></h2>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th><span class="v">Hạng mục</span><span class="e">Item</span></th>
+            <th><span class="v">Lấy từ đâu</span><span class="e">Where it comes from</span></th>
+            <th><span class="v">Kênh</span><span class="e">Channel</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="v">URL gateway</span><span class="e">Gateway base URL</span></td>
+            <td><span class="v">theo môi trường triển khai</span><span class="e">the deployment</span></td>
+            <td><span class="v">kênh thường</span><span class="e">any</span></td>
+          </tr>
+          <tr>
+            <td><code>agent_slug</code></td>
+            <td><span class="v">ta đặt; duy nhất toàn hệ thống</span><span class="e">you choose it; globally unique</span></td>
+            <td><span class="v">kênh thường</span><span class="e">any</span></td>
+          </tr>
+          <tr>
+            <td><span class="v">API key</span><span class="e">API key</span> (<code>agw_live_…</code>)</td>
+            <td><span class="v">dashboard, ngay lúc tạo</span><span class="e">dashboard, at creation time</span></td>
+            <td><span class="chip-secret"><span class="v">kênh bí mật</span><span class="e">secret only</span></span></td>
+          </tr>
+          <tr>
+            <td><span class="v">Scope được cấp</span><span class="e">Granted scopes</span></td>
+            <td><span class="v">partner app</span><span class="e">the partner app</span></td>
+            <td><span class="v">kênh thường</span><span class="e">any</span></td>
+          </tr>
+          <tr>
+            <td><span class="v">Allowlist đích</span><span class="e">Destination allowlist</span></td>
+            <td><span class="v">partner app</span><span class="e">the partner app</span></td>
+            <td><span class="v">kênh thường</span><span class="e">any</span></td>
+          </tr>
+          <tr>
+            <td><span class="v">Tài liệu tích hợp</span><span class="e">Integration guide</span></td>
+            <td><code>docs/partner/integration-guide.html</code></td>
+            <td><span class="v">kênh thường</span><span class="e">any</span></td>
+          </tr>
+          <tr>
+            <td><span class="v">Skill cho AI coding</span><span class="e">AI-coding skill</span></td>
+            <td><code>python3 scripts/build_partner_skill.py</code></td>
+            <td><span class="v">kênh thường</span><span class="e">any</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      <span class="v">Chỉ mỗi API key là nhạy cảm. Phần còn lại gửi qua email hay ticket bình thường — và <em>nên</em> gửi: đối tác có allowlist bằng văn bản sẽ hỏi ít hơn hẳn.</span>
+      <span class="e">Only the key is sensitive. The rest can go in a normal email or ticket, and <em>should</em> — a partner who has the allowlist in writing raises fewer tickets.</span>
+    </p>
+
+    <div class="note">
+      <p class="note-title"><span class="v">Về API key</span><span class="e">About the key</span></p>
+      <p>
+        <span class="v">Key chỉ hiện <strong>một lần duy nhất</strong> lúc tạo. Hệ thống chỉ lưu bản băm HMAC và phần tiền tố, nên key mất thì chỉ có thể thay mới, không thể khôi phục. Gửi qua kênh bí mật có hạn dùng — chia sẻ qua trình quản lý mật khẩu, không phải chat, không phải email, và tuyệt đối không nằm trong commit.</span>
+        <span class="e">The key is shown <strong>once</strong>, at creation. We store an HMAC hash and a prefix, so a lost key is replaced, never recovered. Send it through a secret channel with an expiry — a password-manager share, not chat, not email, and never a commit.</span>
+      </p>
+      <p>
+        <span class="v">Nói rõ trong cùng tin nhắn: key chỉ nằm ở header <code>Authorization</code> của endpoint đổi token, không ở đâu khác — không bao giờ trong URL, không bao giờ trong log.</span>
+        <span class="e">Say in the same message: it goes in the <code>Authorization</code> header of the token endpoint and nowhere else — never a URL, never a log line.</span>
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow"><span class="v">Chốt trước</span><span class="e">Settle first</span></p>
+    <h2><span class="v">Bốn quyết định phải chốt trước khi tạo key</span><span class="e">Four decisions to settle before creating a key</span></h2>
+    <p>
+      <span class="v">Đổi những thứ này về sau đồng nghĩa đối tác phải sửa code.</span>
+      <span class="e">Changing them later means the partner reworks code.</span>
+    </p>
+
+    <ol class="decisions">
+      <li>
+        <div class="d-body">
+          <p class="d-name">agent_slug</p>
+          <p>
+            <span class="v">Duy nhất trên toàn bộ đối tác, và mỗi slug chỉ một kết nối sống. Đặt tên có chứa tên đối tác. Hai môi trường của họ (staging và production) cần <strong>hai slug riêng</strong>, nếu không worker staging sẽ đá production ra khỏi kết nối. Đây là lỗi onboarding phổ biến nhất.</span>
+            <span class="e">Globally unique across all partners, and one live connection per slug. Include the partner's name in it. Their two environments (staging and production) need <strong>two slugs</strong>, or their staging worker knocks production off the air. This is the single most common onboarding mistake.</span>
+          </p>
+        </div>
+      </li>
+      <li>
+        <div class="d-body">
+          <p class="d-name"><span class="v">Scope</span><span class="e">Scopes</span></p>
+          <p>
+            <span class="v">Chỉ cấp đúng thứ nghiệp vụ cần <em>hiện tại</em>. <code>calls:originate</code> và <code>calls:transfer</code> là hai cái đáng cân nhắc kỹ; phần còn lại tương đối vô hại. Scope của key có thể hẹp hơn partner app, không bao giờ rộng hơn.</span>
+            <span class="e">Grant what the use case needs <em>today</em>. <code>calls:originate</code> and <code>calls:transfer</code> are the two worth deliberating over; the rest are comparatively inert. A key's scopes can be narrower than the partner app's, never wider.</span>
+          </p>
+        </div>
+      </li>
+      <li>
+        <div class="d-body">
+          <p class="d-name"><span class="v">Allowlist đích</span><span class="e">Destination allowlist</span></p>
+          <p>
+            <span class="v">Cặp <code>context:extension</code> chính xác, hoặc luật tiền tố kết thúc bằng <code>*</code>. Gọi ra PSTN bắt buộc dùng luật tiền tố vì mỗi cuộc gọi một số đích khác nhau — dạng chuẩn là <code>from-trunk:84*</code>. Chỉ dấu sao ở <em>cuối</em> mới là ký tự đại diện, nên feature code như <code>*43</code> vẫn là đích chính xác, và tiền tố cần tối thiểu hai ký tự thật.</span>
+            <span class="e">Exact <code>context:extension</code> pairs, or a prefix rule ending in <code>*</code>. Outbound PSTN needs a prefix rule because the callee differs per call; <code>from-trunk:84*</code> is the shape. Only a <em>trailing</em> asterisk is a wildcard, so feature codes like <code>*43</code> stay exact, and a prefix needs two literal characters minimum.</span>
+          </p>
+          <p>
+            <span class="v">Viết luật ra giấy cho đối tác — <code>command-denied</code> mà không kèm giải thích chính là khởi đầu của một ticket hỗ trợ.</span>
+            <span class="e">Write the rules down for the partner — <code>command-denied</code> with no explanation is how support tickets start.</span>
+          </p>
+        </div>
+      </li>
+      <li>
+        <div class="d-body">
+          <p class="d-name">GATEWAY_MEDIA_SAMPLE_RATE</p>
+          <p>
+            <span class="v">Để 8000 trừ khi cả hai đầu thực sự là băng rộng. Đọc mục sự cố bên dưới trước khi nâng.</span>
+            <span class="e">Leave it at 8000 unless both ends are genuinely wideband. Read the incident below before raising it.</span>
+          </p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <section>
+    <p class="eyebrow"><span class="v">Ranh giới</span><span class="e">The boundary</span></p>
+    <h2><span class="v">Không bao giờ đưa</span><span class="e">What they never get</span></h2>
+
+    <div class="note note-deny">
+      <p class="note-title"><span class="v">Danh sách cấm</span><span class="e">Never handed over</span></p>
+      <ul class="deny-list">
+        <li>ARI</li><li>SIP</li><li>AudioSocket</li><li>RTP</li>
+        <li>Docker</li><li>host</li><li>database</li>
+        <li><span class="v">Asterisk channel ID</span><span class="e">Asterisk channel ID</span></li>
+      </ul>
+      <p>
+        <span class="v">Cái cuối cùng dễ lộ nhất — thường là vô tình, ngay giữa một cuộc trao đổi hỗ trợ. Đối tác tương quan theo <code>call_id</code> của gateway; một channel ID lọt vào mô hình dữ liệu của họ là vi phạm ranh giới, và nó sẽ không lộ ra cho tới khi có thứ khác phụ thuộc vào nó.</span>
+        <span class="e">The last one is the easiest to leak, usually by accident in the middle of a support conversation. Partners correlate on the gateway <code>call_id</code>; a channel ID in their data model is a boundary violation that will not surface until something depends on it.</span>
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow"><span class="v">Sự cố thật</span><span class="e">Real incidents</span></p>
+    <h2><span class="v">Bốn thứ đã thực sự hỏng</span><span class="e">Four things that have actually broken</span></h2>
+
+    <div class="incident">
+      <h3><span class="v">Đối tác gán cứng tần số lấy mẫu</span><span class="e">A fixed sample rate in partner code</span></h3>
+      <p>
+        <span class="v">Trước đây ta công bố cứng 16 kHz và SDK phơi nó ra thành hằng số, nên đối tác gán cứng theo. Khi tần số gốc của mô hình không chia hết cho tần số đường truyền — 24 kHz sang 16 kHz là 1,5× — phần lớn bộ lọc chống chồng phổ âm thầm rơi về nội suy tuyến tính và gây méo. Không có lỗi nào. Cuộc gọi chỉ đơn giản là nghe ồm và xa.</span>
+        <span class="e">We used to advertise a flat 16 kHz, and the SDKs exported it as a constant, so partners hardcoded it. When the model's native rate does not divide evenly into the wire rate — 24 kHz into 16 kHz is 1.5× — most anti-alias filters silently fall back to linear interpolation and alias. Nothing errors. The call just sounds boomy and distant.</span>
+      </p>
+      <p>
+        <span class="v">Số đo: 56% năng lượng giọng nói trong dải 300–3400 Hz, so với 68% trên đường 8 kHz.</span>
+        <span class="e">Measured: 56% of speech energy in the 300–3400 Hz band, against 68% on the 8 kHz path.</span>
+      </p>
+      <p class="tell">
+        <b><span class="v">Xử lý</span><span class="e">What to do</span></b>
+        <span class="v"> — tần số nay được công bố theo từng cuộc gọi trong <code>call.started</code>. Khi đối tác báo audio tệ mà không có lỗi gì, hỏi họ đang gửi ở tần số nào trước tiên.</span>
+        <span class="e"> — the rate is now announced per call in <code>call.started</code>. When a partner reports bad audio with no errors, ask what rate they send before anything else.</span>
+      </p>
+    </div>
+
+    <div class="incident">
+      <h3><span class="v">Hai worker dùng chung một slug</span><span class="e">Two workers on one slug</span></h3>
+      <p>
+        <span class="v">Đối tác deploy mà không drain sẽ nhận <code>agent-in-use</code> và hiểu nhầm là hệ thống của ta sập.</span>
+        <span class="e">A partner deploying without draining gets <code>agent-in-use</code> and reads it as our outage.</span>
+      </p>
+      <p class="tell">
+        <b><span class="v">Xử lý</span><span class="e">What to do</span></b>
+        <span class="v"> — đặt kỳ vọng ngay lúc bàn giao: phải drain hết cuộc gọi đang chạy trước khi tiến trình cũ thoát.</span>
+        <span class="e"> — set the expectation at handover: drain in-flight calls before the old process exits.</span>
+      </p>
+    </div>
+
+    <div class="incident">
+      <h3><span class="v">Bão retry ở endpoint đổi token</span><span class="e">Retry storms on the token endpoint</span></h3>
+      <p>
+        <span class="v">Giới hạn 60 request mỗi phút, tính theo key, theo tổ chức và theo IP nguồn. Đối tác retry dồn dập sau một lần lỗi xác thực sẽ mắc kẹt trong giới hạn và kết luận gateway chết.</span>
+        <span class="e">60 requests per minute, counted per key, per organization, and per source IP. A partner retrying tightly after an auth failure stays rate-limited and concludes the gateway is down.</span>
+      </p>
+      <p class="tell">
+        <b><span class="v">Xử lý</span><span class="e">What to do</span></b>
+        <span class="v"> — <code>AuthenticationError</code> là dứt điểm: retry một key đã thu hồi thì vĩnh viễn không chạy. Mọi lỗi khác phải lùi theo cấp số nhân.</span>
+        <span class="e"> — <code>AuthenticationError</code> is terminal: retrying a revoked key never helps. Everything else must back off exponentially.</span>
+      </p>
+    </div>
+
+    <div class="incident">
+      <h3><span class="v">Frame audio biến mất</span><span class="e">Audio frames disappearing</span></h3>
+      <p>
+        <span class="v">Hàng đợi hướng về đối tác giữ 100 frame và bỏ frame cũ nhất khi bên tiêu thụ nghẽn — <em>có chủ đích</em>, để audio trực tiếp luôn là trực tiếp.</span>
+        <span class="e">The partner-bound queue holds 100 frames and drops the oldest when a consumer stalls — <em>on purpose</em>, so that live audio stays live.</span>
+      </p>
+      <p class="tell">
+        <b><span class="v">Xử lý</span><span class="e">What to do</span></b>
+        <span class="v"> — sửa ở phía họ: tiêu thụ nhanh hơn. Thêm buffer chỉ dời vấn đề đi chỗ khác.</span>
+        <span class="e"> — the fix is on their side: consume faster. More buffering moves the problem.</span>
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow"><span class="v">Nghiệm thu</span><span class="e">Sign-off</span></p>
+    <h2><span class="v">Chạy cùng đối tác trên cuộc gọi thật</span><span class="e">Run this with the partner on a real call</span></h2>
+    <p>
+      <span class="v">Cuộc gọi thật, không phải mô phỏng trên staging.</span>
+      <span class="e">A real call, not a staging simulation.</span>
+    </p>
+
+    <ul class="checklist">
+      <li><span><span class="v">Họ đổi được token và đăng ký thành công; <code>session.ready</code> về tới nơi.</span><span class="e">They mint a token and register; <code>session.ready</code> arrives.</span></span></li>
+      <li><span><span class="v">Một cuộc gọi sinh ra <code>call.started</code>, và họ log lại khối <code>media</code> nhận được — đối chiếu với thứ hệ thống đang công bố.</span><span class="e">A call produces <code>call.started</code>, and they log the <code>media</code> block they received — confirm it matches what the deployment advertises.</span></span></li>
+      <li><span><span class="v">Audio thông cả hai chiều và người gọi xác nhận nghe rõ.</span><span class="e">Audio flows both ways and the caller confirms it sounds clean.</span></span></li>
+      <li><span><span class="v">Mỗi lệnh được cấp đều thử ít nhất một lần. Một lệnh không được cấp trả <code>command-denied</code> — xác nhận họ xử lý được chứ không crash.</span><span class="e">Each granted command is exercised once. An ungranted one returns <code>command-denied</code> — confirm they handle it rather than crashing.</span></span></li>
+      <li><span><span class="v">Mọi đích họ sẽ dùng đều được allowlist chấp nhận.</span><span class="e">Every destination they will use is accepted by the allowlist.</span></span></li>
+      <li><span><span class="v"><code>call.ended</code> giải phóng trạng thái theo cuộc gọi; các gauge cuộc gọi và media trở về 0 sau khi cúp máy.</span><span class="e"><code>call.ended</code> releases their call-local state; active call and media gauges return to zero after hangup.</span></span></li>
+      <li><span><span class="v">Họ restart worker giữa cuộc gọi và quan sát cuộc gọi kết thúc — để biết trước hành vi này thay vì gặp lần đầu trên production.</span><span class="e">They restart a worker mid-call and observe the call ending, so the behaviour is known before it happens in production.</span></span></li>
+    </ul>
+  </section>
+
+  <section>
+    <p class="eyebrow"><span class="v">Vòng đời</span><span class="e">Lifecycle</span></p>
+    <h2><span class="v">Xoay key và ngắt kết nối</span><span class="e">Rotation and offboarding</span></h2>
+    <p>
+      <span class="v"><strong>Xoay key:</strong> tạo key thay thế, để họ chuyển sang và xác nhận đăng ký được, rồi mới thu hồi key cũ. Cuộc gọi đang chạy không bị ngắt.</span>
+      <span class="e"><strong>Rotation:</strong> create the replacement, have them switch and confirm registration, then revoke the old key. Calls in progress are not interrupted.</span>
+    </p>
+    <p>
+      <span class="v"><strong>Ngắt kết nối:</strong> thu hồi key trước — thao tác này chặn token mới và phiên mới ngay lập tức — rồi mới vô hiệu hoá partner app. Cuộc gọi đang chạy vẫn kết thúc bình thường, không bị cắt giữa chừng.</span>
+      <span class="e"><strong>Offboarding:</strong> revoke the key first — that blocks new tokens and new sessions immediately — then disable the partner app. Existing calls finish; they do not get cut mid-sentence.</span>
+    </p>
+  </section>
+
+  <footer>
+    <p>
+      <span class="v">Tài liệu nội bộ. Bản Markdown tương đương: <code>docs/operations/partner-onboarding.md</code>. Bản gửi đối tác là <code>docs/partner/integration-guide.html</code> — đừng nhầm hai file này.</span>
+      <span class="e">Internal document. Markdown equivalent: <code>docs/operations/partner-onboarding.md</code>. The partner-facing handout is <code>docs/partner/integration-guide.html</code> — do not confuse the two.</span>
+    </p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var buttons = document.querySelectorAll(".langbar button");
+
+  function setLang(lang) {
+    root.setAttribute("data-lang", lang);
+    root.setAttribute("lang", lang === "en" ? "en" : "vi");
+    buttons.forEach(function (button) {
+      button.setAttribute("aria-pressed", String(button.dataset.lang === lang));
+    });
+  }
+
+  buttons.forEach(function (button) {
+    button.addEventListener("click", function () { setLang(button.dataset.lang); });
+  });
+
+  setLang("vi");
+})();
+</script>
+
+</body>
+</html>

@@ -16,6 +16,10 @@ Start with the smallest authoritative surface.
 - [`operations/partner-onboarding.md`](operations/partner-onboarding.md):
   internal handover runbook — what a partner is sent, what they never get,
   and the failures seen in practice.
+  [`operations/partner-onboarding.html`](operations/partner-onboarding.html)
+  is the same runbook bilingual and self-contained, for reading and for
+  sending internally. It is stamped internal; do not confuse it with the
+  partner handout above.
 - [`../sdks/skill/`](../sdks/skill/): the AI-coding skill handed to partners,
   and the script that packages it.
 - [`operations/deployment.md`](operations/deployment.md) and
