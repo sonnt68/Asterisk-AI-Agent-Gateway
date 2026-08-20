@@ -30,7 +30,8 @@ Set(AI_GATEWAY_AGENT=support-agent)
 Stasis(asterisk-ai-gateway)
 ```
 
-A successful call produces `call.started`, binary PCM16 16 kHz frames and
+A successful call produces `call.started`, binary mono PCM16 frames at the
+rate that event announced, and
 `call.ended`. Echoing each binary frame proves both media directions. Partners
 never configure ARI, SIP, AudioSocket or RTP.
 

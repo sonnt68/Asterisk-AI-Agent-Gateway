@@ -22,7 +22,7 @@ async def on_event(event):
     if event["type"] == "call.started":
         await client.send_dtmf(event["call_id"], "1")   # needs calls:dtmf
 
-async def on_audio(call_id, pcm):        # PCM s16le, 16 kHz, mono
+async def on_audio(call_id, pcm):        # PCM s16le, mono, rate from call.started
     await client.send_audio(call_id, pcm)
 
 asyncio.run(client.run(on_event=on_event, on_audio=on_audio))

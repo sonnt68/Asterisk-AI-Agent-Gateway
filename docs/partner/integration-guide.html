@@ -603,9 +603,9 @@ html { scroll-behavior: smooth; }
     <div class="masthead-meta">
       <span><b>Control API</b> 1.0.0</span>
       <span><b>Realtime protocol</b> v1</span>
-      <span><b>Audio</b> PCM s16le · 16 kHz · mono</span>
+      <span><b>Audio</b> PCM s16le · mono · rate per call</span>
       <span><b>Token TTL</b> 300s</span>
-      <span><b>SDK</b> 0.2.1</span>
+      <span><b>SDK</b> 0.3.0</span>
     </div>
   </div>
 </header>
@@ -864,7 +864,7 @@ html { scroll-behavior: smooth; }
   "call_id": "8c1f4b2e-0d5a-4f77-9a51-6b0c7e2d3a44",
   "sequence": 1,
   "agent_slug": "support-agent",
-  "media": { "encoding": "pcm_s16le", "sample_rate": 16000, "channels": 1 },
+  "media": { "encoding": "pcm_s16le", "sample_rate": 8000, "channels": 1 },
   "caller": { "name": "…", "number": "…" }
 }</code></pre>
       </div>
@@ -947,7 +947,7 @@ html { scroll-behavior: smooth; }
           </div>
           <div class="frame-cell frame-pcm">
             <b>PCM s16le</b>
-            <span class="v">16 kHz · mono · little-endian</span><span class="e">16 kHz · mono · little-endian</span>
+            <span class="v">mono · little-endian · tần số theo <code>call.started</code></span><span class="e">mono · little-endian · rate from <code>call.started</code></span>
           </div>
         </div>
         <div class="frame-ruler">
@@ -967,6 +967,46 @@ html { scroll-behavior: smooth; }
         <li><span class="v"><code>call_id</code> phải thuộc một cuộc gọi đang hoạt động của chính kết nối này, nếu không sẽ nhận <code>call-not-active</code>.</span><span class="e">The <code>call_id</code> must belong to an active call owned by this connection, or you get <code>call-not-active</code>.</span></li>
         <li><span class="v">Nếu đường media phía Asterisk chưa sẵn sàng, gateway trả <code>media-unavailable</code> thay vì im lặng bỏ khung.</span><span class="e">If the Asterisk-side media path is not ready, the gateway answers <code>media-unavailable</code> rather than dropping the frame silently.</span></li>
       </ul>
+
+      <h3><span class="v">Tần số lấy mẫu do gateway công bố, không cố định</span><span class="e">The sample rate is announced, not fixed</span></h3>
+
+      <p>
+        <span class="v">Mã hoá luôn là PCM signed 16-bit little-endian, mono. Nhưng <strong>tần số thì không cố định</strong>: mỗi cuộc gọi, gateway công bố tần số thật trong khối <code>media</code> của <code>call.started</code>. Hãy đọc con số đó và dùng nó — đừng gán cứng.</span>
+        <span class="e">The encoding is always PCM signed 16-bit little-endian, mono. The <strong>rate is not fixed</strong>: the gateway announces the real one per call in <code>call.started</code>'s <code>media</code> block. Read that number and use it — do not hardcode.</span>
+      </p>
+
+      <p>
+        <span class="v">Mặc định là <strong>8000 Hz</strong>, vì đường trung kế thoại vốn là 8 kHz. Một triển khai nối các thiết bị đầu cuối băng rộng thật sự có thể chạy cao hơn, và khi đó cùng một đoạn mã của bạn phải hoạt động được mà không cần sửa.</span>
+        <span class="e">The default is <strong>8000 Hz</strong>, because a voice trunk is 8 kHz anyway. A deployment bridging genuinely wideband endpoints may run higher, and the same code of yours has to keep working when it does.</span>
+      </p>
+
+      <div class="note note-warn">
+        <p class="note-title"><span class="v">Vì sao điều này quan trọng hơn vẻ ngoài của nó</span><span class="e">Why this matters more than it looks</span></p>
+        <p>
+          <span class="v">Mỗi lần đổi tần số là một lần lấy mẫu lại, và không phải lần nào cũng vô hại. Bộ lọc chống chồng phổ trong hầu hết các thư viện chỉ xử lý được <em>tỉ lệ nguyên</em>. Nếu mô hình của bạn phát ra 24 kHz và bạn ép nó về 16 kHz, tỉ lệ là 1,5× — nhiều thư viện sẽ âm thầm bỏ bộ lọc và nội suy tuyến tính, để lại méo tiếng mà log không hề báo. 24 kHz về 8 kHz là 3×, tỉ lệ nguyên, và giữ nguyên bộ lọc.</span>
+          <span class="e">Every rate change is a resample, and not all of them are harmless. The anti-alias filter in most libraries only handles <em>integer ratios</em>. If your model emits 24 kHz and you force it to 16 kHz, the ratio is 1.5× — many libraries silently drop the filter and interpolate linearly, leaving aliasing that no log reports. 24 kHz to 8 kHz is 3×, an integer ratio, and keeps the filter.</span>
+        </p>
+        <p>
+          <span class="v">Chúng tôi đo được điều này trên chính đường gọi thật: đường 16 kHz đặt 56% năng lượng giọng nói trong dải thoại 300–3400 Hz, còn đường 8 kHz đạt 68%. Người nghe mô tả sự khác biệt là “ồm ồm, xa xăm”. Đường truyền rộng hơn không làm cuộc gọi rộng hơn — trung kế vẫn 8 kHz — nó chỉ thêm những bước đổi tần số mà bạn phải trả giá.</span>
+          <span class="e">We measured this on a live call path: the 16 kHz wire put 56% of the speech energy in the 300–3400 Hz telephony band, where the 8 kHz one reached 68%. Listeners described the difference as “boomy and far away”. A wider wire does not widen the call — the trunk is 8 kHz regardless — it only adds rate changes you pay for.</span>
+        </p>
+      </div>
+
+      <p>
+        <span class="v">Nếu bạn tự dựng khung thay vì dùng SDK: hãy giữ tần số công bố cho từng <code>call_id</code> và dùng nó cho cả hai chiều. Audio đến từ gateway cũng ở đúng tần số đó.</span>
+        <span class="e">If you frame by hand instead of using an SDK: keep the announced rate per <code>call_id</code> and use it in both directions. Audio arriving from the gateway is at that same rate.</span>
+      </p>
+
+      <div class="code">
+        <div class="code-head"><span class="chip chip-out">partner</span><span>python</span></div>
+        <pre><code>rates: dict[str, int] = {}
+
+async def on_event(event):
+    if event["type"] == "call.started":
+        rates[event["call_id"]] = event["media"]["sample_rate"]
+    elif event["type"] == "call.ended":
+        rates.pop(event["call_id"], None)</code></pre>
+      </div>
     </section>
 
     <!-- ============ CONTROL ============ -->
@@ -1246,7 +1286,7 @@ async def on_event(event):
     elif event["type"] == "call.ended":
         print("call down:", event["call_id"])
 
-async def on_audio(call_id, pcm):        # PCM s16le, 16 kHz, mono
+async def on_audio(call_id, pcm):        # PCM s16le, mono, rate from call.started
     await client.send_audio(call_id, pcm)   # vọng âm / echo back
 
 # Token, register, heartbeat và reconnect do SDK lo / handled by the SDK
@@ -1275,7 +1315,7 @@ await client.start();</code></pre>
 
       <div class="code">
         <div class="code-head"><span>Node</span><span class="v">Khung audio thô</span><span class="e">Raw audio framing</span></div>
-        <pre><code>// partner → gateway: 16 byte UUID + PCM s16le 16 kHz mono
+        <pre><code>// partner → gateway: 16 byte UUID + PCM s16le mono, rate from call.started
 function audioFrame(callId, pcm) {
   const uuid = Buffer.from(callId.replace(/-/g, ""), "hex"); // 16 bytes
   return Buffer.concat([uuid, pcm]);

@@ -31,7 +31,7 @@ AudioHandler = Callable[[str, bytes], Awaitable[None]]
 
 @dataclass(slots=True)
 class Audio:
-    """One decoded binary frame: PCM s16le, 16 kHz, mono."""
+    """One decoded binary frame: mono PCM s16le at the call's announced rate."""
 
     call_id: str
     pcm: bytes
@@ -181,7 +181,10 @@ class GatewayClient:
     # -------------------------------------------------------------- sending
 
     async def send_audio(self, call_id: str | UUID, pcm: bytes) -> None:
-        """Send PCM s16le 16 kHz mono audio to a call the connection owns."""
+        """Send mono PCM s16le to a call the connection owns.
+
+        Use the rate `call.started` announced for this call, not a fixed one.
+        """
         await self._send_bytes(encode_audio_frame(call_id, pcm))
 
     async def control(

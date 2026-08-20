@@ -123,7 +123,7 @@ export class GatewayClient extends EventEmitter {
     this.#socket = null;
   }
 
-  /** Send PCM s16le 16 kHz mono audio to a call the connection owns. */
+  /** Send mono PCM s16le at the rate `call.started` announced for this call. */
   sendAudio(callId, pcm) {
     this.#requireSocket().send(encodeAudioFrame(callId, pcm));
   }

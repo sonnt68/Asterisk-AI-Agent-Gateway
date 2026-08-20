@@ -11,8 +11,15 @@ Text frames are JSON. Binary frames contain exactly:
 
 ```text
 bytes 0..15   RFC 4122 gateway call UUID
-bytes 16..N   PCM signed 16-bit little-endian, mono, 16 kHz
+bytes 16..N   PCM signed 16-bit little-endian, mono
 ```
+
+The rate is not part of the framing. The gateway announces it per call in
+`call.started`'s `media` block — 8000 Hz on a telephony deployment, higher
+where both ends are genuinely wideband. Read it rather than assuming one: an
+assumed rate costs a resample on each side of the wire, and a non-integer
+ratio (24 kHz to 16 kHz, say) makes most anti-alias filters fall back to
+linear interpolation without saying so.
 
 The same framing is used in both directions. SDKs add/remove this envelope.
 Asterisk channel IDs and AudioSocket details stay internal to the gateway.

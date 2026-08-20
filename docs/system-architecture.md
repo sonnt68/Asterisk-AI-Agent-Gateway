@@ -4,7 +4,7 @@ The gateway solely owns ARI credentials, Asterisk channel/bridge IDs,
 AudioSocket and cleanup. A partner owns an API key, agent slug and outbound WSS.
 
 ```text
-Asterisk ARI -> lifecycle -> bridge + AudioSocket(slin16)
+Asterisk ARI -> lifecycle -> bridge + AudioSocket(slin, rate configurable)
                                   |
                          gateway call UUID
                                   |
