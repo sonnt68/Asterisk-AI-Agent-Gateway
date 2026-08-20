@@ -1,0 +1,4 @@
+interface:
+  display_name: "Connect Asterisk AI Gateway"
+  short_description: "Build or debug an AI voice agent on the Asterisk AI Agent Gateway."
+  default_prompt: "Connect this AI agent to the Asterisk AI Agent Gateway."

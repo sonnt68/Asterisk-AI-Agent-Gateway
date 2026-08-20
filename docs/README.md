@@ -13,6 +13,11 @@ Start with the smallest authoritative surface.
 - [`partner/integration-guide.html`](partner/integration-guide.html): the
   handout for third parties. Bilingual Vietnamese/English, self-contained,
   covers the same surfaces as the three files above in one page.
+- [`operations/partner-onboarding.md`](operations/partner-onboarding.md):
+  internal handover runbook — what a partner is sent, what they never get,
+  and the failures seen in practice.
+- [`../sdks/skill/`](../sdks/skill/): the AI-coding skill handed to partners,
+  and the script that packages it.
 - [`operations/deployment.md`](operations/deployment.md) and
   [`operations/observability-and-chaos.md`](operations/observability-and-chaos.md):
   deployment, metrics and recovery.
