@@ -38,6 +38,17 @@ class CallLifecycle:
         if event_type == "StasisEnd":
             await self._on_stasis_end(channel_id, session)
             return
+        if event_type == "ChannelStateChange":
+            await self._on_channel_state_change(channel_id, channel, session)
+            return
+        if event_type == "ChannelDestroyed":
+            # A dialled channel that never answered produces no StasisEnd, so
+            # without this the reservation would sit in the registry forever
+            # and active_calls would drift away from reality.
+            call = self.registry.by_channel(channel_id)
+            if call:
+                await self.cleanup(call, session, notify=True)
+            return
         if event_type != "StasisStart" or str(channel.get("name", "")).startswith(
             "AudioSocket/"
         ):
@@ -69,6 +80,26 @@ class CallLifecycle:
         if call:
             await self.cleanup(call, session, notify=True)
 
+    async def _on_channel_state_change(
+        self,
+        channel_id: str,
+        channel: dict[str, object],
+        session: aiohttp.ClientSession,
+    ) -> None:
+        """Activate an outbound call once the callee actually answers."""
+        if str(channel.get("state") or "") != "Up":
+            return
+        call = self.registry.by_channel(channel_id)
+        if not call or call.bridge_id or call.activating or call.channel_id != channel_id:
+            return
+        connection = self.registry.connections.get(call.connection_id)
+        if not connection:
+            await self.ari.delete(session, f"/channels/{quote(channel_id, safe='')}")
+            return
+        # Claim the call before yielding, so a repeated answer event finds it taken.
+        call.activating = True
+        await self._activate_call(call, channel, connection, session)
+
     async def _start_outbound(
         self,
         call_id: str,
@@ -82,6 +113,16 @@ class CallLifecycle:
             await self.ari.delete(session, f"/channels/{quote(channel_id, safe='')}")
             return
         call.channel_id = channel_id
+        if call.activating or call.bridge_id:
+            return
+        if str(channel.get("state") or "") != "Up":
+            # A dialled channel enters Stasis while the far end is still
+            # ringing. Activating here would answer our own leg and emit
+            # call.started, so the partner would greet a phone nobody has
+            # picked up and its audio would land nowhere. Wait for the
+            # ChannelStateChange that says the callee answered.
+            return
+        call.activating = True
         await self._activate_call(call, channel, connection, session)
 
     async def _attach_transfer_helper(
@@ -155,11 +196,7 @@ class CallLifecycle:
                     "call_id": call.id,
                     "sequence": 1,
                     "agent_slug": call.agent_slug,
-                    "media": {
-                        "encoding": "pcm_s16le",
-                        "sample_rate": 16000,
-                        "channels": 1,
-                    },
+                    "media": self.media.wire_format(),
                     "caller": caller,
                 }
             )

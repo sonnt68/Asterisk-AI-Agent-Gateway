@@ -1,8 +1,14 @@
 """Binary audio envelope for realtime protocol v1.
 
 Every audio frame is the 16 raw bytes of the gateway call UUID followed by
-PCM signed 16-bit little-endian mono 16 kHz samples. Nothing else may be
-prepended: the gateway routes on those first 16 bytes.
+mono PCM samples. Nothing else may be prepended: the gateway routes on those
+first 16 bytes.
+
+The encoding and rate of those samples are not fixed by this module. The
+gateway announces them per call in `call.started`'s `media` block, because a
+deployment bridging plain telephony carries 8 kHz while one bridging wideband
+endpoints carries more. Read them from the event; the constants below are only
+the common default.
 """
 
 from __future__ import annotations
@@ -11,9 +17,12 @@ from uuid import UUID
 
 UUID_BYTES = 16
 
-#: Media format the gateway sends and expects on every call.
+#: The usual media format, and what to assume when a deployment has not said
+#: otherwise. `CallStarted.media` is authoritative.
 AUDIO_ENCODING = "pcm_s16le"
-AUDIO_SAMPLE_RATE = 16000
+DEFAULT_AUDIO_SAMPLE_RATE = 8000
+#: Deprecated alias kept so existing partner code keeps importing cleanly.
+AUDIO_SAMPLE_RATE = DEFAULT_AUDIO_SAMPLE_RATE
 AUDIO_CHANNELS = 1
 
 

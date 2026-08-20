@@ -54,8 +54,11 @@ components:
           media:
             type: object
             properties:
-              encoding: { const: pcm_s16le }
-              sample_rate: { const: 16000 }
+              # Negotiated per deployment, not fixed: the transport and the
+              # operator's configured rate decide it. Partners must read these
+              # fields rather than assume a format.
+              encoding: { enum: [pcm_s16le, pcm_mulaw] }
+              sample_rate: { type: integer, enum: [8000, 12000, 16000, 24000] }
               channels: { const: 1 }
     CallControl:
       payload:

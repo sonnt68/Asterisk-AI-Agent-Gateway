@@ -80,6 +80,10 @@ class ActiveCall:
     media_transport: str = "audiosocket"
     # Playback ids this call started, so a partner can only stop its own.
     playbacks: set[str] = field(default_factory=set)
+    # Set synchronously before activation is awaited. bridge_id alone is not
+    # enough: it lands partway through _activate_call, and a second answer
+    # event arriving in that window would start the same call twice.
+    activating: bool = False
 
 
 class ConnectionRegistry:

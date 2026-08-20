@@ -11,6 +11,7 @@ export {
   AUDIO_CHANNELS,
   AUDIO_ENCODING,
   AUDIO_SAMPLE_RATE,
+  DEFAULT_AUDIO_SAMPLE_RATE,
   decodeAudioFrame,
   encodeAudioFrame,
 } from "./frames.js";

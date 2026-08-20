@@ -40,7 +40,11 @@ async def originate(connection: Connection, message: dict[str, object]) -> None:
     settings = get_settings()
     auth = aiohttp.BasicAuth(settings.ari_username or "", settings.ari_password or "")
     params = {
-        "endpoint": f"Local/{extension}@{context}",
+        # The /n suppresses Local channel optimisation. Without it Asterisk
+        # collapses the Local channel once both legs are up, and the bridge
+        # loses the media path to AudioSocket: the call connects, the partner
+        # is told it started, and not one audio frame ever arrives.
+        "endpoint": f"Local/{extension}@{context}/n",
         "app": "asterisk-ai-gateway",
         "appArgs": f"outbound,{call.id}",
         "timeout": str(timeout),

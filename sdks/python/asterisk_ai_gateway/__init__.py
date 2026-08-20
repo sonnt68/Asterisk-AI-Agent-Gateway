@@ -20,6 +20,7 @@ from .frames import (
     AUDIO_CHANNELS,
     AUDIO_ENCODING,
     AUDIO_SAMPLE_RATE,
+    DEFAULT_AUDIO_SAMPLE_RATE,
     decode_audio_frame,
     encode_audio_frame,
 )
@@ -35,6 +36,7 @@ __all__ = [
     "AUDIO_CHANNELS",
     "AUDIO_ENCODING",
     "AUDIO_SAMPLE_RATE",
+    "DEFAULT_AUDIO_SAMPLE_RATE",
     "Audio",
     "AuthenticationError",
     "CommandDenied",

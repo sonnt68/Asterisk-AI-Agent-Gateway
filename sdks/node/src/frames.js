@@ -2,14 +2,21 @@
  * Binary audio envelope for realtime protocol v1.
  *
  * Every audio frame is the 16 raw bytes of the gateway call UUID followed by
- * PCM signed 16-bit little-endian mono 16 kHz samples. Nothing else may be
- * prepended: the gateway routes on those first 16 bytes.
+ * mono PCM samples. Nothing else may be prepended: the gateway routes on those
+ * first 16 bytes.
+ *
+ * The encoding and rate are not fixed here. The gateway announces them per call
+ * in `call.started`'s `media` block, because a deployment bridging plain
+ * telephony carries 8 kHz while one bridging wideband endpoints carries more.
+ * Read them from the event; the constants below are only the common default.
  */
 
 export const UUID_BYTES = 16;
 
 export const AUDIO_ENCODING = "pcm_s16le";
-export const AUDIO_SAMPLE_RATE = 16000;
+export const DEFAULT_AUDIO_SAMPLE_RATE = 8000;
+/** @deprecated Read `call.started`'s `media.sample_rate` instead. */
+export const AUDIO_SAMPLE_RATE = DEFAULT_AUDIO_SAMPLE_RATE;
 export const AUDIO_CHANNELS = 1;
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

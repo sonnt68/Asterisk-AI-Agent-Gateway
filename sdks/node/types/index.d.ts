@@ -5,7 +5,9 @@ export const DEFAULT_HEARTBEAT_MS: number;
 export const CLOSE_UNAUTHORIZED: 4401;
 export const UUID_BYTES: 16;
 export const AUDIO_ENCODING: "pcm_s16le";
-export const AUDIO_SAMPLE_RATE: 16000;
+export const DEFAULT_AUDIO_SAMPLE_RATE: 8000;
+/** @deprecated Read `call.started`'s `media.sample_rate` instead. */
+export const AUDIO_SAMPLE_RATE: 8000;
 export const AUDIO_CHANNELS: 1;
 
 export class AuthenticationError extends Error {}

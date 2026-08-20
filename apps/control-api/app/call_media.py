@@ -5,6 +5,7 @@ import contextlib
 from urllib.parse import quote
 
 import aiohttp
+from gateway.audiosocket import channel_format
 from gateway.external_media_manager import ExternalMediaManager
 
 from app.ari_requests import AriRequests
@@ -75,12 +76,31 @@ class CallMedia:
             direction="both",
         )
 
+    def wire_format(self) -> dict[str, object]:
+        """The media format the partner will actually receive and must send.
+
+        The two transports differ, so the partner cannot assume one: external
+        media is negotiated as µ-law at the trunk's own 8 kHz, while
+        AudioSocket carries signed linear at the configured rate.
+        """
+        if self.settings.media_transport == "externalmedia":
+            return {"encoding": "pcm_mulaw", "sample_rate": 8000, "channels": 1}
+        return {
+            "encoding": "pcm_s16le",
+            "sample_rate": self.settings.media_sample_rate,
+            "channels": 1,
+        }
+
     async def _create_audiosocket(
         self, call: ActiveCall, session: aiohttp.ClientSession
     ) -> dict[str, object]:
+        # The `c(...)` format is what Asterisk plays the frames at; the type
+        # byte does not carry the rate on this version. It must therefore
+        # match the rate advertised to the partner exactly.
         endpoint = (
             f"AudioSocket/{self.settings.audiosocket_advertise_host}:"
-            f"{self.settings.audiosocket_port}/{call.id}/c(slin16)"
+            f"{self.settings.audiosocket_port}/{call.id}/"
+            f"c({channel_format(self.settings.media_sample_rate)})"
         )
         return await self.ari.post(
             session,

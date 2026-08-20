@@ -23,6 +23,7 @@ class Settings:
     cookie_secure: bool
     browser_session_max_age: int
     media_transport: str
+    media_sample_rate: int
     external_media_host: str
     external_media_advertise_host: str
     token_rate_limit_per_minute: int
@@ -47,6 +48,7 @@ def get_settings() -> Settings:
         cookie_secure=getenv("GATEWAY_COOKIE_SECURE", "false").lower() == "true",
         browser_session_max_age=int(getenv("GATEWAY_BROWSER_SESSION_MAX_AGE", "28800")),
         media_transport=getenv("GATEWAY_MEDIA_TRANSPORT", "audiosocket").lower(),
+        media_sample_rate=int(getenv("GATEWAY_MEDIA_SAMPLE_RATE", "8000")),
         external_media_host=getenv("EXTERNAL_MEDIA_HOST", "0.0.0.0"),
         external_media_advertise_host=getenv("EXTERNAL_MEDIA_ADVERTISE_HOST", "api"),
         token_rate_limit_per_minute=int(
