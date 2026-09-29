@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="en" data-lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Asterisk AI Agent Gateway — vì sao outbound.originate bị từ chối với outbound-failed, và hai điều kiện phải sửa / why an outbound call is refused, and the two conditions to fix.">
+<title>Gọi ra bị allowlist chặn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+
+<style>
+:root {
+  --pair-blue: #1B4F9C;
+  --pair-orange: #C2570E;
+  --pair-green: #1F7A54;
+
+  --ground: #F1F3F6;
+  --surface: #FFFFFF;
+  --surface-2: #E7EBF1;
+  --ink: #12171F;
+  --ink-2: #48525F;
+  --ink-3: #6E7889;
+  --rule: #CFD6E0;
+  --rule-soft: #E1E6ED;
+
+  --accent: var(--pair-blue);
+  --accent-soft: #E4EBF7;
+  --warn: var(--pair-orange);
+  --warn-soft: #F8E9DD;
+  --good: var(--pair-green);
+  --good-soft: #DFEDE7;
+
+  --code-bg: #EDF0F5;
+  --code-ink: #1B2430;
+
+  --measure: 70ch;
+  --step--1: 0.8125rem;
+  --step-0: 1rem;
+  --step-1: 1.1875rem;
+  --step-2: 1.5rem;
+  --step-3: 2rem;
+  --step-4: 2.75rem;
+
+  --sans: "IBM Plex Sans", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --cond: "IBM Plex Sans Condensed", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #0E1319;
+    --surface: #161C25;
+    --surface-2: #1D2530;
+    --ink: #DDE3EC;
+    --ink-2: #A3AEBE;
+    --ink-3: #7B8697;
+    --rule: #2A3441;
+    --rule-soft: #212A35;
+
+    --accent: #7FA9E8;
+    --accent-soft: #16233A;
+    --warn: #E8935A;
+    --warn-soft: #2E1F13;
+    --good: #5FBF95;
+    --good-soft: #12271E;
+
+    --code-bg: #10161E;
+    --code-ink: #CBD4E1;
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground: #0E1319;
+  --surface: #161C25;
+  --surface-2: #1D2530;
+  --ink: #DDE3EC;
+  --ink-2: #A3AEBE;
+  --ink-3: #7B8697;
+  --rule: #2A3441;
+  --rule-soft: #212A35;
+
+  --accent: #7FA9E8;
+  --accent-soft: #16233A;
+  --warn: #E8935A;
+  --warn-soft: #2E1F13;
+  --good: #5FBF95;
+  --good-soft: #12271E;
+
+  --code-bg: #10161E;
+  --code-ink: #CBD4E1;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: var(--step-0);
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- bilingual switching ---------- */
+.e { display: none; }
+html[data-lang="en"] .v { display: none; }
+html[data-lang="en"] .e { display: inline; }
+html[data-lang="en"] li > .e,
+html[data-lang="en"] td > .e,
+html[data-lang="en"] th > .e { display: inline; }
+
+
+/* ---------- masthead ---------- */
+.masthead {
+  border-bottom: 1px solid var(--rule);
+  background: var(--surface);
+}
+.masthead-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 2.75rem 1.5rem 2.25rem;
+  display: grid;
+  gap: 1.25rem;
+}
+.pair-rule {
+  display: flex;
+  height: 5px;
+  width: 148px;
+  border-radius: 1px;
+  overflow: hidden;
+}
+.pair-rule span { flex: 1; }
+.pair-rule span:nth-child(1) { background: var(--pair-blue); }
+.pair-rule span:nth-child(2) { background: var(--pair-orange); }
+.pair-rule span:nth-child(3) { background: var(--pair-green); }
+.pair-rule span:nth-child(4) { background: var(--ink-3); }
+
+.masthead h1 {
+  font-family: var(--cond);
+  font-weight: 700;
+  font-size: var(--step-4);
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  margin: 0;
+  text-wrap: balance;
+  max-width: 22ch;
+}
+.masthead p.lede {
+  margin: 0;
+  max-width: 64ch;
+  color: var(--ink-2);
+  font-size: var(--step-1);
+}
+.masthead-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.75rem;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: var(--step--1);
+  color: var(--ink-3);
+}
+.masthead-meta b {
+  color: var(--ink-2);
+  font-weight: 500;
+}
+
+
+/* ---------- language switch ---------- */
+.langbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--rule);
+}
+.langbar-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0.5rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.wordmark {
+  font-family: var(--cond);
+  font-weight: 600;
+  font-size: var(--step--1);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.switch {
+  display: inline-flex;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  overflow: hidden;
+  flex: none;
+}
+.switch button {
+  font: 600 var(--step--1)/1 var(--mono);
+  letter-spacing: 0.06em;
+  padding: 0.5rem 0.85rem;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: background 120ms linear, color 120ms linear;
+}
+.switch button + button { border-left: 1px solid var(--rule); }
+.switch button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--surface);
+}
+.switch button:focus-visible {
+  outline: 2px solid var(--warn);
+  outline-offset: -2px;
+}
+
+
+/* ---------- headings & text ---------- */
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 0 0 0.4rem;
+}
+h2 {
+  font-family: var(--cond);
+  font-weight: 700;
+  font-size: var(--step-3);
+  line-height: 1.18;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.75rem;
+  text-wrap: balance;
+  padding-bottom: 0.6rem;
+  border-bottom: 2px solid var(--rule);
+}
+h3 {
+  font-family: var(--cond);
+  font-weight: 600;
+  font-size: var(--step-2);
+  line-height: 1.25;
+  margin: 2rem 0 0.5rem;
+  text-wrap: balance;
+}
+h4 {
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: var(--step-0);
+  margin: 1.5rem 0 0.4rem;
+}
+p, li { max-width: var(--measure); }
+p { margin: 0 0 1rem; }
+ul, ol { margin: 0 0 1rem; padding-left: 1.25rem; }
+li { margin-bottom: 0.4rem; }
+li::marker { color: var(--ink-3); }
+a { color: var(--accent); text-underline-offset: 2px; }
+strong { font-weight: 600; }
+
+code {
+  font-family: var(--mono);
+  font-size: 0.875em;
+  background: var(--code-bg);
+  color: var(--code-ink);
+  padding: 0.1em 0.34em;
+  border-radius: 2px;
+  word-break: break-word;
+}
+
+
+/* ---------- code blocks ---------- */
+.code {
+  background: var(--code-bg);
+  border: 1px solid var(--rule-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: 3px;
+  margin: 0 0 1.25rem;
+  overflow: hidden;
+}
+.code-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.45rem 0.85rem;
+  border-bottom: 1px solid var(--rule-soft);
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.code pre {
+  margin: 0;
+  padding: 0.9rem 0.85rem;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: var(--step--1);
+  line-height: 1.6;
+  color: var(--code-ink);
+}
+.code pre code { background: none; padding: 0; font-size: inherit; }
+
+
+/* ---------- callouts ---------- */
+.note {
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--ink-3);
+  background: var(--surface);
+  border-radius: 3px;
+  padding: 0.9rem 1rem;
+  margin: 0 0 1.25rem;
+}
+.note p:last-child { margin-bottom: 0; }
+.note-title {
+  font-family: var(--cond);
+  font-weight: 600;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 0 0 0.3rem;
+}
+.note-warn { border-left-color: var(--warn); }
+.note-warn .note-title { color: var(--warn); }
+
+
+/* ---------- single-column shell ---------- */
+.shell {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 5rem;
+}
+.doc > section + section { margin-top: 3.25rem; }
+
+/* ---------- the two conditions ---------- */
+.checks {
+  list-style: none;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  counter-reset: check;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+.checks > li {
+  counter-increment: check;
+  display: grid;
+  grid-template-columns: 2.1rem minmax(0, 1fr);
+  gap: 0 1rem;
+  max-width: none;
+  margin: 0;
+}
+.checks > li::before {
+  content: counter(check);
+  grid-row: span 4;
+  font: 500 var(--step--1)/2.1rem var(--mono);
+  text-align: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 50%;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.checks h3 { margin: 0.15rem 0 0.35rem; font-size: var(--step-1); }
+.checks p { margin-bottom: 0.6rem; }
+.verdict {
+  font-family: var(--mono);
+  font-size: var(--step--1);
+  color: var(--warn);
+  margin: 0;
+}
+</style>
+
+<script>
+  (function () {
+    var stored = null;
+    try { stored = localStorage.getItem("gw-doc-lang"); } catch (e) { stored = null; }
+    var lang = stored === "vi" ? "vi" : "en";
+    document.documentElement.setAttribute("data-lang", lang);
+    document.documentElement.lang = lang;
+  })();
+</script>
+</head>
+<body>
+<div class="langbar">
+  <div class="langbar-inner">
+    <span class="wordmark">Asterisk AI Agent Gateway · Partner v1</span>
+    <div class="switch" role="group" aria-label="Ngôn ngữ tài liệu / Document language">
+      <button type="button" data-lang="vi" aria-pressed="false">VI</button>
+      <button type="button" data-lang="en" aria-pressed="true">EN</button>
+    </div>
+  </div>
+</div>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <div class="pair-rule" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+    <h1>
+      <span class="v">Gọi ra bị allowlist chặn</span>
+      <span class="e">An outbound call the allowlist refused</span>
+    </h1>
+    <p class="lede">
+      <span class="v">Gateway từ chối cuộc gọi trước khi chạm tới Asterisk. Đây là lỗi cấu hình — thử lại không giúp ích — và có hai điều kiện phải đúng, không phải một.</span>
+      <span class="e">The gateway refused the call before it reached Asterisk. This is a configuration error — retrying never helps — and two conditions have to be true, not one.</span>
+    </p>
+    <div class="masthead-meta">
+      <span><b>Code</b> outbound-failed</span>
+      <span><b>Command</b> outbound.originate</span>
+      <span><b><span class="v">Sửa ở</span><span class="e">Fix on</span></b> <span class="v">phía quản trị viên</span><span class="e">the operator side</span></span>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+  <div class="doc">
+
+    <section>
+      <p class="eyebrow"><span class="v">Triệu chứng</span><span class="e">The symptom</span></p>
+      <h2><span class="v">Thông báo bạn nhận được</span><span class="e">What you were sent</span></h2>
+
+      <div class="code">
+        <div class="code-head"><span>agent log</span><span>outbound-failed</span></div>
+        <pre><code>ERROR ava_agent Gateway error [outbound-failed]
+Outbound destination is not in the partner app allowlist</code></pre>
+      </div>
+
+      <p>
+        <span class="v">Yêu cầu đã gửi là <code>from-trunk:84984497334</code>. Gateway dừng nó tại ranh giới đối tác: không có kênh nào được tạo, không có gì chạm tới tổng đài.</span>
+        <span class="e">The request sent was <code>from-trunk:84984497334</code>. The gateway stopped it at the partner boundary: no channel was created, nothing reached the PBX.</span>
+      </p>
+    </section>
+
+    <section>
+      <p class="eyebrow"><span class="v">Nguyên nhân</span><span class="e">The cause</span></p>
+      <h2><span class="v">Hai điều kiện, chỉ điều kiện đầu sinh ra thông báo này</span><span class="e">Two conditions; only the first produces this message</span></h2>
+
+      <ol class="checks">
+        <li>
+          <h3><span class="v">Đích nằm trong allowlist của partner app</span><span class="e">The destination is in the partner app allowlist</span></h3>
+          <p>
+            <span class="v">Allowlist hiện chưa có luật nào khớp <code>from-trunk:84984497334</code>. Gọi ra PSTN cần <strong>luật tiền tố</strong>, vì số đích đổi theo từng cuộc gọi — dạng <code>from-internal:84*</code>. Chỉ dấu sao ở cuối mới là ký tự đại diện, và tiền tố cần tối thiểu hai ký tự thật.</span>
+            <span class="e">Nothing in the allowlist matches <code>from-trunk:84984497334</code>. Outbound PSTN needs a <strong>prefix rule</strong>, because the callee differs on every call — <code>from-internal:84*</code> is the shape. Only a trailing asterisk is a wildcard, and a prefix needs at least two literal characters.</span>
+          </p>
+          <p class="verdict"><span class="v">→ đang sai, và đây là thứ bạn đang thấy</span><span class="e">→ currently false, and this is what you are seeing</span></p>
+        </li>
+        <li>
+          <h3><span class="v">Context đó thực sự gọi ra được</span><span class="e">That context can actually dial out</span></h3>
+          <p>
+            <span class="v">Gateway khởi tạo cuộc gọi bằng <code>Local/&lt;extension&gt;@&lt;context&gt;</code>, nên <code>context</code> phải chứa outbound route — trên FreePBX là <code>from-internal</code>.</span>
+            <span class="e">The gateway originates the call as <code>Local/&lt;extension&gt;@&lt;context&gt;</code>, so the <code>context</code> must hold an outbound route — on FreePBX that is <code>from-internal</code>.</span>
+          </p>
+          <p>
+            <span class="v"><code>from-trunk</code> là context <em>chiều vào</em>: nó khớp DID của cuộc gọi đến và không có route nào đẩy số ra ngoài. Thêm nó vào allowlist không sửa được gì — chỉ đổi một lỗi rõ ràng thành một cuộc gọi rớt im lặng bên trong dialplan.</span>
+            <span class="e"><code>from-trunk</code> is the <em>inbound</em> context: it matches the DIDs of incoming calls and holds no route that sends a number out. Allowlisting it fixes nothing — it turns a clear rejection into a call that fails silently inside the dialplan.</span>
+          </p>
+          <p class="verdict"><span class="v">→ cũng đang sai, và sẽ lộ ra ngay sau khi sửa điều kiện 1</span><span class="e">→ also false, and it surfaces the moment condition 1 is fixed</span></p>
+        </li>
+      </ol>
+    </section>
+
+    <section>
+      <p class="eyebrow"><span class="v">Cách sửa</span><span class="e">The fix</span></p>
+      <h2><span class="v">Hai thay đổi, hai phía</span><span class="e">Two changes, two sides</span></h2>
+
+      <div class="note">
+        <p class="note-title"><span class="v">Phía bạn</span><span class="e">Your side</span></p>
+        <p>
+          <span class="v">Đổi <code>OUTBOUND_CONTEXT</code> từ <code>from-trunk</code> sang context có outbound route trên tổng đài — thường là <code>from-internal</code>. Nếu tổng đài không phải FreePBX, hỏi quản trị viên tên context tương ứng. Số đích giữ nguyên định dạng E.164 không dấu cộng: <code>84984497334</code>.</span>
+          <span class="e">Change <code>OUTBOUND_CONTEXT</code> from <code>from-trunk</code> to a context that has an outbound route on the PBX — usually <code>from-internal</code>. If the PBX is not FreePBX, ask the operator for the equivalent context name. The destination stays in E.164 without the plus: <code>84984497334</code>.</span>
+        </p>
+      </div>
+
+      <div class="note note-warn">
+        <p class="note-title"><span class="v">Phía quản trị viên gateway</span><span class="e">The gateway operator's side</span></p>
+        <p>
+          <span class="v">Thêm <code>from-internal:84*</code> vào allowlist của partner app. Trường này là <strong>ghi đè</strong>, không phải nối thêm: phải gửi lại toàn bộ danh sách đang có cộng entry mới, nếu không các đích chuyển máy hiện tại sẽ mất.</span>
+          <span class="e">Add <code>from-internal:84*</code> to the partner app's allowlist. The field <strong>replaces</strong>, it does not append: resend the full existing list plus the new entry, or the current transfer destinations are lost.</span>
+        </p>
+      </div>
+
+      <p>
+        <span class="v">Trước khi thêm entry, nhờ quản trị viên quay thử trực tiếp trên tổng đài. Nếu lệnh này không đổ chuông thì không entry allowlist nào cứu được — vấn đề nằm ở dialplan, không nằm ở gateway.</span>
+        <span class="e">Before adding the entry, have the operator dial it by hand on the PBX. If this does not ring, no allowlist entry will make it ring — the problem is in the dialplan, not the gateway.</span>
+      </p>
+
+      <div class="code">
+        <div class="code-head"><span>asterisk cli</span><span><span class="v">phía quản trị viên</span><span class="e">operator side</span></span></div>
+        <pre><code>asterisk -rx 'channel originate Local/84984497334@from-internal application Echo'</code></pre>
+      </div>
+
+      <p>
+        <span class="v">Sau khi allowlist được cập nhật, gọi lại là được — không cần khởi động lại agent. Allowlist được đọc từ database tại đúng thời điểm mỗi lần originate.</span>
+        <span class="e">Once the allowlist is updated, call again — no need to restart the agent. The allowlist is read from the database at the moment of each origination.</span>
+      </p>
+    </section>
+
+    <section>
+      <p class="eyebrow"><span class="v">Xác nhận</span><span class="e">Confirming</span></p>
+      <h2><span class="v">Luồng khi đã đúng</span><span class="e">What a working call looks like</span></h2>
+
+      <div class="code">
+        <div class="code-head"><span><span class="v">luồng mong đợi</span><span class="e">expected sequence</span></span><span>outbound</span></div>
+        <pre><code>outbound.originate   from-internal:84984497334
+  -> outbound.accepted   { call_id }   <span class="v">Asterisk đã nhận yêu cầu</span><span class="e">Asterisk took the request</span>
+  -> call.started        { call_id }   <span class="v">đã nhấc máy, audio bắt đầu chạy</span><span class="e">answered, audio starts flowing</span></code></pre>
+      </div>
+
+      <p>
+        <span class="v"><code>outbound.accepted</code> chỉ có nghĩa là Asterisk nhận yêu cầu, chưa phải đã có người nghe. Cuộc gọi chỉ thực sự sống khi <code>call.started</code> về với cùng <code>call_id</code>.</span>
+        <span class="e"><code>outbound.accepted</code> only means Asterisk took the request, not that anyone answered. The call is live only when <code>call.started</code> arrives for the same <code>call_id</code>.</span>
+      </p>
+      <p>
+        <span class="v">Nếu <code>outbound.accepted</code> về nhưng <code>call.started</code> không bao giờ tới, đó chính là điều kiện 2: context không định tuyến số ra ngoài được.</span>
+        <span class="e">If <code>outbound.accepted</code> arrives but <code>call.started</code> never does, that is condition 2: the context cannot route the number outward.</span>
+      </p>
+    </section>
+
+    <section>
+      <p class="eyebrow"><span class="v">Đọc thêm</span><span class="e">Further reading</span></p>
+      <h2><span class="v">Tài liệu liên quan</span><span class="e">Related documents</span></h2>
+      <ul>
+        <li><span class="v"><a href="integration-guide.html">Tài liệu tích hợp</a> — mục <em>Allowlist đích</em> và <em>Chọn đúng context</em>.</span><span class="e"><a href="integration-guide.html">Partner integration guide</a> — the <em>Destination allowlist</em> and <em>Choosing the context</em> sections.</span></li>
+        <li><span class="v"><a href="call-control.md">Điều khiển cuộc gọi</a> — scope và allowlist cho từng lệnh.</span><span class="e"><a href="call-control.md">Call control</a> — scopes and the allowlist, command by command.</span></li>
+        <li><span class="v">Skill AI-coding — <code>references/call-control.md</code> và <code>references/troubleshooting.md</code>.</span><span class="e">The AI-coding skill — <code>references/call-control.md</code> and <code>references/troubleshooting.md</code>.</span></li>
+      </ul>
+    </section>
+
+  </div>
+</div>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    var buttons = Array.prototype.slice.call(document.querySelectorAll(".switch button"));
+
+    function setLang(lang) {
+      root.setAttribute("data-lang", lang);
+      root.lang = lang;
+      try { localStorage.setItem("gw-doc-lang", lang); } catch (e) {}
+      buttons.forEach(function (button) {
+        button.setAttribute("aria-pressed", button.dataset.lang === lang ? "true" : "false");
+      });
+    }
+
+    buttons.forEach(function (button) {
+      button.addEventListener("click", function () { setLang(button.dataset.lang); });
+    });
+
+    setLang(root.getAttribute("data-lang") === "vi" ? "vi" : "en");
+  })();
+</script>
+</body>
+</html>

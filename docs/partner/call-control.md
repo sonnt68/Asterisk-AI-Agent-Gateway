@@ -21,11 +21,17 @@ Supported commands and scopes:
 | `outbound.originate`, `outbound.cancel` | `calls:originate` |
 
 Allowlist entries are exact `context:extension` pairs. An extension ending in
-`*` is a prefix rule instead: `from-trunk:84*` permits any longer extension
+`*` is a prefix rule instead: `from-internal:84*` permits any longer extension
 starting `84` in that context, which is how outbound PSTN works when the callee
 differs on every call. Only a trailing asterisk is a wildcard, so feature codes
 like `*43` stay exact, a prefix needs at least two literal characters, and a
 rule never matches the bare prefix or crosses into another context.
+
+For `outbound.originate` the context must also be able to dial out. The
+gateway originates `Local/<extension>@<context>`, so the context needs a route
+that sends the number to the trunk — `from-internal` on FreePBX. An inbound
+trunk context such as `from-trunk` matches the DIDs of incoming calls and has
+no outbound route, so it fails at the dialplan even once it is allowlisted.
 
 Destination commands require `{ "context": "...", "extension": "..." }`
 and must match the partner app allowlist exactly. `transfer.attended` creates a

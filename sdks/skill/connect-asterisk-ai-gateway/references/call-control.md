@@ -42,7 +42,7 @@ Anything that names a destination takes `{"context": "...", "extension": "..."}`
 and is checked against the partner app's allowlist.
 
 Entries are exact `context:extension` pairs. An extension ending in `*` is a
-prefix rule instead: `from-trunk:84*` permits any longer extension starting
+prefix rule instead: `from-internal:84*` permits any longer extension starting
 `84` in that context, which is how outbound PSTN works when the callee differs
 on every call. The rules are deliberately narrow:
 
@@ -54,6 +54,21 @@ on every call. The rules are deliberately narrow:
 
 If a destination you expect is refused, the allowlist is the place to look
 first, and changing it is the operator's call, not yours.
+
+## Which context dials out
+
+`outbound.originate` is dialled as `Local/<extension>@<context>`, so the
+`context` you send must be one that routes the number *outward*. On FreePBX
+that is `from-internal`, which carries the outbound routes.
+
+The inbound trunk context — usually `from-trunk` — is the wrong choice even
+though it reads like "the context my trunk uses". It matches the DIDs of
+incoming calls and holds no route that sends a number out, so `Local/84…@from-trunk`
+matches no extension. Allowlisting it does not fix that: the call then fails
+inside the dialplan instead of at the boundary, which is harder to diagnose,
+not easier.
+
+Settle the context with the operator before asking for the allowlist entry.
 
 ## Transfers
 

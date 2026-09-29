@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="vi">
+<html lang="en" data-lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -572,7 +572,7 @@ html { scroll-behavior: smooth; }
   (function () {
     var stored = null;
     try { stored = localStorage.getItem("gw-doc-lang"); } catch (e) { stored = null; }
-    var lang = stored === "en" ? "en" : "vi";
+    var lang = stored === "vi" ? "vi" : "en";
     document.documentElement.setAttribute("data-lang", lang);
     document.documentElement.lang = lang;
   })();
@@ -583,8 +583,8 @@ html { scroll-behavior: smooth; }
   <div class="langbar-inner">
     <span class="wordmark">Asterisk AI Agent Gateway · Partner v1</span>
     <div class="switch" role="group" aria-label="Ngôn ngữ tài liệu / Document language">
-      <button type="button" data-lang="vi" aria-pressed="true">VI</button>
-      <button type="button" data-lang="en" aria-pressed="false">EN</button>
+      <button type="button" data-lang="vi" aria-pressed="false">VI</button>
+      <button type="button" data-lang="en" aria-pressed="true">EN</button>
     </div>
   </div>
 </div>
@@ -1064,9 +1064,18 @@ async def on_event(event):
 
       <h3><span class="v">Allowlist đích</span><span class="e">Destination allowlist</span></h3>
       <p>
-        <span class="v">Mọi lệnh <code>transfer.*</code> (trừ <code>transfer.cancel</code>), <code>route.*</code> và <code>outbound.originate</code> đều phải có <code>context</code> và <code>extension</code> ghép thành chuỗi <code>context:extension</code> nằm <strong>chính xác</strong> trong allowlist của partner app. Không có wildcard, không có so khớp tiền tố.</span>
-        <span class="e">Every <code>transfer.*</code> (except <code>transfer.cancel</code>), <code>route.*</code>, and <code>outbound.originate</code> must carry a <code>context</code> and <code>extension</code> whose <code>context:extension</code> pair is <strong>exactly</strong> in your partner app's allowlist. No wildcards, no prefix matching.</span>
+        <span class="v">Mọi lệnh <code>transfer.*</code> (trừ <code>transfer.cancel</code>), <code>route.*</code> và <code>outbound.originate</code> đều phải có <code>context</code> và <code>extension</code> ghép thành chuỗi <code>context:extension</code> được allowlist của partner app chấp nhận.</span>
+        <span class="e">Every <code>transfer.*</code> (except <code>transfer.cancel</code>), <code>route.*</code>, and <code>outbound.originate</code> must carry a <code>context</code> and <code>extension</code> whose <code>context:extension</code> pair is accepted by your partner app's allowlist.</span>
       </p>
+      <p>
+        <span class="v">Entry thường là cặp <code>context:extension</code> chính xác. Extension kết thúc bằng <code>*</code> là <strong>luật tiền tố</strong>: <code>from-internal:84*</code> cho phép mọi extension dài hơn bắt đầu bằng <code>84</code> trong context đó — đây là cách gọi ra PSTN hoạt động khi số đích đổi theo từng cuộc gọi. Luật cố tình hẹp:</span>
+        <span class="e">Entries are usually exact <code>context:extension</code> pairs. An extension ending in <code>*</code> is a <strong>prefix rule</strong> instead: <code>from-internal:84*</code> permits any longer extension starting <code>84</code> in that context, which is how outbound PSTN works when the callee differs on every call. The rules are deliberately narrow:</span>
+      </p>
+      <ul>
+        <li><span class="v">Chỉ dấu sao ở <strong>cuối</strong> mới là ký tự đại diện, nên feature code như <code>*43</code> vẫn là đích chính xác.</span><span class="e">Only a <strong>trailing</strong> asterisk is a wildcard, so feature codes like <code>*43</code> stay exact destinations.</span></li>
+        <li><span class="v">Tiền tố cần tối thiểu hai ký tự thật — một ký tự không phải là ràng buộc.</span><span class="e">A prefix needs at least two literal characters — one is not a restriction.</span></li>
+        <li><span class="v">Luật không bao giờ khớp đúng phần tiền tố (<code>84*</code> không cho quay <code>84</code>) và không bao giờ lan sang context khác.</span><span class="e">A rule never matches the bare prefix itself (<code>84*</code> does not permit dialling <code>84</code>) and never crosses into another context.</span></li>
+      </ul>
       <ul>
         <li><span class="v"><code>context</code> — 1–80 ký tự thuộc <code>A–Z a–z 0–9 _ -</code></span><span class="e"><code>context</code> — 1–80 characters from <code>A–Z a–z 0–9 _ -</code></span></li>
         <li><span class="v"><code>extension</code> — 1–80 ký tự thuộc <code>A–Z a–z 0–9 * # + _ -</code></span><span class="e"><code>extension</code> — 1–80 characters from <code>A–Z a–z 0–9 * # + _ -</code></span></li>
@@ -1112,6 +1121,20 @@ async def on_event(event):
         <li><span class="v"><code>outbound.accepted</code> nghĩa là Asterisk đã nhận yêu cầu, <strong>chưa</strong> phải đã được trả lời. Cuộc gọi chỉ thực sự sống khi bạn nhận <code>call.started</code> cho cùng <code>call_id</code>.</span><span class="e"><code>outbound.accepted</code> means Asterisk took the request, <strong>not</strong> that anyone answered. The call is live only when <code>call.started</code> arrives for the same <code>call_id</code>.</span></li>
         <li><span class="v">Huỷ bằng <code>{"type":"outbound.cancel","call_id":"…"}</code>; gateway sẽ cúp kênh tương ứng.</span><span class="e">Cancel with <code>{"type":"outbound.cancel","call_id":"…"}</code>; the gateway hangs the channel up.</span></li>
       </ul>
+
+      <h3><span class="v">Chọn đúng <code>context</code></span><span class="e">Choosing the <code>context</code></span></h3>
+      <p>
+        <span class="v">Gateway khởi tạo cuộc gọi bằng <code>Local/&lt;extension&gt;@&lt;context&gt;</code>. Vì vậy <code>context</code> phải là context định tuyến số <strong>ra ngoài</strong> — trên FreePBX là <code>from-internal</code>, nơi chứa các outbound route.</span>
+        <span class="e">The gateway originates the call as <code>Local/&lt;extension&gt;@&lt;context&gt;</code>. So <code>context</code> must be one that routes the number <strong>outward</strong> — on FreePBX that is <code>from-internal</code>, which carries the outbound routes.</span>
+      </p>
+      <p>
+        <span class="v">Context trunk chiều vào (thường tên là <code>from-trunk</code>) là lựa chọn sai dù nghe hợp lý: nó khớp DID của cuộc gọi <em>đến</em> và không có route nào đẩy số ra. Nếu bạn không chắc, nhờ quản trị viên chạy thử — nếu lệnh này không đổ chuông thì không entry allowlist nào cứu được:</span>
+        <span class="e">The inbound trunk context (usually named <code>from-trunk</code>) is the wrong choice even though it sounds right: it matches the DIDs of <em>incoming</em> calls and holds no route that sends a number out. If you are unsure, ask the operator to test it — if this does not ring, no allowlist entry will make it ring:</span>
+      </p>
+      <div class="code">
+        <div class="code-head"><span class="chip">asterisk CLI</span><span><span class="v">phía quản trị viên</span><span class="e">operator side</span></span></div>
+        <pre><code>channel originate Local/84901234567@from-internal application Echo</code></pre>
+      </div>
     </section>
 
     <!-- ============ SCOPES ============ -->
@@ -1382,7 +1405,7 @@ socket.on("message", (data, isBinary) => {
       button.addEventListener("click", function () { setLang(button.dataset.lang); });
     });
 
-    setLang(root.getAttribute("data-lang") === "en" ? "en" : "vi");
+    setLang(root.getAttribute("data-lang") === "vi" ? "vi" : "en");
 
     var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
     var byId = {};

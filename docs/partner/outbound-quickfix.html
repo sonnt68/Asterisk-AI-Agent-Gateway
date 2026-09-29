@@ -1,0 +1,852 @@
+<!doctype html>
+<html lang="en" data-lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Asterisk AI Agent Gateway — sửa nhanh lỗi agent không gọi ra được, kèm script kiểm chứng / the one-line fix for an agent that cannot dial out, with a verification script.">
+<title>Sửa nhanh cuộc gọi ra</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+
+<style>
+:root {
+  --pair-blue: #1B4F9C;
+  --pair-orange: #C2570E;
+  --pair-green: #1F7A54;
+
+  --ground: #F1F3F6;
+  --surface: #FFFFFF;
+  --surface-2: #E7EBF1;
+  --ink: #12171F;
+  --ink-2: #48525F;
+  --ink-3: #6E7889;
+  --rule: #CFD6E0;
+  --rule-soft: #E1E6ED;
+
+  --accent: var(--pair-blue);
+  --accent-soft: #E4EBF7;
+  --warn: var(--pair-orange);
+  --warn-soft: #F8E9DD;
+  --good: var(--pair-green);
+  --good-soft: #DFEDE7;
+
+  --code-bg: #EDF0F5;
+  --code-ink: #1B2430;
+
+  --measure: 70ch;
+  --step--1: 0.8125rem;
+  --step-0: 1rem;
+  --step-1: 1.1875rem;
+  --step-2: 1.5rem;
+  --step-3: 2rem;
+  --step-4: 2.75rem;
+
+  --sans: "IBM Plex Sans", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --cond: "IBM Plex Sans Condensed", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #0E1319;
+    --surface: #161C25;
+    --surface-2: #1D2530;
+    --ink: #DDE3EC;
+    --ink-2: #A3AEBE;
+    --ink-3: #7B8697;
+    --rule: #2A3441;
+    --rule-soft: #212A35;
+
+    --accent: #7FA9E8;
+    --accent-soft: #16233A;
+    --warn: #E8935A;
+    --warn-soft: #2E1F13;
+    --good: #5FBF95;
+    --good-soft: #12271E;
+
+    --code-bg: #10161E;
+    --code-ink: #CBD4E1;
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground: #0E1319;
+  --surface: #161C25;
+  --surface-2: #1D2530;
+  --ink: #DDE3EC;
+  --ink-2: #A3AEBE;
+  --ink-3: #7B8697;
+  --rule: #2A3441;
+  --rule-soft: #212A35;
+
+  --accent: #7FA9E8;
+  --accent-soft: #16233A;
+  --warn: #E8935A;
+  --warn-soft: #2E1F13;
+  --good: #5FBF95;
+  --good-soft: #12271E;
+
+  --code-bg: #10161E;
+  --code-ink: #CBD4E1;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: var(--step-0);
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- bilingual switching ---------- */
+.e { display: none; }
+html[data-lang="en"] .v { display: none; }
+html[data-lang="en"] .e { display: inline; }
+html[data-lang="en"] li > .e,
+html[data-lang="en"] td > .e,
+html[data-lang="en"] th > .e { display: inline; }
+
+
+/* ---------- masthead ---------- */
+.masthead {
+  border-bottom: 1px solid var(--rule);
+  background: var(--surface);
+}
+.masthead-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 2.75rem 1.5rem 2.25rem;
+  display: grid;
+  gap: 1.25rem;
+}
+.pair-rule {
+  display: flex;
+  height: 5px;
+  width: 148px;
+  border-radius: 1px;
+  overflow: hidden;
+}
+.pair-rule span { flex: 1; }
+.pair-rule span:nth-child(1) { background: var(--pair-blue); }
+.pair-rule span:nth-child(2) { background: var(--pair-orange); }
+.pair-rule span:nth-child(3) { background: var(--pair-green); }
+.pair-rule span:nth-child(4) { background: var(--ink-3); }
+
+.masthead h1 {
+  font-family: var(--cond);
+  font-weight: 700;
+  font-size: var(--step-4);
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  margin: 0;
+  text-wrap: balance;
+  max-width: 22ch;
+}
+.masthead p.lede {
+  margin: 0;
+  max-width: 64ch;
+  color: var(--ink-2);
+  font-size: var(--step-1);
+}
+.masthead-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.75rem;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: var(--step--1);
+  color: var(--ink-3);
+}
+.masthead-meta b {
+  color: var(--ink-2);
+  font-weight: 500;
+}
+
+
+/* ---------- language switch ---------- */
+.langbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--rule);
+}
+.langbar-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0.5rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.wordmark {
+  font-family: var(--cond);
+  font-weight: 600;
+  font-size: var(--step--1);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.switch {
+  display: inline-flex;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  overflow: hidden;
+  flex: none;
+}
+.switch button {
+  font: 600 var(--step--1)/1 var(--mono);
+  letter-spacing: 0.06em;
+  padding: 0.5rem 0.85rem;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: background 120ms linear, color 120ms linear;
+}
+.switch button + button { border-left: 1px solid var(--rule); }
+.switch button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--surface);
+}
+.switch button:focus-visible {
+  outline: 2px solid var(--warn);
+  outline-offset: -2px;
+}
+
+
+/* ---------- headings & text ---------- */
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 0 0 0.4rem;
+}
+h2 {
+  font-family: var(--cond);
+  font-weight: 700;
+  font-size: var(--step-3);
+  line-height: 1.18;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.75rem;
+  text-wrap: balance;
+  padding-bottom: 0.6rem;
+  border-bottom: 2px solid var(--rule);
+}
+h3 {
+  font-family: var(--cond);
+  font-weight: 600;
+  font-size: var(--step-2);
+  line-height: 1.25;
+  margin: 2rem 0 0.5rem;
+  text-wrap: balance;
+}
+h4 {
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: var(--step-0);
+  margin: 1.5rem 0 0.4rem;
+}
+p, li { max-width: var(--measure); }
+p { margin: 0 0 1rem; }
+ul, ol { margin: 0 0 1rem; padding-left: 1.25rem; }
+li { margin-bottom: 0.4rem; }
+li::marker { color: var(--ink-3); }
+a { color: var(--accent); text-underline-offset: 2px; }
+strong { font-weight: 600; }
+
+code {
+  font-family: var(--mono);
+  font-size: 0.875em;
+  background: var(--code-bg);
+  color: var(--code-ink);
+  padding: 0.1em 0.34em;
+  border-radius: 2px;
+  word-break: break-word;
+}
+
+
+/* ---------- code blocks ---------- */
+.code {
+  background: var(--code-bg);
+  border: 1px solid var(--rule-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: 3px;
+  margin: 0 0 1.25rem;
+  overflow: hidden;
+}
+.code-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.45rem 0.85rem;
+  border-bottom: 1px solid var(--rule-soft);
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.code pre {
+  margin: 0;
+  padding: 0.9rem 0.85rem;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: var(--step--1);
+  line-height: 1.6;
+  color: var(--code-ink);
+}
+.code pre code { background: none; padding: 0; font-size: inherit; }
+
+
+/* ---------- tables ---------- */
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  margin: 0 0 1.25rem;
+  background: var(--surface);
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+}
+th, td {
+  text-align: left;
+  padding: 0.6rem 0.85rem;
+  border-bottom: 1px solid var(--rule-soft);
+  vertical-align: top;
+}
+thead th {
+  font-family: var(--cond);
+  font-weight: 600;
+  font-size: 0.75rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  background: var(--surface-2);
+  white-space: nowrap;
+}
+tbody tr:last-child td { border-bottom: 0; }
+td code { white-space: nowrap; }
+
+
+/* ---------- callouts ---------- */
+.note {
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--ink-3);
+  background: var(--surface);
+  border-radius: 3px;
+  padding: 0.9rem 1rem;
+  margin: 0 0 1.25rem;
+}
+.note p:last-child { margin-bottom: 0; }
+.note-title {
+  font-family: var(--cond);
+  font-weight: 600;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 0 0 0.3rem;
+}
+.note-warn { border-left-color: var(--warn); }
+.note-warn .note-title { color: var(--warn); }
+
+
+/* ---------- step list ---------- */
+ol.steps { list-style: none; padding: 0; counter-reset: step; margin: 0; }
+ol.steps > li {
+  counter-increment: step;
+  position: relative;
+  padding-left: 3rem;
+  margin-bottom: 1.5rem;
+  max-width: var(--measure);
+}
+ol.steps > li::before {
+  content: counter(step, decimal-leading-zero);
+  position: absolute;
+  left: 0;
+  top: 0.1rem;
+  font-family: var(--mono);
+  font-size: var(--step--1);
+  font-weight: 600;
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  background: var(--accent-soft);
+  border-radius: 2px;
+  padding: 0.05rem 0.4rem;
+}
+ol.steps h4 { margin: 0 0 0.25rem; }
+
+
+/* ---------- checklist ---------- */
+ul.check { list-style: none; padding: 0; }
+ul.check li {
+  position: relative;
+  padding-left: 1.7rem;
+  margin-bottom: 0.65rem;
+}
+ul.check li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 1.5px solid var(--good);
+  border-radius: 2px;
+  background: var(--good-soft);
+}
+
+
+footer.doc-footer {
+  border-top: 1px solid var(--rule);
+  margin-top: 4rem;
+  padding-top: 1.5rem;
+  font-size: var(--step--1);
+  color: var(--ink-3);
+}
+footer.doc-footer p { max-width: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+
+/* ---------- single-column shell ---------- */
+.shell { max-width: 800px; margin: 0 auto; padding: 3rem 1.5rem 4rem; }
+.doc > section + section { margin-top: 3.25rem; }
+
+/* ---------- the fix, stated once ---------- */
+.fix {
+  border: 1px solid color-mix(in srgb, var(--good) 45%, transparent);
+  background: var(--good-soft);
+  border-radius: 3px;
+  padding: 1.15rem 1.25rem;
+  margin: 0 0 1.5rem;
+}
+.fix p { margin: 0 0 0.5rem; max-width: none; }
+.fix p:last-child { margin-bottom: 0; }
+.fix .swap {
+  font-family: var(--mono);
+  font-size: var(--step-1);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+.fix .was { color: var(--ink-3); text-decoration: line-through; }
+.fix .now { color: var(--good); font-weight: 600; }
+
+/* ---------- copyable listing ---------- */
+.code-head .copy {
+  font: 500 0.6875rem/1 var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 0.2rem 0.5rem;
+  cursor: pointer;
+}
+.code-head .copy:hover { color: var(--ink); border-color: var(--ink-3); }
+.code-head .copy:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.listing pre { max-height: 30rem; overflow: auto; }
+</style>
+
+<script>
+  (function () {
+    var stored = null;
+    try { stored = localStorage.getItem("gw-doc-lang"); } catch (e) { stored = null; }
+    var lang = stored === "vi" ? "vi" : "en";
+    document.documentElement.setAttribute("data-lang", lang);
+    document.documentElement.lang = lang;
+  })();
+</script>
+</head>
+<body>
+<div class="langbar">
+  <div class="langbar-inner">
+    <span class="wordmark">Asterisk AI Agent Gateway · Partner v1</span>
+    <div class="switch" role="group" aria-label="Ngôn ngữ tài liệu / Document language">
+      <button type="button" data-lang="vi" aria-pressed="false">VI</button>
+      <button type="button" data-lang="en" aria-pressed="true">EN</button>
+    </div>
+  </div>
+</div>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <div class="pair-rule" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+    <h1>
+      <span class="v">Sửa nhanh cuộc gọi ra</span>
+      <span class="e">The outbound call, fixed</span>
+    </h1>
+    <p class="lede">
+      <span class="v">Agent báo <code>outbound-failed</code> khi gọi ra. Không phải lỗi API key, không phải lỗi scope, và không cần ai đổi cấu hình trên gateway. Chỉ một dòng trong cấu hình agent của bạn.</span>
+      <span class="e">Your agent reports <code>outbound-failed</code> when it dials. It is not the API key, not the scopes, and nothing on the gateway needs changing. It is one line in your own agent configuration.</span>
+    </p>
+    <div class="masthead-meta">
+      <span><b>Code</b> outbound-failed</span>
+      <span><b><span class="v">Thời gian sửa</span><span class="e">Time to fix</span></b> <span class="v">một phút</span><span class="e">one minute</span></span>
+      <span><b><span class="v">Cần khởi động lại</span><span class="e">Restart needed</span></b> <span class="v">agent, không phải gateway</span><span class="e">your agent, not the gateway</span></span>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+  <div class="doc">
+
+    <section>
+      <p class="eyebrow"><span class="v">Cách sửa</span><span class="e">The fix</span></p>
+      <h2><span class="v">Đổi context gọi ra</span><span class="e">Change the outbound context</span></h2>
+
+      <div class="fix">
+        <p class="swap">
+          <span class="was">OUTBOUND_CONTEXT=from-trunk</span>
+          <span aria-hidden="true">→</span>
+          <span class="now">OUTBOUND_CONTEXT=from-internal</span>
+        </p>
+        <p>
+          <span class="v">Khởi động lại agent. Hết.</span>
+          <span class="e">Restart the agent. That is all.</span>
+        </p>
+      </div>
+
+      <p>
+        <span class="v">Gateway khởi tạo cuộc gọi bằng <code>Local/&lt;số&gt;@&lt;context&gt;</code>, nên context phải là nơi chứa outbound route của tổng đài. <code>from-trunk</code> là context <em>chiều vào</em>: nó khớp DID của cuộc gọi đến và không có route nào đẩy số ra ngoài.</span>
+        <span class="e">The gateway originates the call as <code>Local/&lt;number&gt;@&lt;context&gt;</code>, so the context has to be the one holding the PBX's outbound routes. <code>from-trunk</code> is the <em>inbound</em> context: it matches the DIDs of incoming calls and holds no route that sends a number out.</span>
+      </p>
+      <p>
+        <span class="v">Allowlist trên partner app của bạn đã chấp nhận <code>from-internal</code> từ trước, nên không cần yêu cầu quản trị viên thêm gì. Nếu tổng đài của bạn không phải FreePBX, hỏi quản trị viên tên context tương ứng.</span>
+        <span class="e">Your partner app's allowlist already accepts <code>from-internal</code>, so there is nothing to request from the operator. If your PBX is not FreePBX, ask the operator for the equivalent context name.</span>
+      </p>
+
+      <div class="note">
+        <p class="note-title"><span class="v">Đã kiểm chứng</span><span class="e">Verified</span></p>
+        <p>
+          <span class="v">Chúng tôi đã quay số thật qua chính partner app và API key của bạn: cùng gateway, cùng key, chỉ đổi context — máy đổ chuông, nhấc lên, audio chạy hai chiều ở 8000 Hz. Kết quả ở mục dưới.</span>
+          <span class="e">We placed a real call using your own partner app and API key: same gateway, same key, only the context changed — it rang, it answered, and audio flowed both ways at 8000 Hz. The output is in the section below.</span>
+        </p>
+      </div>
+    </section>
+
+    <section>
+      <p class="eyebrow"><span class="v">Kiểm chứng</span><span class="e">Verifying</span></p>
+      <h2><span class="v">Ba bước, không cần cài skill</span><span class="e">Three steps, no skill required</span></h2>
+
+      <p>
+        <span class="v">Script dưới đây độc lập với agent của bạn: nó chỉ cần SDK và một API key. Dùng nó để tách bạch hai câu hỏi — <em>gateway có gọi ra được không</em> và <em>agent của tôi có sai chỗ nào khác không</em>.</span>
+        <span class="e">The script below stands apart from your agent: it needs the SDK and an API key, nothing else. Use it to separate two questions — <em>can the gateway dial out at all</em>, and <em>is something else wrong in my agent</em>.</span>
+      </p>
+
+      <ol class="steps">
+        <li>
+          <h4><span class="v">Cài SDK</span><span class="e">Install the SDK</span></h4>
+          <div class="code"><pre><code>pip install asterisk-ai-agent-gateway-sdk</code></pre></div>
+        </li>
+        <li>
+          <h4><span class="v">Lưu script</span><span class="e">Save the script</span></h4>
+          <p>
+            <span class="v">Chép toàn bộ nội dung bên dưới vào <code>dial_out.py</code>.</span>
+            <span class="e">Copy the whole listing below into <code>dial_out.py</code>.</span>
+          </p>
+        </li>
+        <li>
+          <h4><span class="v">Chạy</span><span class="e">Run it</span></h4>
+          <div class="code">
+            <div class="code-head"><span>shell</span><span><span class="v">thay số của bạn</span><span class="e">use your own number</span></span></div>
+            <pre><code>export GATEWAY_URL=http://gateway.example.com:15173
+export GATEWAY_API_KEY=agw_live_...
+export GATEWAY_AGENT_SLUG=ava-voice-agent
+export OUTBOUND_CONTEXT=from-internal
+
+python dial_out.py 84969097109</code></pre>
+          </div>
+        </li>
+      </ol>
+
+      <div class="note note-warn">
+        <p class="note-title"><span class="v">Dừng agent trước khi chạy</span><span class="e">Stop your agent first</span></p>
+        <p>
+          <span class="v">Gateway chỉ cho một kết nối sống trên mỗi <code>agent_slug</code>. Nếu agent của bạn đang chạy và giữ slug, script này sẽ bị từ chối với <code>agent-in-use</code> — kết nối đang chạy không bị ảnh hưởng, nhưng script sẽ không quay số được.</span>
+          <span class="e">The gateway allows one live connection per <code>agent_slug</code>. If your agent is running and holding the slug, this script is refused with <code>agent-in-use</code> — the running connection is unharmed, but the script will not dial.</span>
+        </p>
+      </div>
+
+      <div class="code listing">
+        <div class="code-head">
+          <span>dial_out.py</span>
+          <button type="button" class="copy" data-copy="listing">
+            <span class="v">Chép</span><span class="e">Copy</span>
+          </button>
+        </div>
+        <pre><code id="listing">&quot;&quot;&quot;Dial a PSTN number and echo the callee back to themselves.
+
+    export GATEWAY_URL=https://gateway.example.com
+    export GATEWAY_API_KEY=agw_live_...
+    export GATEWAY_AGENT_SLUG=support-agent
+    export OUTBOUND_CONTEXT=from-internal
+    python examples/dial_out.py 84969097109
+
+Two things have to be true before this rings, and only the first one produces
+an error you can see: the destination must be allowlisted on the partner app
+(outbound PSTN needs a prefix rule such as `from-internal:84*`, since the
+callee differs per call), and the context must be one that actually routes a
+number outward. Origination dials `Local/&lt;extension&gt;@&lt;context&gt;`, so an inbound
+trunk context matches incoming DIDs and routes nothing out — it passes the
+allowlist and then fails inside the dialplan.
+&quot;&quot;&quot;
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+import sys
+
+from asterisk_ai_gateway import Audio, AuthenticationError, GatewayClient
+
+logging.basicConfig(level=logging.INFO, format=&quot;%(asctime)s %(levelname)s %(message)s&quot;)
+LOGGER = logging.getLogger(&quot;dial-out&quot;)
+
+DEFAULT_NUMBER = &quot;84969097109&quot;
+
+#: Long enough to hear yourself and know the media path works, short enough
+#: that a forgotten run does not sit on a live trunk.
+ECHO_SECONDS = 30
+
+
+async def main() -&gt; int:
+    number = sys.argv[1] if len(sys.argv) &gt; 1 else DEFAULT_NUMBER
+    context = os.environ.get(&quot;OUTBOUND_CONTEXT&quot;, &quot;from-internal&quot;)
+
+    client = GatewayClient(
+        gateway_url=os.environ[&quot;GATEWAY_URL&quot;],
+        api_key=os.environ[&quot;GATEWAY_API_KEY&quot;],
+        agent_slug=os.environ.get(&quot;GATEWAY_AGENT_SLUG&quot;) or os.environ.get(&quot;AGENT_SLUG&quot;, &quot;support-agent&quot;),
+        # One shot: a reconnect would re-register and dial nothing, which
+        # reads as a hang rather than a failure.
+        reconnect=False,
+    )
+
+    request_id: str | None = None
+    hangup_timer: asyncio.Task[None] | None = None
+    exit_code = 1
+
+    async def hang_up_after(call_id: str) -&gt; None:
+        # A timer, not a frame counter: a silent callee sends no audio, and
+        # the call would otherwise sit on a live trunk until someone noticed.
+        await asyncio.sleep(ECHO_SECONDS)
+        LOGGER.info(&quot;echoed for %ss, hanging up&quot;, ECHO_SECONDS)
+        await client.hangup(call_id)
+
+    try:
+        async for item in client.stream():
+            if isinstance(item, Audio):
+                # Send it straight back, so the callee hearing themselves
+                # proves partner -&gt; gateway -&gt; Asterisk and the return path.
+                await client.send_audio(item.call_id, item.pcm)
+                continue
+
+            kind = item.get(&quot;type&quot;)
+
+            if kind == &quot;session.ready&quot;:
+                LOGGER.info(&quot;registered as %s&quot;, client.connection_id)
+                request_id = await client.originate(context, number, timeout=45)
+                LOGGER.info(&quot;dialling %s:%s request_id=%s&quot;, context, number, request_id)
+
+            elif kind == &quot;outbound.accepted&quot;:
+                # Accepted is not answered. Nothing is live until call.started.
+                LOGGER.info(&quot;Asterisk took the request, call_id=%s — ringing&quot;, item[&quot;call_id&quot;])
+
+            elif kind == &quot;call.started&quot;:
+                media = item.get(&quot;media&quot;, {})
+                # The rate is announced per call. Never assume one.
+                LOGGER.info(
+                    &quot;answered %s at %s Hz, %s&quot;,
+                    item[&quot;call_id&quot;],
+                    media.get(&quot;sample_rate&quot;),
+                    media.get(&quot;encoding&quot;),
+                )
+                hangup_timer = asyncio.create_task(hang_up_after(item[&quot;call_id&quot;]))
+
+            elif kind == &quot;call.ended&quot;:
+                LOGGER.info(&quot;call ended %s&quot;, item[&quot;call_id&quot;])
+                exit_code = 0
+                break
+
+            elif kind == &quot;error&quot;:
+                LOGGER.error(&quot;gateway error [%s] %s&quot;, item.get(&quot;code&quot;), item.get(&quot;message&quot;))
+                if item.get(&quot;code&quot;) == &quot;outbound-failed&quot;:
+                    LOGGER.error(
+                        &quot;The gateway refused this before Asterisk saw it, so retrying &quot;
+                        &quot;will not help. Ask the operator to confirm both: that &quot;
+                        &quot;&#x27;%s:%s&#x27; is accepted by the partner app allowlist, and that &quot;
+                        &quot;&#x27;%s&#x27; is a context with an outbound route.&quot;,
+                        context,
+                        number,
+                        context,
+                    )
+                break
+
+    except AuthenticationError as error:
+        # Terminal by definition: the key is revoked, expired, or its app is off.
+        LOGGER.error(&quot;%s&quot;, error)
+    except KeyboardInterrupt:
+        LOGGER.info(&quot;interrupted&quot;)
+    finally:
+        if hangup_timer is not None:
+            hangup_timer.cancel()
+        # Closing hangs up whatever this connection still owns.
+        await client.close()
+
+    return exit_code
+
+
+if __name__ == &quot;__main__&quot;:
+    raise SystemExit(asyncio.run(main()))</code></pre>
+      </div>
+    </section>
+
+    <section>
+      <p class="eyebrow"><span class="v">Kết quả</span><span class="e">The output</span></p>
+      <h2><span class="v">Một cuộc gọi thành công trông như thế này</span><span class="e">What a working call looks like</span></h2>
+
+      <div class="code">
+        <div class="code-head"><span><span class="v">chạy thật</span><span class="e">a real run</span></span><span>84969097109</span></div>
+        <pre><code>15:51:27 INFO registered as 62ca7644-fc40-4c1d-893e-5ea89fe486b5
+15:51:27 INFO dialling from-internal:84969097109 request_id=58206769-…
+15:51:27 INFO Asterisk took the request, call_id=690cfd3e-… — ringing
+15:51:42 INFO answered 690cfd3e-… at 8000 Hz, pcm_s16le
+15:51:49 INFO call ended 690cfd3e-…</code></pre>
+      </div>
+
+      <p>
+        <span class="v">Hai mốc đáng phân biệt: <code>outbound.accepted</code> chỉ nghĩa là Asterisk nhận yêu cầu, còn <code>call.started</code> mới là đã nhấc máy. Tần số 8000 Hz được gateway công bố theo từng cuộc gọi — đọc nó từ <code>call.started</code>, đừng gán cứng.</span>
+        <span class="e">Two milestones worth telling apart: <code>outbound.accepted</code> only means Asterisk took the request, while <code>call.started</code> means someone answered. The 8000 Hz rate is announced per call — read it from <code>call.started</code> rather than hardcoding it.</span>
+      </p>
+    </section>
+
+    <section>
+      <p class="eyebrow"><span class="v">Nếu vẫn chưa được</span><span class="e">If it still fails</span></p>
+      <h2><span class="v">Ba triệu chứng còn lại</span><span class="e">The three remaining symptoms</span></h2>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th><span class="v">Bạn thấy</span><span class="e">You see</span></th>
+              <th><span class="v">Nghĩa là</span><span class="e">It means</span></th>
+              <th><span class="v">Làm gì</span><span class="e">What to do</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>agent-in-use</code></td>
+              <td><span class="v">Slug đã có kết nối sống khác</span><span class="e">Another live connection holds the slug</span></td>
+              <td><span class="v">Dừng agent đang chạy rồi thử lại</span><span class="e">Stop the running agent, then retry</span></td>
+            </tr>
+            <tr>
+              <td><code>outbound-failed</code></td>
+              <td><span class="v">Đích không được allowlist chấp nhận</span><span class="e">The destination is not accepted by the allowlist</span></td>
+              <td><span class="v">Gửi quản trị viên đúng chuỗi <code>context:số</code> trong log</span><span class="e">Send the operator the exact <code>context:number</code> from your log</span></td>
+            </tr>
+            <tr>
+              <td><span class="v"><code>accepted</code> nhưng không có <code>call.started</code></span><span class="e"><code>accepted</code> but no <code>call.started</code></span></td>
+              <td><span class="v">Context không định tuyến ra được, hoặc không ai nhấc máy</span><span class="e">The context routes nothing outward, or nobody answered</span></td>
+              <td><span class="v">Nhờ quản trị viên quay tay bằng lệnh dưới</span><span class="e">Have the operator dial it by hand, below</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="code">
+        <div class="code-head"><span>asterisk cli</span><span><span class="v">phía quản trị viên</span><span class="e">operator side</span></span></div>
+        <pre><code>asterisk -rx 'channel originate Local/84969097109@from-internal application Echo'</code></pre>
+      </div>
+
+      <p>
+        <span class="v">Nếu lệnh này không đổ chuông thì vấn đề nằm ở dialplan của tổng đài, không nằm ở gateway và cũng không nằm ở agent của bạn.</span>
+        <span class="e">If that does not ring, the problem is in the PBX dialplan — not the gateway, and not your agent.</span>
+      </p>
+    </section>
+
+    <footer class="doc-footer">
+      <p>
+        <span class="v">Giải thích đầy đủ vì sao <code>from-trunk</code> lọt qua cú pháp nhưng hỏng ở dialplan: <a href="outbound-allowlist.html">Gọi ra bị allowlist chặn</a>. Toàn bộ giao thức: <a href="integration-guide.html">Tài liệu tích hợp</a>.</span>
+        <span class="e">The full account of why <code>from-trunk</code> passes syntax and fails in the dialplan: <a href="outbound-allowlist.html">An outbound call the allowlist refused</a>. The whole protocol: <a href="integration-guide.html">Partner integration guide</a>.</span>
+      </p>
+    </footer>
+
+  </div>
+</div>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    var buttons = Array.prototype.slice.call(document.querySelectorAll(".switch button"));
+
+    function setLang(lang) {
+      root.setAttribute("data-lang", lang);
+      root.lang = lang;
+      try { localStorage.setItem("gw-doc-lang", lang); } catch (e) {}
+      buttons.forEach(function (button) {
+        button.setAttribute("aria-pressed", button.dataset.lang === lang ? "true" : "false");
+      });
+    }
+
+    buttons.forEach(function (button) {
+      button.addEventListener("click", function () { setLang(button.dataset.lang); });
+    });
+
+    setLang(root.getAttribute("data-lang") === "vi" ? "vi" : "en");
+
+    document.querySelectorAll(".copy").forEach(function (button) {
+      var vi = button.querySelector(".v");
+      var en = button.querySelector(".e");
+      function done() {
+        vi.textContent = "Đã chép";
+        en.textContent = "Copied";
+        setTimeout(function () { vi.textContent = "Chép"; en.textContent = "Copy"; }, 1600);
+      }
+
+      button.addEventListener("click", function () {
+        var source = document.getElementById(button.dataset.copy);
+        if (!source) return;
+        // navigator.clipboard needs a secure context, and this page is often
+        // opened straight off disk. Fall back rather than doing nothing.
+        if (navigator.clipboard && window.isSecureContext) {
+          navigator.clipboard.writeText(source.textContent).then(done);
+          return;
+        }
+        var scratch = document.createElement("textarea");
+        scratch.value = source.textContent;
+        scratch.setAttribute("readonly", "");
+        scratch.style.position = "fixed";
+        scratch.style.opacity = "0";
+        document.body.appendChild(scratch);
+        scratch.select();
+        try { document.execCommand("copy"); done(); } catch (e) {}
+        document.body.removeChild(scratch);
+      });
+    });
+  })();
+</script>
+</body>
+</html>

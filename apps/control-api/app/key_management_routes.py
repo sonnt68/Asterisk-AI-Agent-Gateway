@@ -1,8 +1,8 @@
-"""Tenant-safe API-key rotation with one-time secret reveal."""
+"""Tenant-safe API-key rotation and deletion of revoked keys."""
 
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -54,3 +54,26 @@ def rotate_key(
         "scopes": replacement.scopes.split(","),
         "replaces": current.id,
     }
+
+
+@router.delete("/api-keys/{key_id}/purge", status_code=204)
+def delete_revoked_key(
+    key_id: str,
+    principal: Principal = Depends(require_role("owner", "admin", "developer")),
+    session: Session = Depends(get_session),
+) -> Response:
+    key = session.scalar(
+        select(ApiKey).where(
+            ApiKey.id == key_id,
+            ApiKey.organization_id == principal.organization_id,
+        )
+    )
+    if not key:
+        raise HTTPException(status_code=404, detail="API key not found")
+    if key.revoked_at is None:
+        raise HTTPException(status_code=409, detail="Only revoked API keys can be deleted")
+
+    audit(session, principal, "api_key.deleted", key.id)
+    session.delete(key)
+    session.commit()
+    return Response(status_code=204)

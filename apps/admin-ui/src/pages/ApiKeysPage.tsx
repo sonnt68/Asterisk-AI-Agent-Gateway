@@ -1,10 +1,12 @@
-import { KeyRound } from 'lucide-react';
+import { useState } from 'react';
+import { KeyRound, Plus, Trash2 } from 'lucide-react';
 
 import RevealedKeyBanner from '../components/RevealedKeyBanner';
 import Button from '../components/ui/Button';
 import { DataTable } from '../components/ui/DataTable';
 import { EmptyState } from '../components/ui/EmptyState';
 import ErrorPanel from '../components/ui/ErrorPanel';
+import { FormSelect } from '../components/ui/FormComponents';
 import { PageLoader } from '../components/ui/LoadingSpinner';
 import PageHeader from '../components/ui/PageHeader';
 import { StatusPill } from '../components/ui/StatusPill';
@@ -15,14 +17,29 @@ import type { ApiKey } from '../lib/types';
 type Row = ApiKey & { appName: string; agentSlug: string };
 
 const ApiKeysPage = () => {
-    const { apps, keys, loading, error, rotateKey, revokeKey } = useGatewayData();
+    const { apps, keys, loading, error, issueKey, rotateKey, revokeKey, deleteRevokedKey } = useGatewayData();
+    const [selectedAppId, setSelectedAppId] = useState('');
+    const [creatingKey, setCreatingKey] = useState(false);
     const { confirm } = useConfirmDialog();
 
     if (loading) return <PageLoader message="Loading API keys…" />;
 
+    const selectedApp = apps.find((app) => app.id === selectedAppId) ?? apps[0];
+
     const rows: Row[] = apps.flatMap((app) =>
         (keys[app.id] ?? []).map((key) => ({ ...key, appName: app.name, agentSlug: app.agent_slug })),
     );
+    const createKey = async () => {
+        if (!selectedApp || creatingKey) return;
+        setCreatingKey(true);
+        try {
+            await issueKey(selectedApp);
+        } catch {
+            // Request errors are already surfaced by the data layer.
+        } finally {
+            setCreatingKey(false);
+        }
+    };
 
     const rotate = async (row: Row) => {
         const confirmed = await confirm({
@@ -43,12 +60,43 @@ const ApiKeysPage = () => {
         if (confirmed) await revokeKey(row.id);
     };
 
+    const deleteRevoked = async (row: Row) => {
+        const confirmed = await confirm({
+            title: 'Delete revoked API key?',
+            description: `Revoked key ${row.prefix} will be permanently deleted. This cannot be undone.`,
+            confirmText: 'Delete key',
+            variant: 'destructive',
+        });
+        if (confirmed) await deleteRevokedKey(row.id);
+    };
+
     return (
         <div>
             <PageHeader
                 title="API Keys"
-                description="Every key belongs to a partner app. Keys are hashed at rest — rotate or revoke instead of recovering them."
+                description="Create a key for a partner app or manage existing credentials. Plaintext keys are shown once."
             />
+            <div className="mb-6 flex flex-wrap items-end gap-2">
+                <FormSelect
+                    label="Partner app"
+                    options={
+                        apps.length
+                            ? apps.map((app) => ({
+                                  value: app.id,
+                                  label: `${app.name} (${app.agent_slug})`,
+                              }))
+                            : [{ value: '', label: 'No partner apps' }]
+                    }
+                    value={selectedApp?.id ?? ''}
+                    onChange={(event) => setSelectedAppId(event.target.value)}
+                    disabled={!apps.length || creatingKey}
+                    className="w-64 max-w-full"
+                />
+                <Button className="mb-4" onClick={createKey} disabled={!selectedApp || creatingKey}>
+                    <Plus className="w-4 h-4" />
+                    {creatingKey ? 'Creating…' : 'Create API key'}
+                </Button>
+            </div>
 
             {error && <ErrorPanel type="error" message={error} className="mb-6" />}
 
@@ -61,7 +109,11 @@ const ApiKeysPage = () => {
                     <EmptyState
                         icon={KeyRound}
                         title="No API keys issued"
-                        description="Issue a key from the Partner Apps page to let an integration authenticate."
+                        description={
+                            apps.length
+                                ? 'Choose a partner app above to issue the first key.'
+                                : 'Create a partner app before issuing an API key.'
+                        }
                     />
                 }
                 columns={[
@@ -105,7 +157,18 @@ const ApiKeysPage = () => {
                         className: 'text-right',
                         cell: (row) =>
                             row.revoked_at ? (
-                                <span className="text-xs text-muted-foreground">—</span>
+                                <span className="flex justify-end">
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="text-destructive"
+                                        aria-label={`Delete revoked API key ${row.prefix}`}
+                                        onClick={() => deleteRevoked(row)}
+                                    >
+                                        <Trash2 className="w-3 h-3" />
+                                        Delete
+                                    </Button>
+                                </span>
                             ) : (
                                 <span className="flex justify-end gap-2">
                                     <Button size="sm" variant="outline" onClick={() => rotate(row)}>

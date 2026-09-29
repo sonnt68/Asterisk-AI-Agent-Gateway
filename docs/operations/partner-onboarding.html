@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="vi">
+<html lang="en" data-lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -370,8 +370,8 @@ footer {
 <header class="masthead">
   <div class="masthead-inner">
     <div class="langbar" role="group" aria-label="Language">
-      <button type="button" data-lang="vi" aria-pressed="true">VI</button>
-      <button type="button" data-lang="en" aria-pressed="false">EN</button>
+      <button type="button" data-lang="vi" aria-pressed="false">VI</button>
+      <button type="button" data-lang="en" aria-pressed="true">EN</button>
     </div>
     <span class="stamp"><span class="v">Nội bộ — không gửi cho đối tác</span><span class="e">Internal — do not send to partners</span></span>
     <h1>
@@ -502,8 +502,12 @@ footer {
         <div class="d-body">
           <p class="d-name"><span class="v">Allowlist đích</span><span class="e">Destination allowlist</span></p>
           <p>
-            <span class="v">Cặp <code>context:extension</code> chính xác, hoặc luật tiền tố kết thúc bằng <code>*</code>. Gọi ra PSTN bắt buộc dùng luật tiền tố vì mỗi cuộc gọi một số đích khác nhau — dạng chuẩn là <code>from-trunk:84*</code>. Chỉ dấu sao ở <em>cuối</em> mới là ký tự đại diện, nên feature code như <code>*43</code> vẫn là đích chính xác, và tiền tố cần tối thiểu hai ký tự thật.</span>
-            <span class="e">Exact <code>context:extension</code> pairs, or a prefix rule ending in <code>*</code>. Outbound PSTN needs a prefix rule because the callee differs per call; <code>from-trunk:84*</code> is the shape. Only a <em>trailing</em> asterisk is a wildcard, so feature codes like <code>*43</code> stay exact, and a prefix needs two literal characters minimum.</span>
+            <span class="v">Cặp <code>context:extension</code> chính xác, hoặc luật tiền tố kết thúc bằng <code>*</code>. Gọi ra PSTN bắt buộc dùng luật tiền tố vì mỗi cuộc gọi một số đích khác nhau — trên FreePBX dạng chuẩn là <code>from-internal:84*</code>. Chỉ dấu sao ở <em>cuối</em> mới là ký tự đại diện, nên feature code như <code>*43</code> vẫn là đích chính xác, và tiền tố cần tối thiểu hai ký tự thật.</span>
+            <span class="e">Exact <code>context:extension</code> pairs, or a prefix rule ending in <code>*</code>. Outbound PSTN needs a prefix rule because the callee differs per call; <code>from-internal:84*</code> is the shape on FreePBX. Only a <em>trailing</em> asterisk is a wildcard, so feature codes like <code>*43</code> stay exact, and a prefix needs two literal characters minimum.</span>
+          </p>
+          <p>
+            <span class="v">Chọn context trước khi viết entry. Gọi ra được khởi tạo bằng <code>Local/&lt;extension&gt;@&lt;context&gt;</code>, nên context phải là context định tuyến số <em>ra ngoài</em> — <code>from-internal</code> chứa outbound route của FreePBX. Context trunk chiều vào là đáp án sai dù nghe rất hợp lý: xem sự cố bên dưới.</span>
+            <span class="e">Pick the context before writing the entry. Origination dials <code>Local/&lt;extension&gt;@&lt;context&gt;</code>, so the context must be one that routes a number <em>outward</em> — <code>from-internal</code> carries the FreePBX outbound routes. The inbound trunk context is the wrong answer even though it is the obvious-sounding one: see the incident below.</span>
           </p>
           <p>
             <span class="v">Viết luật ra giấy cho đối tác — <code>command-denied</code> mà không kèm giải thích chính là khởi đầu của một ticket hỗ trợ.</span>
@@ -543,7 +547,7 @@ footer {
 
   <section>
     <p class="eyebrow"><span class="v">Sự cố thật</span><span class="e">Real incidents</span></p>
-    <h2><span class="v">Bốn thứ đã thực sự hỏng</span><span class="e">Four things that have actually broken</span></h2>
+    <h2><span class="v">Năm thứ đã thực sự hỏng</span><span class="e">Five things that have actually broken</span></h2>
 
     <div class="incident">
       <h3><span class="v">Đối tác gán cứng tần số lấy mẫu</span><span class="e">A fixed sample rate in partner code</span></h3>
@@ -585,6 +589,23 @@ footer {
         <b><span class="v">Xử lý</span><span class="e">What to do</span></b>
         <span class="v"> — Luồng kết nối SDK tự retry lỗi xác thực 3 lần sau lần đầu (tổng 4 lần), dùng ngân sách chung cho HTTP <code>401</code>/<code>403</code> khi đổi token, handshake WebSocket <code>401</code>/<code>403</code> và close <code>4401</code>. Mỗi lần xin token mới sau 1, 2, rồi 4 giây nếu chỉ gặp lỗi xác thực; lỗi mạng dùng chung backoff nên có thể chờ lâu hơn, tối đa theo max backoff; ngân sách chỉ reset khi nhận <code>session.ready</code>. Đặt <code>reconnect=False</code>/<code>reconnect: false</code> để tắt, và <code>close()</code> để dừng retry đang chờ; chỉ task Python bị huỷ mới có thêm cơ chế huỷ này. Hết ngân sách, Python raise <code>AuthenticationError</code>; Node <code>start()</code> ban đầu reject, còn reconnect về sau phát lỗi trên <code>error</code> rồi dừng client. Key đã thu hồi không thể sống lại nhờ retry; helper <code>realtime_token()</code>/<code>realtimeToken()</code> chỉ gửi một request.</span>
         <span class="e"> — SDK connection flows retry authentication failures 3 times after the initial attempt (4 total), sharing one budget across token HTTP <code>401</code>/<code>403</code>, WebSocket handshake <code>401</code>/<code>403</code>, and close <code>4401</code>. Each retry mints a fresh token after 1, 2, then 4 seconds for authentication-only failures; transport failures share the backoff and may increase these delays, capped by max backoff; the budget resets only when <code>session.ready</code> arrives. Set <code>reconnect=False</code>/<code>reconnect: false</code> to disable it, and use <code>close()</code> to stop pending retries; only Python tasks additionally support cancellation. After exhaustion, Python raises <code>AuthenticationError</code>; Node's initial <code>start()</code> rejects, while a later reconnect emits it on <code>error</code> and stops the client. A revoked key cannot be revived by retrying; <code>realtime_token()</code>/<code>realtimeToken()</code> helpers make one request only.</span>
+      </p>
+    </div>
+
+    <div class="incident">
+      <h3><span class="v">Entry allowlist trỏ vào context không gọi ra được</span><span class="e">An allowlist entry naming a context that cannot dial out</span></h3>
+      <p>
+        <span class="v">Một đối tác xin <code>from-trunk:84*</code> vì <code>from-trunk</code> là nơi cuộc gọi vào của họ đi tới, nghe như "context của trunk nhà tôi". Gọi ra là chiều ngược lại. Gateway khởi tạo <code>Local/&lt;extension&gt;@&lt;context&gt;</code>, nên context phải chứa route đẩy số ra trunk; context chiều vào của FreePBX chỉ khớp DID và không có outbound route, nên <code>Local/84…@from-trunk</code> không khớp extension nào.</span>
+        <span class="e">A partner asked for <code>from-trunk:84*</code> because <code>from-trunk</code> is where their inbound calls arrive, and it reads like "the context my trunk uses". Outbound is the other direction. The gateway originates <code>Local/&lt;extension&gt;@&lt;context&gt;</code>, so the context must contain a route that sends the number to the trunk; a FreePBX inbound context matches DIDs and has no outbound route, so <code>Local/84…@from-trunk</code> matches no extension.</span>
+      </p>
+      <p>
+        <span class="v">Cứ thế thêm vào allowlist thì biến một lỗi <code>outbound-failed</code> rõ ràng ngay tại ranh giới thành một cuộc gọi được Asterisk nhận rồi rớt, không để lại gì hữu ích trong log của đối tác.</span>
+        <span class="e">Allowlisting it anyway converts a clear <code>outbound-failed</code> at the boundary into a call Asterisk accepts and then drops, with nothing useful in the partner's logs.</span>
+      </p>
+      <p class="tell">
+        <b><span class="v">Xử lý</span><span class="e">What to do</span></b>
+        <span class="v"> — thử quay tay trước khi thêm entry: <code>asterisk -rx 'channel originate Local/84901234567@from-internal application Echo'</code>. Nếu nó không đổ chuông thì không entry allowlist nào cứu được.</span>
+        <span class="e"> — dial it by hand before adding the entry: <code>asterisk -rx 'channel originate Local/84901234567@from-internal application Echo'</code>. If that does not ring, no allowlist entry will make it ring.</span>
       </p>
     </div>
 
@@ -659,7 +680,7 @@ footer {
     button.addEventListener("click", function () { setLang(button.dataset.lang); });
   });
 
-  setLang("vi");
+  setLang("en");
 })();
 </script>
 

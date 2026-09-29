@@ -89,6 +89,18 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/IssuedApiKey' }
+  /api-keys/{key_id}/purge:
+    delete:
+      operationId: deleteRevokedApiKey
+      parameters:
+        - in: path
+          name: key_id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Revoked key record permanently deleted }
+        '404': { description: Key not found in the authenticated organization }
+        '409': { description: Active keys must be revoked before deletion }
   /realtime/tokens:
     post:
       operationId: createRealtimeToken

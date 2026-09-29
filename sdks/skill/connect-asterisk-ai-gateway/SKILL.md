@@ -26,6 +26,8 @@ npm  install asterisk-ai-agent-gateway-sdk     # Node 18.17+
 
 `examples/echo_agent.py` and `examples/echo-agent.mjs` are complete working
 agents — start from one and replace the audio handler with your model.
+`examples/dial_out.py` adds the outbound case, where the destination is yours
+to choose and the allowlist is felt.
 
 Raw framing is documented in `references/protocol.md` for clients that cannot
 use either SDK. Reach for it only then; hand-rolled framing is where
@@ -62,6 +64,12 @@ can increase the next authentication retry's delay up to the configured cap.
 Check `references/call-control.md` before adding a command. A command your key
 lacks scope for is rejected before Asterisk is ever called, so the failure
 arrives as `command-denied` rather than as a broken call.
+
+For an outbound call the destination has to clear two bars, not one: the
+`context:extension` must be allowlisted, *and* the context must be one that
+routes a number outward — `from-internal` on FreePBX, never the inbound trunk
+context. Getting only the first right turns a clear rejection into a call that
+Asterisk accepts and then drops.
 
 ## Working rules
 

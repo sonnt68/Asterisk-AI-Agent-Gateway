@@ -45,6 +45,7 @@ interface GatewayData {
     issueKey: (app: PartnerApp) => Promise<void>;
     rotateKey: (keyId: string) => Promise<void>;
     revokeKey: (keyId: string) => Promise<void>;
+    deleteRevokedKey: (keyId: string) => Promise<void>;
 }
 
 const GatewayDataContext = createContext<GatewayData | null>(null);
@@ -183,6 +184,13 @@ export const GatewayDataProvider: React.FC<{ children: React.ReactNode }> = ({ c
             }, 'API key revoked. New realtime sessions are blocked.'),
         [run],
     );
+    const deleteRevokedKey: GatewayData['deleteRevokedKey'] = useCallback(
+        (keyId) =>
+            run(async () => {
+                await api.delete(`/api-keys/${keyId}/purge`);
+            }, 'Revoked API key deleted permanently.'),
+        [run],
+    );
 
     const dismissRevealedKey = useCallback(() => setRevealedKey(null), []);
 
@@ -208,6 +216,7 @@ export const GatewayDataProvider: React.FC<{ children: React.ReactNode }> = ({ c
                 issueKey,
                 rotateKey,
                 revokeKey,
+                deleteRevokedKey,
             }}
         >
             {children}

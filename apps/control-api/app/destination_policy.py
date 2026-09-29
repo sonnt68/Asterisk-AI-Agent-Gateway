@@ -6,10 +6,13 @@ chosen per call, so an exact allowlist would need one entry per callee and
 nobody can maintain that.
 
 A trailing `*` therefore means "this prefix, then more digits" — an operator
-writing `from-trunk:84*` is deliberately allowing Vietnamese numbers through
-that context, and nothing else. Only a trailing `*` is a wildcard: dialplan
-feature codes such as `*43` and `*97` start with a literal asterisk and must
-keep working as exact entries. A prefix rule never matches an empty remainder
+writing `from-internal:84*` is deliberately allowing Vietnamese numbers through
+that context, and nothing else. The context has to be one that routes a number
+outward, since origination dials `Local/<extension>@<context>`; an inbound
+trunk context passes this check and then fails in the dialplan.
+
+Only a trailing `*` is a wildcard: dialplan feature codes such as `*43` and
+`*97` start with a literal asterisk and must keep working as exact entries. A prefix rule never matches an empty remainder
 and never crosses the `:`, so it cannot widen into another context.
 """
 

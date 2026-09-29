@@ -32,6 +32,10 @@ replaced, never recovered. Send it through a secret channel with an expiry
 Tell the partner in the same message: it goes in the `Authorization` header of
 the token endpoint and nowhere else — never a URL, never a log line.
 
+Use the dashboard's API Keys page to choose a partner app and issue a key.
+The plaintext is shown once. Revoke a key before permanently deleting its
+record; deletion remains visible as an `api_key.deleted` audit event.
+
 ## Before you create anything
 
 Agree these first; changing them later means the partner reworks code.
@@ -47,10 +51,17 @@ Agree these first; changing them later means the partner reworks code.
    never wider.
 3. **Destination allowlist** — exact `context:extension` pairs, or a prefix
    rule ending in `*`. Outbound PSTN needs a prefix rule because the callee
-   differs per call; `from-trunk:84*` is the shape. Only a trailing asterisk
-   is a wildcard, so feature codes like `*43` stay exact, and a prefix needs
-   two literal characters minimum. Write the rules down for the partner —
-   `command-denied` with no explanation is how support tickets start.
+   differs per call; `from-internal:84*` is the shape on FreePBX. Only a
+   trailing asterisk is a wildcard, so feature codes like `*43` stay exact,
+   and a prefix needs two literal characters minimum.
+
+   Pick the context before you write the entry. Outbound origination dials
+   `Local/<extension>@<context>`, so the context has to be one that routes a
+   number *outward* — `from-internal` carries the FreePBX outbound routes.
+   The inbound trunk context is the wrong answer even though it is the
+   obvious-sounding one: see the incident below. Write the rules down for the
+   partner — `command-denied` with no explanation is how support tickets
+   start.
 4. **Sample rate** — `GATEWAY_MEDIA_SAMPLE_RATE`, 8000 unless both ends are
    genuinely wideband. See the caution below before raising it.
 
@@ -97,6 +108,24 @@ later reconnect emits it on `error` and stops the client. Retrying a revoked
 key never helps. Direct `realtime_token()`/`realtimeToken()` helpers remain
 single requests. The 1/2/4-second sequence assumes authentication-only failures:
 transport failures share the same backoff and can increase delays up to the cap.
+
+**An allowlist entry naming a context that cannot dial out.** A partner asked
+for `from-trunk:84*` because `from-trunk` is where their inbound calls arrive,
+and it reads like "the context my trunk uses". Outbound is the other
+direction. The gateway originates `Local/<extension>@<context>`, so the
+context must contain a route that sends the number to the trunk; a FreePBX
+inbound context matches DIDs and has no outbound route, so `Local/84…@from-trunk`
+matches no extension.
+
+Allowlisting it anyway converts a clear `outbound-failed` at the boundary into
+a call that Asterisk accepts and then drops with nothing useful in the
+partner's logs. Confirm the context dials by hand before you add the entry:
+
+```
+asterisk -rx 'channel originate Local/84901234567@from-internal application Echo'
+```
+
+If that does not ring, no allowlist entry will make it ring.
 
 **Audio frames disappearing.** The partner-bound queue holds 100 frames and
 drops the oldest when a consumer stalls, on purpose, so live audio stays live.

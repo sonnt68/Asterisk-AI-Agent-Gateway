@@ -9,6 +9,14 @@
   pending retries when closed, including in-flight token/handshake races.
 - Keep standalone Node processes alive until authentication retries finish.
 - Add real HTTP/WebSocket and standalone-process regression coverage.
+## 2026-09-29
+
+- Local implementation (not released): implemented bounded SDK authentication
+  retries for Python and Node connection flows, including fresh-token
+  attempts, shared `401`/`403`/`4401` handling, backoff caps, Node `close()`,
+  and Python task cancellation.
+- Added API-key creation from the API Keys page and permanent deletion of
+  revoked keys with tenant checks and audit retention.
 
 ## 2026-08-18
 
