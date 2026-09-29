@@ -30,8 +30,19 @@ Every JSON event is emitted twice — once as `event`, once under its own type
 (`call.started`, `dtmf.received`, `call.ended`, …). Binary frames arrive
 decoded on `audio`.
 
-An `AuthenticationError` on the `error` channel stops the client and is never
-retried: the key is revoked, expired, or its partner app is disabled. Every
-other transport failure reconnects with exponential backoff.
+`GatewayClient.start()` retries authentication failures three times after the
+initial attempt (four attempts total). The shared budget covers token exchange
+HTTP `401`/`403`, WebSocket handshake `401`/`403`, and close code `4401`. Each
+retry exchanges the key for a fresh token after 1, 2, then 4 seconds, capped by
+`maxBackoffMs`; the budget resets only after `session.ready`. Set
+`reconnect: false` to disable retries; `close()` stops pending retries. If
+authentication fails before `start()` resolves, the final
+`AuthenticationError` rejects `start()`. If a later reconnect exhausts its
+budget after `start()` resolved, `AuthenticationError` is emitted on `error`
+and stops the client. A revoked key cannot be revived. Direct
+`realtimeToken()` is a single request and does not retry itself. Other
+transport failures reconnect with exponential backoff up to `maxBackoffMs`.
+Authentication and transport failures share that backoff, so preceding
+transport failures can increase the next authentication retry's delay.
 
 See `examples/echo-agent.mjs` and `docs/partner/integration-guide.html`.

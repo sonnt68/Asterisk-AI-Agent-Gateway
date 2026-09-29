@@ -1,5 +1,15 @@
 # Project changelog
 
+## SDK 0.3.1 — 2026-09-29
+
+- Retry connection authentication failures three times with fresh realtime
+  tokens before the final error. HTTP 401/403 and WebSocket 4401 share the
+  budget; only session.ready resets it.
+- Preserve capped exponential backoff and one-shot token helpers. Stop
+  pending retries when closed, including in-flight token/handshake races.
+- Keep standalone Node processes alive until authentication retries finish.
+- Add real HTTP/WebSocket and standalone-process regression coverage.
+
 ## 2026-08-18
 
 - Added real ARI lifecycle, mixing bridges and native AudioSocket PCM16 media.

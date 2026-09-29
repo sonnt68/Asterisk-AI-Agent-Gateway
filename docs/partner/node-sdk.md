@@ -34,6 +34,10 @@ Control helpers mirror the Python SDK — `hangup`, `hold`, `resume`, `mute`,
 `transferCancel`, `route`, `originate`, `cancelOutbound` — each returning the
 idempotent `requestId` it generated.
 
-An `AuthenticationError` on the `error` channel stops the client and must not
-be retried. Requires Node 18.17 or newer. TypeScript declarations ship in
-`types/index.d.ts`.
+The connection flow retries authentication failures three times with a fresh
+token. Exhaustion before the first socket opens rejects `start()` with
+`AuthenticationError`; after opening, the final failure is emitted on `error`.
+Direct `realtimeToken()` calls remain one-shot; `reconnect: false` disables
+automatic retries. See [authentication](authentication.md#automatic-sdk-connection-retries)
+for the shared retry budget and backoff. Requires Node 18.17 or newer.
+TypeScript declarations ship in `types/index.d.ts`.

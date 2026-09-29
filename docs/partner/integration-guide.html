@@ -605,7 +605,7 @@ html { scroll-behavior: smooth; }
       <span><b>Realtime protocol</b> v1</span>
       <span><b>Audio</b> PCM s16le · mono · rate per call</span>
       <span><b>Token TTL</b> 300s</span>
-      <span><b>SDK</b> 0.3.0</span>
+      <span><b>SDK</b> 0.3.1</span>
     </div>
   </div>
 </header>
@@ -747,6 +747,8 @@ html { scroll-behavior: smooth; }
       <h3><span class="v">Quy tắc vận hành</span><span class="e">Operating rules</span></h3>
       <ul>
         <li><span class="v"><strong>Token là dùng một lần cho mỗi kết nối.</strong> Mỗi lần kết nối lại phải xin token mới; không phát lại token cũ.</span><span class="e"><strong>One token per connection.</strong> Mint a fresh token on every reconnect; never replay an expired one.</span></li>
+        <li><span class="v"><strong>Retry xác thực có giới hạn.</strong> Luồng kết nối của SDK (Python <code>run()</code>/<code>stream()</code>, Node <code>start()</code>) tự thử lại lỗi xác thực 3 lần sau lần đầu (tổng 4 lần). Một ngân sách chung áp dụng cho HTTP <code>401</code>/<code>403</code> khi đổi token, HTTP <code>401</code>/<code>403</code> ở WebSocket handshake và close <code>4401</code>; mỗi lần thử lại xin token mới, chờ 1, 2, rồi 4 giây nếu chỉ gặp lỗi xác thực, tối đa theo <code>max_backoff</code>/<code>maxBackoffMs</code>. Ngân sách chỉ reset khi nhận <code>session.ready</code>.</span><span class="e"><strong>Bounded authentication retry.</strong> SDK connection flows (Python <code>run()</code>/<code>stream()</code>, Node <code>start()</code>) retry authentication failures 3 times after the initial attempt (4 attempts total). One shared budget covers HTTP <code>401</code>/<code>403</code> from token exchange, HTTP <code>401</code>/<code>403</code> from the WebSocket handshake, and close <code>4401</code>; each retry mints a fresh token, waiting 1, 2, then 4 seconds for authentication-only failures, capped by <code>max_backoff</code>/<code>maxBackoffMs</code>. The budget resets only when <code>session.ready</code> arrives.</span></li>
+        <li><span class="v"><strong>Dừng đúng cách.</strong> Đặt <code>reconnect=False</code> hoặc <code>reconnect: false</code> để tắt retry tự động; <code>close()</code> sẽ dừng retry đang chờ, còn huỷ task Python cũng dừng chúng. Hết ngân sách, Python raise <code>AuthenticationError</code>; Node <code>start()</code> ban đầu sẽ reject, còn lần reconnect về sau sẽ phát lỗi trên <code>error</code> rồi dừng client. Key đã thu hồi không thể sống lại nhờ retry. Các helper <code>realtime_token()</code>/<code>realtimeToken()</code> chỉ gửi một request, không tự retry lồng nhau.</span><span class="e"><strong>Stop deliberately.</strong> Set <code>reconnect=False</code> or <code>reconnect: false</code> to disable automatic retries; <code>close()</code> stops pending retries, and Python task cancellation also stops them. Once the budget is exhausted, Python raises <code>AuthenticationError</code>; Node's initial <code>start()</code> rejects, while a later reconnect emits it on <code>error</code> and stops the client. A revoked key cannot be revived by retrying. The <code>realtime_token()</code>/<code>realtimeToken()</code> helpers make one request and do not retry themselves.</span></li>
         <li><span class="v"><strong>Giới hạn tần suất.</strong> Mặc định 60 lần đổi token mỗi phút cho mỗi key. Vượt ngưỡng trả <code>429</code>.</span><span class="e"><strong>Rate limit.</strong> 60 token exchanges per minute per key by default. Exceeding it returns <code>429</code>.</span></li>
         <li><span class="v"><strong>Thu hồi có hiệu lực tức thì.</strong> Khi key bị thu hồi hoặc hết hạn, gateway chặn cả việc cấp token mới lẫn kết nối WebSocket mới.</span><span class="e"><strong>Revocation is immediate.</strong> A revoked or expired key blocks both token minting and new WebSocket sessions.</span></li>
         <li><span class="v"><strong>Xoay vòng key không có thời gian ân hạn.</strong> Lệnh rotate cấp key mới và thu hồi key cũ ngay lập tức.</span><span class="e"><strong>Rotation has no grace period.</strong> Rotating issues the replacement and revokes the old key at the same moment.</span></li>
@@ -765,12 +767,12 @@ html { scroll-behavior: smooth; }
             <tr>
               <td><code>401</code></td>
               <td><span class="v">Key sai định dạng, sai secret, đã thu hồi hoặc hết hạn</span><span class="e">Malformed, wrong, revoked, or expired key</span></td>
-              <td><span class="v">Dừng thử lại; liên hệ quản trị viên để cấp key mới</span><span class="e">Stop retrying; ask the operator for a new key</span></td>
+              <td><span class="v">SDK retry trong ngân sách chung; hết ngân sách thì dừng và xin key mới</span><span class="e">The SDK retries within the shared budget; after exhaustion, stop and ask the operator for a new key</span></td>
             </tr>
             <tr>
               <td><code>403</code></td>
               <td><span class="v">Partner app đã bị vô hiệu hoá</span><span class="e">The partner app is disabled</span></td>
-              <td><span class="v">Dừng thử lại; đây là quyết định của bên vận hành</span><span class="e">Stop retrying; this is an operator decision</span></td>
+              <td><span class="v">SDK retry trong ngân sách chung; hết ngân sách thì dừng và hỏi bên vận hành</span><span class="e">The SDK retries within the shared budget; after exhaustion, stop and ask the operator</span></td>
             </tr>
             <tr>
               <td><code>429</code></td>
@@ -825,7 +827,7 @@ html { scroll-behavior: smooth; }
             <tr>
               <td><code>4401</code></td>
               <td><span class="v">Token không hợp lệ, hết hạn, hoặc key đã bị thu hồi</span><span class="e">Invalid or expired token, or a revoked key</span></td>
-              <td><span class="v">Xin token mới rồi kết nối lại; nếu vẫn 4401 thì key đã chết</span><span class="e">Mint a new token and reconnect; a repeat means the key is dead</span></td>
+              <td><span class="v">SDK xin token mới và retry trong ngân sách chung; hết ngân sách thì <code>AuthenticationError</code></span><span class="e">The SDK mints a fresh token and retries within the shared budget; after exhaustion, <code>AuthenticationError</code> is final</span></td>
             </tr>
             <tr>
               <td><code>1012</code></td>
@@ -1230,8 +1232,8 @@ async def on_event(event):
       <h2><span class="v">Mẫu tích hợp</span><span class="e">Reference clients</span></h2>
 
       <p>
-        <span class="v">SDK chính thức lo phần đổi token, đăng ký phiên, heartbeat 10 giây, kết nối lại kèm token mới, và đóng/gỡ khung audio. Mọi lệnh điều khiển đều có helper tương ứng và tự sinh <code>request_id</code>. Chỉ tự dựng khung thô khi môi trường của bạn không dùng được SDK.</span>
-        <span class="e">The official SDKs handle token exchange, registration, 10-second heartbeats, reconnect with a fresh token, and the audio envelope. Every control command has a helper that generates its own <code>request_id</code>. Hand-roll the raw framing only when your runtime cannot use an SDK.</span>
+        <span class="v">SDK chính thức lo phần đổi token, đăng ký phiên, heartbeat 10 giây, kết nối lại kèm token mới, retry xác thực có giới hạn, và đóng/gỡ khung audio. Mọi lệnh điều khiển đều có helper tương ứng và tự sinh <code>request_id</code>. Chỉ tự dựng khung thô khi môi trường của bạn không dùng được SDK.</span>
+        <span class="e">The official SDKs handle token exchange, registration, 10-second heartbeats, reconnect with a fresh token, bounded authentication retries, and the audio envelope. Every control command has a helper that generates its own <code>request_id</code>. Hand-roll the raw framing only when your runtime cannot use an SDK.</span>
       </p>
 
       <div class="table-wrap">
@@ -1338,7 +1340,7 @@ socket.on("message", (data, isBinary) => {
 
       <ul class="check">
         <li><span class="v">API key nằm trong kho bí mật, được che khỏi log và thông báo lỗi.</span><span class="e">The API key lives in a secret store and is redacted from logs and error reports.</span></li>
-        <li><span class="v">Mỗi lần kết nối lại đều xin token mới, có backoff luỹ tiến và giới hạn số lần thử.</span><span class="e">Every reconnect mints a fresh token, with exponential backoff and a retry ceiling.</span></li>
+        <li><span class="v">Lỗi xác thực được SDK thử lại tối đa 3 lần sau lần đầu (tổng 4 lần), xin token mới với backoff chung từ 1/2/4 giây và chỉ reset ngân sách khi nhận <code>session.ready</code>.</span><span class="e">SDK authentication failures retry up to 3 times after the initial attempt (4 total), minting a fresh token with shared backoff starting at 1/2/4 seconds and resetting the budget only on <code>session.ready</code>.</span></li>
         <li><span class="v">Heartbeat 10 giây một lần, và bạn xử lý đúng các mã đóng 4401 / 1012 / 1013.</span><span class="e">Heartbeats go out every 10 seconds, and close codes 4401 / 1012 / 1013 are handled distinctly.</span></li>
         <li><span class="v">Mỗi <code>call_id</code> có đúng một chuỗi xử lý, và trạng thái được giải phóng khi <code>call.ended</code>.</span><span class="e">Exactly one handler chain per <code>call_id</code>, and state is released on <code>call.ended</code>.</span></li>
         <li><span class="v">Mọi lệnh có thể gửi lại đều mang <code>request_id</code> dạng UUID.</span><span class="e">Every retryable command carries a UUID <code>request_id</code>.</span></li>

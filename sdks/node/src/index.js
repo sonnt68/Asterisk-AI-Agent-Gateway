@@ -19,10 +19,13 @@ export {
 export const PROTOCOL_VERSION = "1";
 export const DEFAULT_HEARTBEAT_MS = 10_000;
 
+const INITIAL_BACKOFF_MS = 1000;
+const MAX_AUTHENTICATION_ATTEMPTS = 4;
+
 /** Close code the gateway uses for a dead token or a revoked key. */
 export const CLOSE_UNAUTHORIZED = 4401;
 
-/** The API key or realtime token was refused; retrying does not help. */
+/** The API key or realtime token was refused; connection flows may retry before surfacing it. */
 export class AuthenticationError extends Error {
   constructor(message) {
     super(message);
@@ -50,7 +53,10 @@ export class GatewayClient extends EventEmitter {
   #socket = null;
   #heartbeat = null;
   #closing = false;
-  #backoff = 1000;
+  #backoff = INITIAL_BACKOFF_MS;
+  #authFailures = 0;
+  #retryTimer = null;
+  #retryWaiters = [];
 
   constructor({
     gatewayUrl,
@@ -99,13 +105,19 @@ export class GatewayClient extends EventEmitter {
   /**
    * Connect, register, and keep the session alive.
    *
-   * Resolves once the first socket is open. Transport failures reconnect with
-   * a fresh token; an `AuthenticationError` is emitted on `error` and stops
-   * the client, because no retry revives a revoked key.
+   * Resolves once the first socket is open. Authentication failures receive a
+   * bounded fresh-token retry budget; other transport failures reconnect with
+   * the existing exponential backoff.
    */
   async start() {
+    this.#authFailures = 0;
+    this.#backoff = INITIAL_BACKOFF_MS;
     this.#closing = false;
-    await this.#connect();
+    try {
+      await this.#connect({ initial: true });
+    } catch (error) {
+      if (!this.#closing) throw error;
+    }
   }
 
   /**
@@ -116,11 +128,21 @@ export class GatewayClient extends EventEmitter {
    */
   async close() {
     this.#closing = true;
+    this.#clearRetry();
     this.#stopHeartbeat();
-    if (this.#socket && this.#socket.readyState === WebSocket.OPEN) {
-      this.#socket.close(1000, "client shutdown");
-    }
+    this.connectionId = null;
+    const socket = this.#socket;
     this.#socket = null;
+    if (
+      socket &&
+      (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)
+    ) {
+      if (socket.readyState === WebSocket.CONNECTING) {
+        this.#abortSocket(socket);
+      } else {
+        socket.close(1000, "client shutdown");
+      }
+    }
   }
 
   /** Send mono PCM s16le at the rate `call.started` announced for this call. */
@@ -257,58 +279,121 @@ export class GatewayClient extends EventEmitter {
 
   // ------------------------------------------------------------- internals
 
-  async #connect() {
+  async #connect({ initial = false } = {}) {
     let token;
     try {
       token = await this.realtimeToken();
     } catch (error) {
-      if (error instanceof AuthenticationError || !this.reconnect || this.#closing) throw error;
+      if (this.#closing || !this.reconnect) throw error;
+      if (error instanceof AuthenticationError) {
+        return this.#retryAuthentication(error, initial);
+      }
       this.#scheduleReconnect(error);
       return;
     }
 
+    if (this.#closing) throw new Error("Realtime connection closed before opening");
     const url = `${this.gatewayUrl.replace(/^http/, "ws")}/v1/realtime?token=${encodeURIComponent(token)}`;
     const socket = new WebSocket(url);
     this.#socket = socket;
 
-    await new Promise((resolve, reject) => {
-      socket.once("open", resolve);
-      socket.once("error", reject);
-    }).catch((error) => {
-      if (!this.reconnect || this.#closing) throw error;
-      this.#scheduleReconnect(error);
+    let opened = false;
+    let openingSettled = false;
+    let resolveOpening;
+    let rejectOpening;
+    const opening = new Promise((resolve, reject) => {
+      resolveOpening = resolve;
+      rejectOpening = reject;
     });
+    const cleanupOpening = () => {
+      socket.off("open", onOpen);
+      socket.off("unexpected-response", onUnexpectedResponse);
+    };
+    const cleanupSocket = () => {
+      cleanupOpening();
+      socket.off("error", onError);
+      socket.off("close", onClose);
+      socket.off("message", onMessage);
+    };
+    const settleOpening = (callback, value) => {
+      if (openingSettled) return;
+      openingSettled = true;
+      cleanupOpening();
+      callback(value);
+    };
+    const onOpen = () => {
+      opened = true;
+      settleOpening(resolveOpening);
+    };
+    const onError = (error) => {
+      if (opened) {
+        this.emit("error", error);
+      } else if (!openingSettled) {
+        settleOpening(rejectOpening, this.#authenticationError(error) ?? error);
+      }
+    };
+    const onUnexpectedResponse = (_request, response) => {
+      response?.resume?.();
+      settleOpening(rejectOpening, this.#handshakeError(response?.statusCode));
+    };
+    const onMessage = (data, isBinary) => this.#receive(data, isBinary, socket);
+    const onClose = (code, reason) => {
+      if (!opened) {
+        settleOpening(rejectOpening, this.#closeError(code));
+        return;
+      }
+      const current = this.#socket === socket;
+      if (current) {
+        this.#stopHeartbeat();
+        this.connectionId = null;
+        this.#socket = null;
+      }
+      this.emit("close", { code, reason: reason?.toString() ?? "" });
+      if (!current || this.#closing) return;
+      if (code === CLOSE_UNAUTHORIZED) {
+        this.#handlePostStartAuthenticationFailure(this.#closeError(code));
+        return;
+      }
+      if (this.reconnect) this.#scheduleReconnect(new Error(`closed ${code}`));
+    };
 
-    if (socket.readyState !== WebSocket.OPEN) return;
+    socket.on("message", onMessage);
+    socket.on("error", onError);
+    socket.once("open", onOpen);
+    socket.once("unexpected-response", onUnexpectedResponse);
+    socket.on("close", onClose);
 
-    this.#backoff = 1000;
+    try {
+      await opening;
+    } catch (error) {
+      cleanupSocket();
+      if (this.#socket === socket) this.#socket = null;
+      this.#abortSocket(socket);
+      if (this.#closing || !this.reconnect) throw error;
+      const authenticationError = this.#authenticationError(error);
+      if (authenticationError) {
+        return this.#retryAuthentication(authenticationError, initial);
+      }
+      this.#scheduleReconnect(error);
+      return;
+    }
+
+    if (this.#closing) {
+      this.#abortSocket(socket);
+      throw new Error("Realtime connection closed before opening");
+    }
+    if (this.#socket !== socket || socket.readyState !== WebSocket.OPEN) return;
+
     this.#send({
       type: "session.register",
       agent_slug: this.agentSlug,
       protocol_version: PROTOCOL_VERSION,
     });
     this.#startHeartbeat();
-
-    socket.on("message", (data, isBinary) => this.#receive(data, isBinary));
-    socket.on("error", (error) => this.emit("error", error));
-    socket.on("close", (code, reason) => {
-      this.#stopHeartbeat();
-      this.connectionId = null;
-      this.emit("close", { code, reason: reason?.toString() ?? "" });
-      if (code === CLOSE_UNAUTHORIZED) {
-        this.emit(
-          "error",
-          new AuthenticationError(
-            "Gateway closed the session with 4401: the token expired or the API key was revoked.",
-          ),
-        );
-        return;
-      }
-      if (!this.#closing && this.reconnect) this.#scheduleReconnect(new Error(`closed ${code}`));
-    });
   }
 
-  #receive(data, isBinary) {
+  #receive(data, isBinary, socket) {
+    if (socket !== this.#socket || this.#closing) return;
     if (isBinary) {
       this.emit("audio", decodeAudioFrame(data));
       return;
@@ -320,19 +405,143 @@ export class GatewayClient extends EventEmitter {
       this.emit("error", error);
       return;
     }
-    if (event.type === "session.ready") this.connectionId = event.connection_id;
+    if (event.type === "session.ready") {
+      this.connectionId = event.connection_id;
+      this.#authFailures = 0;
+      this.#backoff = INITIAL_BACKOFF_MS;
+    }
     this.emit("event", event);
     if (event.type) this.emit(event.type, event);
   }
 
-  #scheduleReconnect(cause) {
-    const delay = this.#backoff;
+  #scheduleReconnect(cause, { keepAlive = false } = {}) {
+    if (this.#retryTimer && keepAlive) this.#retryTimer.ref?.();
+    if (this.#closing || !this.reconnect || this.#retryTimer) return null;
+    const delay = Math.min(this.#backoff, this.maxBackoffMs);
     this.#backoff = Math.min(this.#backoff * 2, this.maxBackoffMs);
+    const timer = setTimeout(() => {
+      if (this.#retryTimer !== timer) return;
+      this.#retryTimer = null;
+      const waiters = this.#retryWaiters.splice(0);
+      waiters.forEach((resolve) => resolve(!this.#closing));
+      if (waiters.length || this.#closing) return;
+      this.#connect().catch((error) => {
+        if (!this.#closing) this.emit("error", error);
+      });
+    }, delay);
+    this.#retryTimer = timer;
+    if (!keepAlive) timer.unref?.();
     this.emit("reconnecting", { delayMs: delay, cause });
-    setTimeout(() => {
-      if (this.#closing) return;
-      this.#connect().catch((error) => this.emit("error", error));
-    }, delay).unref?.();
+    return null;
+  }
+
+  async #retryAuthentication(error, initial) {
+    this.#authFailures += 1;
+    if (
+      this.#closing ||
+      !this.reconnect ||
+      this.#authFailures >= MAX_AUTHENTICATION_ATTEMPTS
+    ) {
+      throw error;
+    }
+
+    if (!initial) {
+      this.#scheduleReconnect(error, { keepAlive: true });
+      return;
+    }
+
+    const retry = this.#waitForRetry(error);
+    if (!(await retry)) throw error;
+    return this.#connect({ initial: true });
+  }
+
+  #waitForRetry(cause) {
+    if (this.#retryTimer) {
+      return new Promise((resolve) => this.#retryWaiters.push(resolve));
+    }
+    let resolveRetry;
+    const retry = new Promise((resolve) => {
+      resolveRetry = resolve;
+      this.#retryWaiters.push(resolve);
+    });
+    this.#scheduleReconnect(cause, { keepAlive: true });
+    if (!this.#retryTimer) {
+      this.#retryWaiters = this.#retryWaiters.filter((resolve) => resolve !== resolveRetry);
+      resolveRetry(false);
+    }
+    return retry;
+  }
+
+  #handlePostStartAuthenticationFailure(error) {
+    this.#authFailures += 1;
+    if (
+      this.#closing ||
+      !this.reconnect ||
+      this.#authFailures >= MAX_AUTHENTICATION_ATTEMPTS
+    ) {
+      if (!this.#closing) this.emit("error", error);
+      return;
+    }
+    this.#scheduleReconnect(error, { keepAlive: true });
+  }
+
+  #clearRetry() {
+    if (this.#retryTimer) clearTimeout(this.#retryTimer);
+    this.#retryTimer = null;
+    const waiters = this.#retryWaiters.splice(0);
+    waiters.forEach((resolve) => resolve(false));
+  }
+
+  #authenticationError(error) {
+    if (error instanceof AuthenticationError) return error;
+    const status = Number(error?.statusCode ?? error?.status ?? error?.code);
+    if ([401, 403].includes(status)) {
+      return new AuthenticationError(
+        `Gateway refused the WebSocket handshake with HTTP ${status}. The token or API key ` +
+          "is invalid, revoked, expired, or its partner app is disabled.",
+      );
+    }
+    if (/unexpected server response:\s*(401|403)\b/i.test(error?.message ?? "")) {
+      const matchedStatus = error.message.match(/(401|403)\b/)[1];
+      return new AuthenticationError(
+        `Gateway refused the WebSocket handshake with HTTP ${matchedStatus}. The token or API key ` +
+          "is invalid, revoked, expired, or its partner app is disabled.",
+      );
+    }
+    return null;
+  }
+
+  #handshakeError(status) {
+    if ([401, 403].includes(Number(status))) {
+      return new AuthenticationError(
+        `Gateway refused the WebSocket handshake with HTTP ${status}. The token or API key ` +
+          "is invalid, revoked, expired, or its partner app is disabled.",
+      );
+    }
+    return new Error(`Gateway WebSocket handshake failed with HTTP ${status}`);
+  }
+
+  #closeError(code) {
+    if (code === CLOSE_UNAUTHORIZED) {
+      return new AuthenticationError(
+        "Gateway closed the session with 4401: the token expired or the API key was revoked.",
+      );
+    }
+    return new Error(`closed ${code}`);
+  }
+
+  #abortSocket(socket) {
+    if (
+      socket?.readyState === WebSocket.OPEN ||
+      socket?.readyState === WebSocket.CONNECTING
+    ) {
+      if (socket.readyState === WebSocket.CONNECTING && socket.terminate) {
+        socket.once("error", () => {});
+        socket.terminate();
+      } else {
+        socket.close(1000, "connection attempt cancelled");
+      }
+    }
   }
 
   #startHeartbeat() {

@@ -85,9 +85,18 @@ bad audio with no errors, ask what rate they send before anything else.
 drain in-flight calls before the old process exits.
 
 **Retry storms on the token endpoint.** 60 requests per minute per key, per
-org, per IP. A partner retrying tightly after an auth failure stays
-rate-limited and concludes the gateway is down. `AuthenticationError` is
-terminal — retrying a revoked key never helps.
+org, per IP. The public SDK connection flows retry authentication failures
+three times after the initial attempt (four attempts total), with one shared
+budget for token HTTP `401`/`403`, WebSocket handshake `401`/`403`, and close
+`4401`. Each retry mints a fresh token after 1, 2, then 4 seconds, capped by
+the configured max backoff; the budget resets only when `session.ready`
+arrives. `reconnect=False`/`false` disables the flow, and `close()` stops
+pending retries; Python task cancellation also stops them. After the budget,
+Python raises `AuthenticationError`; a Node initial `start()` rejects, while a
+later reconnect emits it on `error` and stops the client. Retrying a revoked
+key never helps. Direct `realtime_token()`/`realtimeToken()` helpers remain
+single requests. The 1/2/4-second sequence assumes authentication-only failures:
+transport failures share the same backoff and can increase delays up to the cap.
 
 **Audio frames disappearing.** The partner-bound queue holds 100 frames and
 drops the oldest when a consumer stalls, on purpose, so live audio stays live.

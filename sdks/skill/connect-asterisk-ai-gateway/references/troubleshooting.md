@@ -15,8 +15,21 @@ The gateway sends `{"type": "error", "code": "...", "message": "..."}`.
 | `outbound-failed` | origination was rejected or the callee never answered | check the destination against the allowlist |
 
 Transport-level closes are different from these. `4401` on the WebSocket means
-the token or key was refused: reconnecting with the same credentials will not
-help.
+the token or key was refused. The SDK connection flows share an authentication
+budget across token `401`/`403`, WebSocket handshake `401`/`403`, and `4401`:
+they make up to three retries after the initial attempt, minting a fresh token
+after 1, 2, then 4 seconds (capped by the configured max backoff). The budget
+resets only on `session.ready`. After it is exhausted, Python raises
+`AuthenticationError`; Node's initial `start()` rejects, while a later
+reconnect emits it on `error` and stops the client. A revoked key cannot be
+revived by retrying.
+Transport failures share the same backoff and can increase the next delay
+beyond the authentication-only 1/2/4-second sequence, up to the configured cap.
+
+Set `reconnect=False`/`false` to disable this behavior. `close()` stops
+pending retries; Python task cancellation also stops them. Direct
+`realtime_token()`/`realtimeToken()` calls are single-request helpers and do
+not retry themselves.
 
 ## Problems that do not produce an error code
 

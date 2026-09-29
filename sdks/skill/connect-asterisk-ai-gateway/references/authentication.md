@@ -8,6 +8,28 @@ The token that comes back expires in five minutes and is used only to open the
 WebSocket. Do not cache it beyond a single handshake; each reconnect mints a
 fresh one.
 
+## Automatic SDK connection retries
+
+The public connection flows — Python `run()`/`stream()` and Node `start()` —
+retry authentication failures three times after the initial attempt (four
+attempts total). One shared budget covers token exchange HTTP `401`/`403`,
+WebSocket handshake `401`/`403`, and close code `4401`. Each retry exchanges
+the API key for a fresh token after 1, 2, then 4 seconds, capped by the
+client's existing `max_backoff` or `maxBackoffMs`. The budget resets only on
+`session.ready`.
+
+Authentication and transport failures share the existing backoff. The
+1/2/4-second sequence assumes no preceding transport failures; mixed failures
+can wait longer, up to the configured cap.
+
+Set Python `reconnect=False` or Node `reconnect: false` to disable automatic
+retries. `close()` stops pending retries; Python task cancellation also stops
+them. When the budget is exhausted, Python raises `AuthenticationError`. A
+Node initial `start()` rejects with it; if a later reconnect exhausts its
+budget after `start()` resolved, the client emits it on `error` and stops.
+Retries cannot revive a revoked key. Direct `realtime_token()` and
+`realtimeToken()` remain single-request helpers and do not retry themselves.
+
 ## Scopes and binding
 
 A key belongs to one organization and one partner app. Its scopes are a subset

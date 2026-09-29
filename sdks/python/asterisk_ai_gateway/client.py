@@ -24,6 +24,7 @@ REALTIME_PATH = "/v1/realtime"
 
 #: Close code the gateway uses for a dead token or a revoked key.
 CLOSE_UNAUTHORIZED = 4401
+AUTH_RETRY_LIMIT = 3
 
 EventHandler = Callable[[dict[str, Any]], Awaitable[None]]
 AudioHandler = Callable[[str, bytes], Awaitable[None]]
@@ -67,6 +68,7 @@ class GatewayClient:
         self._send_lock = asyncio.Lock()
         self._connection_id: str | None = None
         self._closing = False
+        self._closed_event = asyncio.Event()
 
     def __repr__(self) -> str:  # pragma: no cover - diagnostics only
         return (
@@ -109,25 +111,33 @@ class GatewayClient:
     async def stream(self) -> AsyncIterator[dict[str, Any] | Audio]:
         """Yield every JSON event and decoded :class:`Audio` frame.
 
-        Reconnects with a fresh token on transport failures. An
-        :class:`AuthenticationError` ends the stream: no amount of retrying
-        revives a revoked key.
+        Reconnects with a fresh token on transport failures. Authentication
+        failures allow three retries before raising :class:`AuthenticationError`.
+        Successful registration resets the retry budget.
         """
         backoff = 1.0
+        auth_retries = 0
         self._closing = False
+        self._closed_event.clear()
         while not self._closing:
             try:
                 async with aiohttp.ClientSession() as session:
                     token = await self.realtime_token(session)
+                    if self._closing:
+                        return
                     url = self._websocket_url(token)
                     async with session.ws_connect(url) as socket:
+                        if self._closing:
+                            return
                         self._socket = socket
                         await self._register()
                         heartbeat = asyncio.create_task(self._heartbeat_loop())
-                        backoff = 1.0
                         try:
                             async for message in socket:
                                 item = self._decode(message)
+                                if isinstance(item, dict) and item.get("type") == "session.ready":
+                                    auth_retries = 0
+                                    backoff = 1.0
                                 if item is not None:
                                     yield item
                         finally:
@@ -139,19 +149,41 @@ class GatewayClient:
                                 "Gateway closed the session with 4401: the token expired "
                                 "or the API key was revoked."
                             )
-            except (AuthenticationError, asyncio.CancelledError):
+            except asyncio.CancelledError:
                 raise
             except (aiohttp.ClientError, GatewayError, OSError) as error:
-                if self._closing or not self.reconnect:
-                    raise
-                LOGGER.warning("Gateway connection lost (%s); reconnecting in %.0fs", error, backoff)
+                if self._closing:
+                    return
+                # Handshake exceptions include the token-bearing URL. Keep only
+                # the HTTP status in diagnostics, including the terminal error.
+                if isinstance(error, aiohttp.WSServerHandshakeError):
+                    error_type = AuthenticationError if error.status in (401, 403) else GatewayError
+                    error = error_type(f"WebSocket handshake failed with HTTP {error.status}")
+                elif self._socket is not None and self._socket.close_code == CLOSE_UNAUTHORIZED:
+                    error = AuthenticationError("Gateway refused the WebSocket session with 4401")
+                if not self.reconnect:
+                    raise error from None
+                if isinstance(error, AuthenticationError):
+                    if auth_retries >= AUTH_RETRY_LIMIT:
+                        raise error from None
+                    auth_retries += 1
+                    LOGGER.warning(
+                        "Gateway authentication failed; retry %d/%d in %.3fs",
+                        auth_retries, AUTH_RETRY_LIMIT, min(backoff, self.max_backoff),
+                    )
+                else:
+                    LOGGER.warning("Gateway connection lost (%s); reconnecting in %.3fs",
+                                   error, min(backoff, self.max_backoff))
             finally:
                 self._socket = None
                 self._connection_id = None
 
             if self._closing or not self.reconnect:
                 return
-            await asyncio.sleep(backoff)
+            try:
+                await asyncio.wait_for(self._closed_event.wait(), timeout=min(backoff, self.max_backoff))
+            except asyncio.TimeoutError:  # noqa: UP041 -- distinct from TimeoutError on Python 3.10
+                pass
             backoff = min(backoff * 2, self.max_backoff)
 
     async def run(
@@ -174,6 +206,7 @@ class GatewayClient:
         in-flight calls before calling this.
         """
         self._closing = True
+        self._closed_event.set()
         socket, self._socket = self._socket, None
         if socket is not None and not socket.closed:
             await socket.close()

@@ -10,8 +10,9 @@ class GatewayError(Exception):
 class AuthenticationError(GatewayError):
     """The API key or realtime token was refused.
 
-    Retrying does not help: the key is wrong, revoked, expired, or the
-    partner app is disabled. Ask the gateway operator for a new key.
+    Connection flows retry three times before surfacing this error. A direct
+    token request, or a client with reconnect disabled, raises it immediately.
+    Check the key and partner app with the gateway operator after exhaustion.
     """
 
 

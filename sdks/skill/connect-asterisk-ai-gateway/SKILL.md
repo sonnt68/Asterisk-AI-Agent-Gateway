@@ -43,10 +43,20 @@ a wrong-but-plausible rate degrades quality silently instead of failing.
 `agent-in-use`. Deploys must drain in-flight calls before the old process
 exits, or the new one cannot register.
 
-**3. `AuthenticationError` is terminal; everything else retries.** A rejected
-key will not start working on retry — it is revoked, expired, or its partner
-app is disabled. Transport failures reconnect with backoff, and each reconnect
-mints a *new* token; tokens live five minutes and are never replayed.
+**3. Connection authentication has a bounded retry budget.** Python
+`run()`/`stream()` and Node `start()` retry auth failures three times after the
+initial attempt (four attempts total). The shared budget covers token HTTP
+`401`/`403`, WebSocket handshake `401`/`403`, and close `4401`. Each retry
+mints a *new* token after 1, 2, then 4 seconds, capped by `max_backoff` or
+`maxBackoffMs`; the budget resets only when `session.ready` arrives.
+`reconnect=False`/`false` disables retries, and `close()` stops pending ones.
+Python task cancellation also stops them. After the budget, Python raises
+`AuthenticationError`; Node's initial `start()` rejects, while a later
+reconnect emits it on `error` and stops the client. Retries cannot revive a
+revoked key. Direct `realtime_token()`/`realtimeToken()` helpers make one
+request and do not retry themselves. Other transport failures reconnect with
+backoff. Both failure types share the backoff, so preceding transport failures
+can increase the next authentication retry's delay up to the configured cap.
 
 **4. Every command needs its scope, and destinations need the allowlist.**
 Check `references/call-control.md` before adding a command. A command your key

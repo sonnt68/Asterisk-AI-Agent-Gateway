@@ -31,8 +31,17 @@ asyncio.run(client.run(on_event=on_event, on_audio=on_audio))
 Run one client per `agent_slug`: the gateway accepts a single live connection
 per slug and answers a second one with `agent-in-use`.
 
-`AuthenticationError` ends the stream and is never retried — the key is
-revoked, expired, or its partner app is disabled. Every other transport
-failure reconnects with exponential backoff up to `max_backoff`.
+`GatewayClient.run()` and `stream()` retry authentication failures three times
+after the initial attempt (four attempts total). The shared budget covers token
+exchange HTTP `401`/`403`, WebSocket handshake `401`/`403`, and close code
+`4401`. Each retry exchanges the key for a fresh token after 1, 2, then 4
+seconds, capped by `max_backoff`; the budget resets only after
+`session.ready`. Set `reconnect=False` to disable retries; `close()` or task
+cancellation stops pending retries. After the budget, `AuthenticationError`
+ends the flow, and a revoked key cannot be revived. Direct
+`realtime_token()` is a single request and does not retry itself. Other
+transport failures reconnect with exponential backoff up to `max_backoff`.
+Authentication and transport failures share that backoff, so preceding
+transport failures can increase the next authentication retry's delay.
 
 See `examples/echo_agent.py` and `docs/partner/integration-guide.html`.

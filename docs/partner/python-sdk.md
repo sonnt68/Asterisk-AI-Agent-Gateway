@@ -20,9 +20,12 @@ Control helpers cover every scoped command — `hangup`, `hold`, `resume`,
 `transfer_attended`, `transfer_cancel`, `route`, `originate`,
 `cancel_outbound` — and each generates an idempotent `request_id`.
 
-`AuthenticationError` ends the stream and must not be retried: the key is
-revoked, expired, or its partner app is disabled. Never log the API key, the
-ephemeral token, or raw caller audio.
+The connection flow retries authentication failures three times with a fresh
+token before raising the final `AuthenticationError`. Direct `realtime_token()`
+calls remain one-shot; `reconnect=False` disables automatic retries. See
+[authentication](authentication.md#automatic-sdk-connection-retries) for the
+shared retry budget and backoff. Never log the API key, ephemeral token, or
+raw caller audio.
 
 Use `GatewayClient.stream()` instead of `run()` when you want to pull events
 and audio yourself as an async iterator.
