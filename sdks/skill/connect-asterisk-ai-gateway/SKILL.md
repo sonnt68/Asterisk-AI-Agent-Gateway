@@ -41,9 +41,11 @@ directions. Hardcoding a rate is the single most common cause of "the audio
 sounds bad but nothing errors" — see `references/audio.md`, which explains why
 a wrong-but-plausible rate degrades quality silently instead of failing.
 
-**2. One connection per `agent_slug`.** A second one is refused with
-`agent-in-use`. Deploys must drain in-flight calls before the old process
-exits, or the new one cannot register.
+**2. One connection per `agent_slug`, and the newest wins.** A new
+registration closes the old connection with `4409` and hangs up its calls; the
+SDKs raise `SessionSupersededError` and do not reconnect. Deploys must drain
+in-flight calls before the new process registers, and two environments need
+two slugs.
 
 **3. Connection authentication has a bounded retry budget.** Python
 `run()`/`stream()` and Node `start()` retry auth failures three times after the

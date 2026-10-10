@@ -79,12 +79,16 @@ export class LoopbackGateway {
       const registration = JSON.parse(data.toString());
       if (registration.type !== "session.register") return;
       this.registered += 1;
-      if (action === "ready" || action === "ready-close" || action === "ready-close-4401") {
+      if (["ready", "ready-close", "ready-close-4401", "ready-superseded"].includes(action)) {
         socket.send(JSON.stringify({ type: "session.ready", connection_id: `conn-${this.registered}` }));
       }
       if (action === "ready-close") socket.close(1000);
       if (action === "ready-close-4401") socket.close(4401);
       if (action === "no-ready") socket.close(1000);
+      if (action === "ready-superseded") {
+        socket.send(JSON.stringify({ type: "error", code: "session-superseded" }));
+        socket.close(4409);
+      }
     });
     if (action === "ready") this.hold.then(() => socket.close(1000));
   }

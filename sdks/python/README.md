@@ -28,8 +28,10 @@ async def on_audio(call_id, pcm):        # PCM s16le, mono, rate from call.start
 asyncio.run(client.run(on_event=on_event, on_audio=on_audio))
 ```
 
-Run one client per `agent_slug`: the gateway accepts a single live connection
-per slug and answers a second one with `agent-in-use`.
+Run one client per `agent_slug`: the gateway keeps one live connection per
+slug, and the most recent registration wins. A replaced client receives
+close code `4409`, raises `SessionSupersededError`, and stops
+without reconnecting; the gateway hangs up the calls it owned.
 
 `GatewayClient.run()` and `stream()` retry authentication failures three times
 after the initial attempt (four attempts total). The shared budget covers token

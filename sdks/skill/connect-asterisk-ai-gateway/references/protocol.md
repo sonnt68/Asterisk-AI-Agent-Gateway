@@ -13,8 +13,9 @@
 ```
 
 The gateway answers `session.ready`. Heartbeat every 10 seconds; the lease in
-Redis expires after 30. A second connection for the same `agent_slug` is
-refused with `agent-in-use`.
+Redis expires after 30. The most recent registration for an `agent_slug`
+wins: the older connection receives `session-superseded`, its calls are hung
+up, and it is closed with `4409`. A superseded client must not reconnect.
 
 ## Text frames
 

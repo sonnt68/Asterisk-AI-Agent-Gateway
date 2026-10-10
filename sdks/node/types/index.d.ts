@@ -3,6 +3,7 @@ import { EventEmitter } from "node:events";
 export const PROTOCOL_VERSION: "1";
 export const DEFAULT_HEARTBEAT_MS: number;
 export const CLOSE_UNAUTHORIZED: 4401;
+export const CLOSE_SUPERSEDED: 4409;
 export const UUID_BYTES: 16;
 export const AUDIO_ENCODING: "pcm_s16le";
 export const DEFAULT_AUDIO_SAMPLE_RATE: 8000;
@@ -12,6 +13,8 @@ export const AUDIO_CHANNELS: 1;
 
 export class AuthenticationError extends Error {}
 export class RateLimitedError extends Error {}
+/** A newer connection registered this agent slug; the client has stopped. */
+export class SessionSupersededError extends Error {}
 
 export interface AudioFrame {
   callId: string;

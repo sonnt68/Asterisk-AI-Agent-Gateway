@@ -15,6 +15,7 @@ from .errors import (
     GatewayError,
     ProtocolError,
     RateLimitedError,
+    SessionSupersededError,
 )
 from .frames import (
     AUDIO_CHANNELS,
@@ -46,6 +47,7 @@ __all__ = [
     "PROTOCOL_VERSION",
     "ProtocolError",
     "RateLimitedError",
+    "SessionSupersededError",
     "decode_audio_frame",
     "encode_audio_frame",
 ]

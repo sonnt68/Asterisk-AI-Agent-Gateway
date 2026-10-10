@@ -4,7 +4,8 @@ The gateway sends `{"type": "error", "code": "...", "message": "..."}`.
 
 | Code | Cause | What to do |
 |---|---|---|
-| `agent-in-use` | another live connection holds this `agent_slug` | drain and stop the old process; do not run two workers per slug |
+| `session-superseded` | a newer connection registered this `agent_slug`; this one closes with `4409` and its calls were hung up | find and stop the other process, or give it its own slug; never reconnect to win the slug back |
+| `agent-in-use` | this connection sent `session.register` twice | register once per socket |
 | `registration-rejected` | the slug is unknown to this partner app, or the protocol version is wrong | check the slug against the dashboard |
 | `protocol-invalid` | a frame arrived out of order — usually audio before `session.register` succeeded | wait for `session.ready` |
 | `audio-invalid` | the binary frame was 16 bytes or shorter, i.e. a UUID with no audio | do not send empty chunks |

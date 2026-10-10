@@ -4,7 +4,7 @@ import asyncio
 import contextlib
 
 import pytest
-from asterisk_ai_gateway import AuthenticationError, GatewayClient
+from asterisk_ai_gateway import AuthenticationError, GatewayClient, SessionSupersededError
 from partner_sdk_retry_loopback import LoopbackGateway
 
 API_KEY = "agw_live_super_secret_key"
@@ -274,6 +274,31 @@ def test_task_cancellation_during_backoff_or_token_request_stops_cleanly():
             server.release_token.set()
             await client.close()
             await source.aclose()
+            await server.stop()
+
+    asyncio.run(scenario())
+
+
+def test_superseded_session_raises_and_never_reconnects():
+    async def scenario() -> None:
+        server = LoopbackGateway([200] * 4, ["ready-superseded", "ready"])
+        await server.start()
+        client = _client(server)
+        events: list[dict[str, object]] = []
+
+        async def on_event(event: dict[str, object]) -> None:
+            events.append(event)
+
+        try:
+            with pytest.raises(SessionSupersededError, match="4409"):
+                await asyncio.wait_for(client.run(on_event=on_event), 1)
+            assert [event.get("code") or event["type"] for event in events] == [
+                "session.ready",
+                "session-superseded",
+            ]
+            assert server.token_requests == server.ws_requests == 1
+        finally:
+            await client.close()
             await server.stop()
 
     asyncio.run(scenario())

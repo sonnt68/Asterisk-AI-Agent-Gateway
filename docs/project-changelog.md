@@ -1,5 +1,17 @@
 # Project changelog
 
+## SDK 0.3.2 and gateway — 2026-10-10 (local, not released or deployed)
+
+- The newest `session.register` for an agent slug now takes it over. The older
+  connection receives `session-superseded`, its calls are hung up, and it is
+  closed with `4409`. Previously the newcomer was refused with `agent-in-use`,
+  so a forgotten process could hold a slug indefinitely.
+- Across instances the Redis lease is claimed unconditionally; an instance
+  whose lease was taken closes its connection with `4409` on the next
+  heartbeat. An expired lease still closes with `1012`.
+- Python raises and Node emits `SessionSupersededError` on `4409`, and neither
+  reconnects, so two workers on one slug cannot trade it back and forth.
+
 ## SDK 0.3.1 — 2026-09-29
 
 - Retry connection authentication failures three times with fresh realtime

@@ -91,9 +91,13 @@ the 8 kHz path.
 The rate is now announced per call in `call.started`. When a partner reports
 bad audio with no errors, ask what rate they send before anything else.
 
-**Two workers on one slug.** A partner deploying without draining gets
-`agent-in-use` and reads it as our outage. Set the expectation at handover:
-drain in-flight calls before the old process exits.
+**Two workers on one slug.** The gateway keeps the most recent registration
+per slug. A partner deploying without draining sees the old worker closed
+with `4409` (`session-superseded`) and its in-flight calls hung up, and reads
+it as our outage. Before 2026-10 the second worker was refused with
+`agent-in-use` instead, which left a stale or forgotten process holding the
+slug until someone found it. Set the expectation at handover: drain in-flight
+calls before the new process registers, and give staging its own slug.
 
 **Retry storms on the token endpoint.** 60 requests per minute per key, per
 org, per IP. The public SDK connection flows retry authentication failures

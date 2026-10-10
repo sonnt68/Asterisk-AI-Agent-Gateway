@@ -23,8 +23,10 @@ client.on("audio", ({ callId, pcm }) => client.sendAudio(callId, pcm));
 await client.start();
 ```
 
-Run one client per `agentSlug`: the gateway accepts a single live connection
-per slug and answers a second one with `agent-in-use`.
+Run one client per `agentSlug`: the gateway keeps one live connection per
+slug, and the most recent registration wins. A replaced client receives
+close code `4409`, emits `SessionSupersededError` on `error`, and stops
+without reconnecting; the gateway hangs up the calls it owned.
 
 Every JSON event is emitted twice — once as `event`, once under its own type
 (`call.started`, `dtmf.received`, `call.ended`, …). Binary frames arrive

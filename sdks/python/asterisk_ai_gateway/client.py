@@ -12,7 +12,12 @@ from uuid import UUID, uuid4
 
 import aiohttp
 
-from .errors import AuthenticationError, GatewayError, RateLimitedError
+from .errors import (
+    AuthenticationError,
+    GatewayError,
+    RateLimitedError,
+    SessionSupersededError,
+)
 from .frames import decode_audio_frame, encode_audio_frame
 
 LOGGER = logging.getLogger("asterisk_ai_gateway")
@@ -24,6 +29,8 @@ REALTIME_PATH = "/v1/realtime"
 
 #: Close code the gateway uses for a dead token or a revoked key.
 CLOSE_UNAUTHORIZED = 4401
+#: Close code for a session replaced by a newer registration of its slug.
+CLOSE_SUPERSEDED = 4409
 AUTH_RETRY_LIMIT = 3
 
 EventHandler = Callable[[dict[str, Any]], Awaitable[None]]
@@ -41,8 +48,8 @@ class Audio:
 class GatewayClient:
     """One partner connection to one ``agent_slug``.
 
-    The gateway allows a single live connection per slug, so run exactly one
-    client per slug. The client exchanges the API key for a five-minute
+    The gateway keeps one live connection per slug: a newer registration
+    replaces this one, which then raises :class:`SessionSupersededError`. The client exchanges the API key for a five-minute
     realtime token, registers the session, heartbeats, reconnects with a
     fresh token, and hides the 16-byte audio envelope.
     """
@@ -113,7 +120,9 @@ class GatewayClient:
 
         Reconnects with a fresh token on transport failures. Authentication
         failures allow three retries before raising :class:`AuthenticationError`.
-        Successful registration resets the retry budget.
+        Successful registration resets the retry budget. A session replaced by a
+        newer registration raises :class:`SessionSupersededError` and never
+        reconnects.
         """
         backoff = 1.0
         auth_retries = 0
@@ -144,12 +153,17 @@ class GatewayClient:
                             heartbeat.cancel()
                             with contextlib.suppress(asyncio.CancelledError):
                                 await heartbeat
+                        if socket.close_code == CLOSE_SUPERSEDED:
+                            raise SessionSupersededError(
+                                "Gateway closed the session with 4409: a newer connection "
+                                "registered this agent slug."
+                            )
                         if socket.close_code == CLOSE_UNAUTHORIZED:
                             raise AuthenticationError(
                                 "Gateway closed the session with 4401: the token expired "
                                 "or the API key was revoked."
                             )
-            except asyncio.CancelledError:
+            except (asyncio.CancelledError, SessionSupersededError):
                 raise
             except (aiohttp.ClientError, GatewayError, OSError) as error:
                 if self._closing:

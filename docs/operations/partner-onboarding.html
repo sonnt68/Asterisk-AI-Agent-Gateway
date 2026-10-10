@@ -569,13 +569,13 @@ footer {
     <div class="incident">
       <h3><span class="v">Hai worker dùng chung một slug</span><span class="e">Two workers on one slug</span></h3>
       <p>
-        <span class="v">Đối tác deploy mà không drain sẽ nhận <code>agent-in-use</code> và hiểu nhầm là hệ thống của ta sập.</span>
-        <span class="e">A partner deploying without draining gets <code>agent-in-use</code> and reads it as our outage.</span>
+        <span class="v">Gateway giữ kết nối đăng ký sau cùng cho mỗi slug. Đối tác deploy mà không drain sẽ thấy worker cũ bị đóng với <code>4409</code> (<code>session-superseded</code>) và các cuộc gọi đang chạy bị cúp, rồi hiểu nhầm là hệ thống của ta sập. Trước 2026-10, worker thứ hai bị từ chối với <code>agent-in-use</code>, khiến một tiến trình cũ hoặc bị quên giữ slug cho tới khi có người tìm ra.</span>
+        <span class="e">The gateway keeps the most recent registration per slug. A partner deploying without draining sees the old worker closed with <code>4409</code> (<code>session-superseded</code>) and its in-flight calls hung up, and reads it as our outage. Before 2026-10 the second worker was refused with <code>agent-in-use</code> instead, which left a stale or forgotten process holding the slug until someone found it.</span>
       </p>
       <p class="tell">
         <b><span class="v">Xử lý</span><span class="e">What to do</span></b>
-        <span class="v"> — đặt kỳ vọng ngay lúc bàn giao: phải drain hết cuộc gọi đang chạy trước khi tiến trình cũ thoát.</span>
-        <span class="e"> — set the expectation at handover: drain in-flight calls before the old process exits.</span>
+        <span class="v"> — đặt kỳ vọng ngay lúc bàn giao: phải drain hết cuộc gọi đang chạy trước khi tiến trình mới đăng ký, và dùng slug riêng cho staging.</span>
+        <span class="e"> — set the expectation at handover: drain in-flight calls before the new process registers, and give staging its own slug.</span>
       </p>
     </div>
 

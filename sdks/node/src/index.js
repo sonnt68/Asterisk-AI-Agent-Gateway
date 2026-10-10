@@ -25,11 +25,26 @@ const MAX_AUTHENTICATION_ATTEMPTS = 4;
 /** Close code the gateway uses for a dead token or a revoked key. */
 export const CLOSE_UNAUTHORIZED = 4401;
 
+/** Close code for a session replaced by a newer registration of its slug. */
+export const CLOSE_SUPERSEDED = 4409;
+
 /** The API key or realtime token was refused; connection flows may retry before surfacing it. */
 export class AuthenticationError extends Error {
   constructor(message) {
     super(message);
     this.name = "AuthenticationError";
+  }
+}
+
+/**
+ * A newer connection registered this agent slug, so the gateway closed this one.
+ * The client stops for good: reconnecting would take the slug back, and two
+ * workers would trade it forever.
+ */
+export class SessionSupersededError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "SessionSupersededError";
   }
 }
 
@@ -44,8 +59,9 @@ export class RateLimitedError extends Error {
 /**
  * One partner connection to one `agentSlug`.
  *
- * The gateway allows a single live connection per slug, so run exactly one
- * client per slug. Emits every JSON event under its own `type` name, plus
+ * The gateway keeps one live connection per slug: a newer registration
+ * replaces this one, which then emits `SessionSupersededError` on `error` and
+ * stops. Emits every JSON event under its own `type` name, plus
  * `audio` for decoded binary frames.
  */
 export class GatewayClient extends EventEmitter {
@@ -350,6 +366,12 @@ export class GatewayClient extends EventEmitter {
       }
       this.emit("close", { code, reason: reason?.toString() ?? "" });
       if (!current || this.#closing) return;
+      if (code === CLOSE_SUPERSEDED) {
+        this.#closing = true;
+        this.#clearRetry();
+        this.emit("error", this.#closeError(code));
+        return;
+      }
       if (code === CLOSE_UNAUTHORIZED) {
         this.#handlePostStartAuthenticationFailure(this.#closeError(code));
         return;
@@ -525,6 +547,11 @@ export class GatewayClient extends EventEmitter {
     if (code === CLOSE_UNAUTHORIZED) {
       return new AuthenticationError(
         "Gateway closed the session with 4401: the token expired or the API key was revoked.",
+      );
+    }
+    if (code === CLOSE_SUPERSEDED) {
+      return new SessionSupersededError(
+        "Gateway closed the session with 4409: a newer connection registered this agent slug.",
       );
     }
     return new Error(`closed ${code}`);

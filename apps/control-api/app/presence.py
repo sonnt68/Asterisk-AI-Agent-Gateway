@@ -16,21 +16,24 @@ class RedisPresence:
     def _key(self, agent_slug: str) -> str:
         return f"asterisk-ai-gateway:agent:{agent_slug}"
 
-    async def register(self, agent_slug: str, connection_id: str) -> bool:
-        return bool(
-            await self.redis.set(
-                self._key(agent_slug), connection_id, ex=self.ttl_seconds, nx=True
-            )
-        )
+    async def claim(self, agent_slug: str, connection_id: str) -> None:
+        """Take the slug's lease unconditionally: the newest registration wins."""
+        await self.redis.set(self._key(agent_slug), connection_id, ex=self.ttl_seconds)
 
-    async def heartbeat(self, agent_slug: str, connection_id: str) -> bool:
+    async def heartbeat(self, agent_slug: str, connection_id: str) -> str:
+        """Renew the lease; ``held``, ``lost`` (expired), or ``superseded``."""
         script = """
-        if redis.call('get', KEYS[1]) == ARGV[1] then
-          return redis.call('expire', KEYS[1], ARGV[2])
+        local holder = redis.call('get', KEYS[1])
+        if holder == ARGV[1] then
+          redis.call('expire', KEYS[1], ARGV[2])
+          return 'held'
         end
-        return 0
+        if holder then
+          return 'superseded'
+        end
+        return 'lost'
         """
-        return bool(
+        return str(
             await self.redis.eval(
                 script, 1, self._key(agent_slug), connection_id, self.ttl_seconds
             )

@@ -101,11 +101,16 @@ class LoopbackGateway:
             registration = json.loads(message.data)
             if registration.get("type") == "session.register":
                 self.registered += 1
-                if action in {"ready", "ready-close"}:
+                if action in {"ready", "ready-close", "ready-superseded"}:
                     await socket.send_json(
                         {"type": "session.ready", "connection_id": f"conn-{self.registered}"}
                     )
-        if action in {"ready-close", "no-ready"}:
+        if action == "ready-superseded":
+            await socket.send_json(
+                {"type": "error", "code": "session-superseded", "message": "newer connection"}
+            )
+            await socket.close(code=4409)
+        elif action in {"ready-close", "no-ready"}:
             await socket.close(code=1000)
         else:
             await self.hold.wait()

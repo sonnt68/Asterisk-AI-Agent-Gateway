@@ -584,8 +584,8 @@ python dial_out.py 84969097109</code></pre>
       <div class="note note-warn">
         <p class="note-title"><span class="v">Dừng agent trước khi chạy</span><span class="e">Stop your agent first</span></p>
         <p>
-          <span class="v">Gateway chỉ cho một kết nối sống trên mỗi <code>agent_slug</code>. Nếu agent của bạn đang chạy và giữ slug, script này sẽ bị từ chối với <code>agent-in-use</code> — kết nối đang chạy không bị ảnh hưởng, nhưng script sẽ không quay số được.</span>
-          <span class="e">The gateway allows one live connection per <code>agent_slug</code>. If your agent is running and holding the slug, this script is refused with <code>agent-in-use</code> — the running connection is unharmed, but the script will not dial.</span>
+          <span class="v">Gateway chỉ giữ một kết nối sống trên mỗi <code>agent_slug</code>, và kết nối đăng ký sau cùng được giữ. Nếu agent của bạn đang chạy, script này sẽ chiếm slug: agent bị đóng với <code>4409</code>, mọi cuộc gọi của nó bị cúp, và nó không tự kết nối lại. Dừng agent trước, hoặc dùng một slug riêng để thử.</span>
+          <span class="e">The gateway keeps one live connection per <code>agent_slug</code>, and the most recent registration wins. If your agent is running, this script takes the slug: the agent is closed with <code>4409</code>, every call it owns is hung up, and it does not reconnect. Stop the agent first, or test on a separate slug.</span>
         </p>
       </div>
 
@@ -758,9 +758,9 @@ if __name__ == &quot;__main__&quot;:
           </thead>
           <tbody>
             <tr>
-              <td><code>agent-in-use</code></td>
-              <td><span class="v">Slug đã có kết nối sống khác</span><span class="e">Another live connection holds the slug</span></td>
-              <td><span class="v">Dừng agent đang chạy rồi thử lại</span><span class="e">Stop the running agent, then retry</span></td>
+              <td><code>session-superseded</code></td>
+              <td><span class="v">Một kết nối khác vừa đăng ký cùng slug và đã chiếm nó</span><span class="e">Another connection just registered the same slug and took it over</span></td>
+              <td><span class="v">Dừng tiến trình kia, hoặc dùng slug riêng; đừng kết nối lại để giành slug</span><span class="e">Stop the other process, or use a separate slug; do not reconnect to take the slug back</span></td>
             </tr>
             <tr>
               <td><code>outbound-failed</code></td>

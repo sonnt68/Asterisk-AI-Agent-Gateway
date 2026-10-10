@@ -27,5 +27,10 @@ calls remain one-shot; `reconnect=False` disables automatic retries. See
 shared retry budget and backoff. Never log the API key, ephemeral token, or
 raw caller audio.
 
+The gateway keeps the most recent registration per slug. When another process
+registers the same slug, this client's calls are hung up, the socket closes
+with `4409`, and `run()`/`stream()` raise `SessionSupersededError` without
+reconnecting.
+
 Use `GatewayClient.stream()` instead of `run()` when you want to pull events
 and audio yourself as an async iterator.

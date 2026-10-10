@@ -16,6 +16,9 @@ from app.settings import get_settings
 
 router = APIRouter()
 
+#: Close code for a connection replaced by a newer registration of its slug.
+CLOSE_SUPERSEDED = 4409
+
 
 async def send_error(socket: WebSocket, code: str, message: str) -> None:
     await socket.send_json({"type": "error", "code": code, "message": message})
@@ -50,16 +53,18 @@ async def handle_json(
         if payload.get("protocol_version") != "1" or payload.get("agent_slug") != subject["agent_slug"]:
             await send_error(socket, "registration-rejected", "Agent slug or protocol version is invalid")
             return connection
-        if connection or registry.find_agent(subject["agent_slug"]):
-            await send_error(socket, "agent-in-use", "Agent slug already has an active connection")
+        if connection:
+            await send_error(socket, "agent-in-use", "This connection is already registered")
             return connection
+        # The newest registration wins the slug. Loop because superseding
+        # yields, and a third registration may land in that window.
+        while previous := registry.find_agent(subject["agent_slug"]):
+            await supersede_partner(socket, previous)
         connection = registry.register(subject, socket)
         presence = getattr(socket.app.state, "presence", None)
         if presence:
             try:
-                registered = await presence.register(
-                    connection.agent_slug, connection.id
-                )
+                await presence.claim(connection.agent_slug, connection.id)
             except Exception:
                 registry.remove(connection.id)
                 await connection.close()
@@ -67,29 +72,24 @@ async def handle_json(
                     socket, "presence-unavailable", "Connection lease store is unavailable"
                 )
                 await socket.close(code=1013)
-                return None
-            if not registered:
-                registry.remove(connection.id)
-                await connection.close()
-                await send_error(
-                    socket, "agent-in-use", "Agent slug is leased by another instance"
-                )
                 return None
         await connection.send_json({"type": "session.ready", "connection_id": connection.id})
     elif message_type == "heartbeat" and connection:
         presence = getattr(socket.app.state, "presence", None)
         if presence:
             try:
-                lease_active = await presence.heartbeat(
-                    connection.agent_slug, connection.id
-                )
+                lease = await presence.heartbeat(connection.agent_slug, connection.id)
             except Exception:
                 await send_error(
                     socket, "presence-unavailable", "Connection lease store is unavailable"
                 )
                 await socket.close(code=1013)
                 return connection
-            if not lease_active:
+            if lease == "superseded":
+                # Another instance accepted a newer registration for this slug.
+                await supersede_partner(socket, connection)
+                return None
+            if lease != "held":
                 await socket.close(code=1012)
                 return connection
         await connection.send_json({"type": "heartbeat.ack"})
@@ -151,7 +151,8 @@ async def realtime(socket: WebSocket) -> None:
     except (WebSocketDisconnect, ValueError):
         pass
     finally:
-        if connection:
+        # A superseded connection was already torn down by its successor.
+        if connection and registry.connections.get(connection.id) is connection:
             await disconnect_partner(socket, connection)
 
 
@@ -161,6 +162,25 @@ def token_key_is_active(subject: dict[str, str]) -> bool:
     with SessionLocal() as session:
         key = session.get(ApiKey, subject["api_key_id"])
         return bool(key and not key.revoked_at and not timestamp_expired(key.expires_at))
+
+
+async def supersede_partner(socket: WebSocket, previous: Connection) -> None:
+    """Hand the slug to a newer registration and stop the old socket for good.
+
+    4409 tells the SDKs not to reconnect; without it two workers on one slug
+    would take it from each other on every reconnect.
+    """
+    with contextlib.suppress(Exception):
+        await previous.send_json(
+            {
+                "type": "error",
+                "code": "session-superseded",
+                "message": "A newer connection registered this agent slug",
+            }
+        )
+    await disconnect_partner(socket, previous)
+    with contextlib.suppress(Exception):
+        await previous.socket.close(code=CLOSE_SUPERSEDED)
 
 
 async def disconnect_partner(socket: WebSocket, connection: Connection) -> None:

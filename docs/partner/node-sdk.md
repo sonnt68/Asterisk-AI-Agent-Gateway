@@ -41,3 +41,8 @@ Direct `realtimeToken()` calls remain one-shot; `reconnect: false` disables
 automatic retries. See [authentication](authentication.md#automatic-sdk-connection-retries)
 for the shared retry budget and backoff. Requires Node 18.17 or newer.
 TypeScript declarations ship in `types/index.d.ts`.
+
+The gateway keeps the most recent registration per slug. When another process
+registers the same slug, this client's calls are hung up, the socket closes
+with `4409`, and the client emits `SessionSupersededError` on `error` and stops
+without reconnecting.

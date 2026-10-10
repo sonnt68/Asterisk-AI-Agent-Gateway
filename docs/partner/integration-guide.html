@@ -809,8 +809,8 @@ html { scroll-behavior: smooth; }
         <span class="e">The <code>agent_slug</code> you send must match the slug bound to your API key, and <code>protocol_version</code> must be the string <code>"1"</code>. Either mismatch returns <code>registration-rejected</code>.</span>
       </p>
       <p>
-        <span class="v">Chỉ một kết nối cho mỗi slug. Nếu một tiến trình khác đang giữ slug, kết nối thứ hai nhận lỗi <code>agent-in-use</code>. Hãy chạy một worker duy nhất cho mỗi slug, hoặc dùng slug riêng cho từng instance.</span>
-        <span class="e">One connection per slug. If another process already holds it, the second connection gets <code>agent-in-use</code>. Run a single worker per slug, or give each instance its own slug.</span>
+        <span class="v">Mỗi slug chỉ có một kết nối sống, và kết nối đăng ký sau cùng được giữ. Khi một tiến trình mới đăng ký slug đang có người giữ, kết nối cũ nhận lỗi <code>session-superseded</code>, mọi cuộc gọi của nó bị cúp, rồi nó bị đóng với mã <code>4409</code>. Kết nối cũ không được tự kết nối lại, nếu không hai worker sẽ giành slug của nhau mãi. Hãy chạy một worker duy nhất cho mỗi slug, hoặc dùng slug riêng cho từng instance.</span>
+        <span class="e">Each slug has one live connection, and the most recent registration keeps it. When a new process registers a slug that is already held, the old connection gets <code>session-superseded</code>, every call it owns is hung up, and it is closed with <code>4409</code>. The old connection must not reconnect, or two workers will take the slug from each other forever. Run a single worker per slug, or give each instance its own slug.</span>
       </p>
 
       <h3><span class="v">Mã đóng kết nối</span><span class="e">Close codes</span></h3>
@@ -830,9 +830,14 @@ html { scroll-behavior: smooth; }
               <td><span class="v">SDK xin token mới và retry trong ngân sách chung; hết ngân sách thì <code>AuthenticationError</code></span><span class="e">The SDK mints a fresh token and retries within the shared budget; after exhaustion, <code>AuthenticationError</code> is final</span></td>
             </tr>
             <tr>
+              <td><code>4409</code></td>
+              <td><span class="v">Một kết nối mới hơn đã đăng ký slug này; các cuộc gọi của kết nối cũ đã bị cúp</span><span class="e">A newer connection registered this slug; the old connection's calls were hung up</span></td>
+              <td><span class="v">Dừng hẳn, không kết nối lại. SDK báo <code>SessionSupersededError</code></span><span class="e">Stop for good; do not reconnect. The SDKs raise <code>SessionSupersededError</code></span></td>
+            </tr>
+            <tr>
               <td><code>1012</code></td>
-              <td><span class="v">Mất quyền giữ slug (một instance khác đã chiếm)</span><span class="e">Lost the slug lease to another instance</span></td>
-              <td><span class="v">Kết nối lại sau backoff; đừng chạy song song hai worker cùng slug</span><span class="e">Reconnect after a backoff; do not run two workers on one slug</span></td>
+              <td><span class="v">Quyền giữ slug đã hết hạn trên gateway</span><span class="e">The slug lease expired on the gateway</span></td>
+              <td><span class="v">Kết nối lại sau backoff</span><span class="e">Reconnect after a backoff</span></td>
             </tr>
             <tr>
               <td><code>1013</code></td>
@@ -1200,9 +1205,14 @@ async def on_event(event):
               <td><span class="v">Không</span><span class="e">No</span></td>
             </tr>
             <tr>
+              <td><code>session-superseded</code></td>
+              <td><span class="v">Một kết nối mới hơn đã đăng ký slug; socket này sắp bị đóng với <code>4409</code></span><span class="e">A newer connection registered the slug; this socket is about to close with <code>4409</code></span></td>
+              <td><span class="v">Không</span><span class="e">No</span></td>
+            </tr>
+            <tr>
               <td><code>agent-in-use</code></td>
-              <td><span class="v">Slug đang có kết nối khác giữ</span><span class="e">Another connection already holds the slug</span></td>
-              <td><span class="v">Có, sau backoff</span><span class="e">Yes, after a backoff</span></td>
+              <td><span class="v">Kết nối này đã đăng ký rồi; gửi <code>session.register</code> lần hai</span><span class="e">This connection is already registered; a second <code>session.register</code> was sent</span></td>
+              <td><span class="v">Không</span><span class="e">No</span></td>
             </tr>
             <tr>
               <td><code>protocol-invalid</code></td>
@@ -1364,7 +1374,7 @@ socket.on("message", (data, isBinary) => {
       <ul class="check">
         <li><span class="v">API key nằm trong kho bí mật, được che khỏi log và thông báo lỗi.</span><span class="e">The API key lives in a secret store and is redacted from logs and error reports.</span></li>
         <li><span class="v">Lỗi xác thực được SDK thử lại tối đa 3 lần sau lần đầu (tổng 4 lần), xin token mới với backoff chung từ 1/2/4 giây và chỉ reset ngân sách khi nhận <code>session.ready</code>.</span><span class="e">SDK authentication failures retry up to 3 times after the initial attempt (4 total), minting a fresh token with shared backoff starting at 1/2/4 seconds and resetting the budget only on <code>session.ready</code>.</span></li>
-        <li><span class="v">Heartbeat 10 giây một lần, và bạn xử lý đúng các mã đóng 4401 / 1012 / 1013.</span><span class="e">Heartbeats go out every 10 seconds, and close codes 4401 / 1012 / 1013 are handled distinctly.</span></li>
+        <li><span class="v">Heartbeat 10 giây một lần, và bạn xử lý đúng các mã đóng 4401 / 4409 / 1012 / 1013.</span><span class="e">Heartbeats go out every 10 seconds, and close codes 4401 / 4409 / 1012 / 1013 are handled distinctly.</span></li>
         <li><span class="v">Mỗi <code>call_id</code> có đúng một chuỗi xử lý, và trạng thái được giải phóng khi <code>call.ended</code>.</span><span class="e">Exactly one handler chain per <code>call_id</code>, and state is released on <code>call.ended</code>.</span></li>
         <li><span class="v">Mọi lệnh có thể gửi lại đều mang <code>request_id</code> dạng UUID.</span><span class="e">Every retryable command carries a UUID <code>request_id</code>.</span></li>
         <li><span class="v">Chỉ một worker giữ mỗi <code>agent_slug</code>; kịch bản triển khai chờ cuộc gọi kết thúc trước khi tắt tiến trình cũ.</span><span class="e">One worker per <code>agent_slug</code>, and your deploy drains in-flight calls before the old process exits.</span></li>

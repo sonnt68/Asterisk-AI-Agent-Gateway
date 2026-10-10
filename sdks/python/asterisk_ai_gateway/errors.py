@@ -16,6 +16,15 @@ class AuthenticationError(GatewayError):
     """
 
 
+class SessionSupersededError(GatewayError):
+    """A newer connection registered this agent slug, so the gateway closed this one.
+
+    The gateway keeps the most recent registration per slug and closes the
+    older socket with 4409. The client never reconnects after this: doing so
+    would take the slug back and two workers would trade it forever.
+    """
+
+
 class RateLimitedError(GatewayError):
     """Token exchange exceeded the per-key rate limit."""
 

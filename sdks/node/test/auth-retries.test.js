@@ -5,6 +5,7 @@ import { test } from "node:test";
 import {
   AuthenticationError,
   GatewayClient,
+  SessionSupersededError,
 } from "../src/index.js";
 import { LoopbackGateway, waitUntil } from "./auth-retry-loopback.js";
 
@@ -227,5 +228,28 @@ test("close during backoff or an in-flight token prevents late socket attempts",
     assert.equal(tokenGateway.wsRequests, 0);
   } finally {
     await cleanup(tokenClient, tokenGateway);
+  }
+});
+
+test("a superseded session emits SessionSupersededError and never reconnects", async () => {
+  const gateway = new LoopbackGateway({ wsActions: ["ready-superseded", "ready"] });
+  await gateway.start();
+  const client = makeClient(gateway);
+  const errors = [];
+  const reconnects = [];
+  client.on("error", (error) => errors.push(error));
+  client.on("reconnecting", (info) => reconnects.push(info));
+  try {
+    await client.start();
+    const superseded = () => errors.find((error) => error instanceof SessionSupersededError);
+    await waitUntil(superseded);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    // The gateway's JSON notice arrives on `error` too, as every event does by type.
+    assert.equal(errors[0].code, "session-superseded");
+    assert.match(superseded().message, /4409/);
+    assert.equal(reconnects.length, 0);
+    assert.equal(gateway.wsRequests, 1);
+  } finally {
+    await cleanup(client, gateway);
   }
 });
