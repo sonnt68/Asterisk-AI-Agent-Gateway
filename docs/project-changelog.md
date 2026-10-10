@@ -1,6 +1,9 @@
 # Project changelog
 
-## SDK 0.3.2 and gateway — 2026-10-10 (local, not released or deployed)
+## SDK 0.3.2 and gateway — 2026-10-10
+
+- Published to npm and PyPI from tag `sdk-v0.3.2`; clean installs verified.
+  Gateway deployed to the pilot host and verified live on a test slug.
 
 - The newest `session.register` for an agent slug now takes it over. The older
   connection receives `session-superseded`, its calls are hung up, and it is
