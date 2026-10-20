@@ -19,6 +19,21 @@ from app.settings import Settings
 logger = logging.getLogger(__name__)
 
 
+def _dialplan_value(value: object) -> str | None:
+    """Accept only bounded dialplan metadata supplied by the trusted event."""
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    return value if 0 < len(value) <= 80 else None
+
+
+def _inbound_destination(channel: dict[str, object]) -> tuple[str | None, str | None]:
+    dialplan = channel.get("dialplan")
+    if not isinstance(dialplan, dict):
+        return None, None
+    return _dialplan_value(dialplan.get("exten")), _dialplan_value(dialplan.get("context"))
+
+
 class CallLifecycle:
     def __init__(
         self,
@@ -130,7 +145,10 @@ class CallLifecycle:
         if not connection:
             await self.ari.delete(session, f"/channels/{quote(channel_id, safe='')}")
             return
+        called_number, routing_context = _inbound_destination(channel)
         call = self.registry.create_call(channel_id, connection)
+        call.called_number = called_number
+        call.routing_context = routing_context
         try:
             await self.registry.persist_start(call)
         except Exception:

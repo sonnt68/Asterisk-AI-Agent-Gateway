@@ -19,6 +19,28 @@
   and forced sdist installs passed their HTTP wire tests and the HTML examples'
   token/WebSocket call-signal tracking checks. No application restart required.
 
+## CMS call-history destination details — 2026-10-20
+
+- Added nullable `called_number` and `routing_context` metadata for the
+  authenticated browser call-history detail view. New outbound records capture
+  validated destination inputs; inbound records use only supplied dialplan
+  destination metadata.
+- Kept partner GET/list/signals responses, realtime messages, and SDK contracts
+  unchanged. Imported rows and older records remain null unless a
+  restricted backup-and-log review proves an exact UUID plus
+  `Local/<extension>@<context>` correlation; no heuristic ownership or number
+  inference is allowed.
+- Deployed API/UI with migration `0004` after a restricted PostgreSQL backup,
+  isolated restore/migration rehearsal, and zero active call/media checks.
+  Backfilled 61 owned, ended Gateway calls from exact log correlations;
+  the second pass updated zero rows and imported destinations remain null.
+- Validation: 198 Python tests, 21 Node SDK tests, Ruff, protocol checks and
+  UI builds passed. Two isolated live reject/no-answer calls verified new
+  destination persistence, CMS detail reads and unchanged partner responses.
+  The existing customer connection reconnected after restart. Browser UI
+  inspection was unavailable in this session; served assets and authenticated
+  detail responses were checked. See the [rollout record](plans/completed/20261020-call-history-destination-details.md).
+
 ## Durable history rollout and numbered pagination — 2026-10-20
 
 - Added the exact historic `agent_slug` list filter and optional numbered

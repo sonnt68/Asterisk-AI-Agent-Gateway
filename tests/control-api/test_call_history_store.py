@@ -51,6 +51,8 @@ def test_start_captures_immutable_owner_and_initial_signal(tmp_path) -> None:
     registry = ConnectionRegistry(store)
     connection = _connection()
     call = registry.reserve_call(connection)
+    call.called_number = "123"
+    call.routing_context = "from-internal"
     asyncio.run(registry.persist_start(call))
 
     with factory() as session:
@@ -59,9 +61,38 @@ def test_start_captures_immutable_owner_and_initial_signal(tmp_path) -> None:
     assert record is not None
     assert record.organization_id == "org-1"
     assert record.partner_app_id == "app-1"
+    assert record.called_number == "123"
+    assert record.routing_context == "from-internal"
     assert record.direction == "outbound"
     assert record.source == "gateway"
     assert record.history_complete is True
+    assert signal is None
+
+
+def test_destination_metadata_is_immutable_after_start(tmp_path) -> None:
+    _, factory = _database(tmp_path)
+    with factory() as session:
+        session.add(Organization(id="org-1", name="Operator"))
+        session.commit()
+    store = CallHistoryStore(factory)
+    registry = ConnectionRegistry(store)
+    call = registry.reserve_call(_connection())
+    call.called_number = "123"
+    call.routing_context = "from-internal"
+    asyncio.run(registry.persist_start(call))
+
+    call.called_number = "999"
+    call.routing_context = "other-context"
+    call.sequence = 1
+    assert asyncio.run(
+        store.record(call, {"status": "ringing", "sequence": 1})
+    ) is False
+
+    with factory() as session:
+        record = session.get(CallRecord, call.id)
+        signal = session.get(CallSignal, (call.id, 1))
+    assert record is not None
+    assert (record.called_number, record.routing_context) == ("123", "from-internal")
     assert signal is None
 
 
@@ -326,5 +357,7 @@ def test_legacy_import_is_grouped_idempotent_and_unassigned(tmp_path) -> None:
         assert record.source == "imported"
         assert record.partner_app_id is None
         assert record.agent_slug is None
+        assert record.called_number is None
+        assert record.routing_context is None
         assert record.history_complete is False
         assert session.scalar(select(CallSignal)) is None

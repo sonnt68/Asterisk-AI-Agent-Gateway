@@ -37,13 +37,16 @@ matching previous image, not by running a downgrade under active writers.
 
 ## Durable history rollout
 
-The call-history schema is the additive `0003_call_history` migration. Before
-any rollout, back up the database and matching application image, then validate
-migration head, health, API-key ownership isolation, pagination, restart
-recovery, and the internal management view. Keep the existing realtime
-`call.status` behavior while the durable GET surface is introduced.
+The durable history baseline is the additive `0003_call_history` migration.
+CMS destination-detail fields are a separate additive
+`0004_call_destination` migration. Before any rollout, back up the database
+and matching application image, then validate migration head, health, API-key
+ownership isolation, pagination, restart recovery, and the internal management
+view. Keep the existing realtime `call.status` behavior while the durable GET
+surface is introduced.
 
-The verified rollout sequence is:
+The verified rollout sequence below covers the `0003` durable-history rollout.
+Apply the same backup and isolated-migration gates before any `0004` rollout.
 
 1. Create a PostgreSQL backup and a matching application-image record. Keep
    sanitized source exports and database backups at mode `0600`.
@@ -59,7 +62,8 @@ Legacy summaries must be imported only into the designated organization, with
 no partner-app ownership inferred. They remain visible only to an organization
 owner or admin in the internal management view; they must not appear in partner
 GET responses. Mark them summary-only (`history_complete=false`) and keep the
-import idempotent, with no audio, transcript, or phone-number data.
+import idempotent, with no audio, transcript, caller-number, or called-destination
+data. Imported rows retain null `called_number` and `routing_context`.
 
 Use the sanitized JSON importer from the API environment:
 
@@ -77,8 +81,8 @@ exported `calldate`, `disposition`, `duration`, and `billsec` summary fields.
 The importer creates deterministic summary records with
 `partner_app_id=NULL`, `agent_slug=NULL`, `source="imported"`, and
 `history_complete=false`; it never copies caller numbers, gateway markers, or
-customer ownership. Do not hand-edit the generated IDs or attach an app to an
-imported summary.
+called-destination metadata or customer ownership. Do not hand-edit the
+generated IDs or attach an app to an imported summary.
 
 Record the command output. The verified import grouped 779 legacy records on
 the first run; the exact same input on the second run inserted `0` new rows.
@@ -106,3 +110,25 @@ with ARI connected. The Node/Python `0.4.0` builds are served as direct artifact
 under `downloads/sdk-0.4.0/`; npm/PyPI publication was not performed. See the
 [completed rollout record](../plans/completed/20261020-durable-call-history.md)
 for image IDs and artifact hashes.
+
+## CMS destination-detail rollout
+
+The `0004_call_destination` fields are nullable and are shown only by the
+authenticated browser detail route. New gateway records capture outbound
+`extension`/`context` after destination validation, or inbound values from the
+supplied `channel.dialplan.exten`/`channel.dialplan.context`. Missing or
+unbounded inbound metadata remains null. The partner list/detail/signals
+contracts, realtime frames, and SDKs do not gain these fields.
+
+Existing imported rows stay null. A legacy gateway row may be considered for
+backfill only after a restricted mode-`0600` database/log backup and only when
+the same call UUID appears in `appArgs` and the logs provide an exact
+`Local/<extension>@<context>` endpoint match. Leave every non-exact case null;
+never infer from timestamps, destination numbers alone, status, or ownership.
+The 2026-10-20 rollout passed the isolated PostgreSQL restore/migration gate and
+deployed `0004` with API/UI only. Exact correlation filled 61 owned, ended
+Gateway records; a second pass changed zero rows and imported destinations
+remained null. Live reject/no-answer fixtures verified persistence and browser
+detail reads while partner responses stayed unchanged. See the
+[rollout record](../plans/completed/20261020-call-history-destination-details.md)
+for evidence and the browser-inspection limitation.

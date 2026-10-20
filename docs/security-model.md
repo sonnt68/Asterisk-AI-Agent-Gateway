@@ -33,6 +33,24 @@
   is 60 requests/minute and is configurable for an approved traffic profile.
 - Bounded partner audio queues use drop-oldest behavior with drop metrics.
 
+## Call-history destination metadata
+
+- `called_number` and `routing_context` are nullable destination metadata for
+  the internal CMS detail view. Outbound records take the already validated
+  destination extension and route context; inbound records take only the
+  supplied dialplan extension and context, with missing or malformed values
+  left null.
+- The browser-only `/api/v1/call-history/{call_id}` detail response exposes
+  these fields behind the existing authenticated, organization-scoped browser
+  access checks. Partner GET/list/signals responses, realtime messages, and
+  both SDKs remain unchanged.
+- Imported rows and older gateway rows remain null unless a restricted,
+  post-backup review proves the same call UUID in `appArgs` and an exact
+  `Local/<extension>@<context>` endpoint log match. Do not infer values from
+  time, number, status, or ownership.
+- This boundary stores dialed destination metadata only. Caller numbers,
+  audio, transcripts, and customer ownership inference remain excluded.
+
 Public production still requires TLS termination, private ARI connectivity,
 MFA/SSO policy, approved traffic SLOs and a caller-PII retention decision.
 

@@ -44,7 +44,11 @@ async def originate(connection: Connection, message: dict[str, object]) -> None:
     if timeout < 1 or timeout > 120:
         raise ValueError("Outbound timeout must be between 1 and 120 seconds")
 
+    # Both values have passed the syntax and partner allowlist checks above;
+    # capture them before the durable start gate and any ARI side effects.
     call = registry.reserve_call(connection)
+    call.called_number = extension
+    call.routing_context = context
     # Bind identities before POST: a busy destination can be destroyed before
     # Asterisk's HTTP response reaches us. Both Local legs belong to this call.
     call.channel_id = str(uuid4())

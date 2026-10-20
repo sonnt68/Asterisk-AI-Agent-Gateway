@@ -12,6 +12,7 @@ from app.call_history_queries import (
     list_signals,
 )
 from app.call_history_schemas import (
+    BrowserCallHistoryDetail,
     CallHistoryAgents,
     CallHistoryItem,
     CallHistoryPage,
@@ -80,13 +81,13 @@ def browser_history_agents(
     return CallHistoryAgents(items=list_history_agents(session, access))
 
 
-@router.get("/call-history/{call_id}", response_model=CallHistoryItem)
+@router.get("/call-history/{call_id}", response_model=BrowserCallHistoryDetail)
 def browser_call(
     call_id: str,
     access: HistoryAccess = Depends(browser_access),
     session: Session = Depends(get_session),
-) -> CallHistoryItem:
-    return CallHistoryItem.model_validate(get_history(session, access, call_id))
+) -> BrowserCallHistoryDetail:
+    return BrowserCallHistoryDetail.model_validate(get_history(session, access, call_id))
 
 
 @router.get("/call-history/{call_id}/signals", response_model=CallSignalPage)

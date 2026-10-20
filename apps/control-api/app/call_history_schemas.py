@@ -40,6 +40,13 @@ class CallHistoryItem(BaseModel):
         return utc(value) if value else None
 
 
+class BrowserCallHistoryDetail(CallHistoryItem):
+    """CMS-only detail fields omitted from partner and list contracts."""
+
+    called_number: str | None
+    routing_context: str | None
+
+
 class CallSignalItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     type: str = "call.status"

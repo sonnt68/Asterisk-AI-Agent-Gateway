@@ -11,6 +11,8 @@ export type CallHistoryRecord = {
     partner_app_id?: string | null;
     agent_slug?: string | null;
     direction?: string | null;
+    called_number?: string | null;
+    routing_context?: string | null;
     source?: string | null;
     status: string;
     terminal?: boolean;

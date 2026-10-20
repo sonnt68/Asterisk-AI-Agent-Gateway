@@ -408,6 +408,7 @@ def test_originate_registers_both_ids_and_waits_for_accepted_before_ari_signal(
         lifecycle.registry = registry
         pending_event = None
         seen_ids: list[tuple[str | None, str | None, bool, bool]] = []
+        seen_destinations: list[tuple[str | None, str | None]] = []
         sessions: list[FakeSession] = []
 
         async def on_post_enter(response):
@@ -432,6 +433,7 @@ def test_originate_registers_both_ids_and_waits_for_accepted_before_ari_signal(
                     registry.by_channel(call.other_channel_id or "") is call,
                 )
             )
+            seen_destinations.append((call.called_number, call.routing_context))
 
         def session_factory(*args, **kwargs):
             session = FakeSession(201, on_post_enter if not sessions else None)
@@ -452,11 +454,12 @@ def test_originate_registers_both_ids_and_waits_for_accepted_before_ari_signal(
         call = next(iter(registry.calls.values()))
         if call.event_task:
             await call.event_task
-        return connection, sessions, seen_ids
+        return connection, sessions, seen_ids, seen_destinations
 
-    connection, sessions, seen_ids = asyncio.run(scenario())
+    connection, sessions, seen_ids, seen_destinations = asyncio.run(scenario())
     first_request = sessions[0].posts[0][1]["params"]
     assert seen_ids[0][2:] == (True, True)
+    assert seen_destinations == [("123", "from-internal")]
     assert first_request["channelId"] == seen_ids[0][0]
     assert first_request["otherChannelId"] == seen_ids[0][1]
     assert [message["type"] for message in connection.socket.messages] == [

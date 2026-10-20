@@ -196,3 +196,80 @@ def test_outbound_dial_string_suppresses_local_optimisation():
     """Optimisation collapses the Local channel and silently kills the media."""
     source = open("apps/control-api/app/outbound_calls.py").read()
     assert 'f"Local/{extension}@{context}/n"' in source
+
+
+def test_inbound_destination_uses_bounded_dialplan_metadata(lifecycle):
+    class Store:
+        def __init__(self) -> None:
+            self.started = []
+
+        async def start(self, call) -> None:
+            self.started.append(call)
+
+    async def channel_variable(session, channel_id, variable):
+        assert variable == "AI_GATEWAY_AGENT"
+        return "support-agent"
+
+    lifecycle.registry.history_store = Store()
+    lifecycle.ari.channel_variable = channel_variable
+    connection = Connection(
+        id="conn-1",
+        organization_id="org-1",
+        partner_app_id="app-1",
+        agent_slug="support-agent",
+        scopes={"calls:read"},
+        socket=CaptureSocket(),
+    )
+    lifecycle.registry.connections[connection.id] = connection
+    asyncio.run(
+        lifecycle._start_inbound(
+            "chan-in",
+            {
+                "id": "chan-in",
+                "dialplan": {
+                    "exten": "200",
+                    "context": "from-trunk",
+                },
+                "caller": {"number": "+84999999999"},
+            },
+            None,
+        )
+    )
+    call = lifecycle.registry.history_store.started[0]
+    assert call.called_number == "200"
+    assert call.routing_context == "from-trunk"
+
+
+def test_inbound_destination_ignores_unbounded_dialplan_metadata(lifecycle):
+    class Store:
+        def __init__(self) -> None:
+            self.started = []
+
+        async def start(self, call) -> None:
+            self.started.append(call)
+
+    async def channel_variable(session, channel_id, variable):
+        return "support-agent"
+
+    lifecycle.registry.history_store = Store()
+    lifecycle.ari.channel_variable = channel_variable
+    connection = Connection(
+        id="conn-1",
+        organization_id="org-1",
+        partner_app_id="app-1",
+        agent_slug="support-agent",
+        scopes={"calls:read"},
+        socket=CaptureSocket(),
+    )
+    lifecycle.registry.connections[connection.id] = connection
+    too_long = "x" * 81
+    asyncio.run(
+        lifecycle._start_inbound(
+            "chan-in",
+            {"id": "chan-in", "dialplan": {"exten": too_long, "context": 123}},
+            None,
+        )
+    )
+    call = lifecycle.registry.history_store.started[0]
+    assert call.called_number is None
+    assert call.routing_context is None

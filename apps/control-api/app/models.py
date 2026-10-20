@@ -115,6 +115,8 @@ class CallRecord(Base):
         ForeignKey("partner_apps.id"), nullable=True, index=True
     )
     agent_slug: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    called_number: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    routing_context: Mapped[str | None] = mapped_column(String(80), nullable=True)
     direction: Mapped[str] = mapped_column(String(16))
     source: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(32))

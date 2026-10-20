@@ -80,6 +80,8 @@ class ActiveCall:
     # time and are never inferred from later ARI events.
     organization_id: str | None = None
     partner_app_id: str | None = None
+    called_number: str | None = None
+    routing_context: str | None = None
     direction: str = "unknown"
     source: str = "gateway"
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))

@@ -116,7 +116,14 @@ def history(tmp_path: Path) -> Iterator[HistoryFixture]:
             ]
         )
         session.commit()
-        call_one = _add_call(session, organization.id, app_one.id, "00000000-0000-0000-0000-000000000101")
+        call_one = _add_call(
+            session,
+            organization.id,
+            app_one.id,
+            "00000000-0000-0000-0000-000000000101",
+            called_number="123",
+            routing_context="from-internal",
+        )
         imported_call = _add_call(
             session, organization.id, None, "00000000-0000-0000-0000-000000000199", source="imported"
         )
@@ -143,6 +150,8 @@ def _add_call(
     status: str = "completed",
     direction: str = "outbound",
     created_at: datetime | None = None,
+    called_number: str | None = None,
+    routing_context: str | None = None,
 ) -> str:
     when = created_at or datetime.now(UTC)
     session.add(
@@ -151,6 +160,8 @@ def _add_call(
             organization_id=organization_id,
             partner_app_id=partner_app_id,
             agent_slug="support-agent" if partner_app_id else None,
+            called_number=called_number,
+            routing_context=routing_context,
             direction=direction,
             source=source,
             status=status,
@@ -254,13 +265,29 @@ def test_browser_detail_and_signals_have_safe_shape_and_order(history: HistoryFi
         "call_id", "partner_app_id", "agent_slug", "direction", "source", "status", "terminal",
         "answered", "reason", "hangup_cause", "dial_status", "sequence", "created_at",
         "updated_at", "answered_at", "ended_at", "duration_seconds", "talk_seconds", "history_complete",
+        "called_number", "routing_context",
     }
+    assert detail.json()["called_number"] == "123"
+    assert detail.json()["routing_context"] == "from-internal"
     assert not any(secret in detail.text.lower() for secret in ("phone", "channel_id", "organization_id"))
     assert first.status_code == second.status_code == 200
     assert [item["sequence"] for item in first.json()["items"]] == [1, 2]
     assert [item["sequence"] for item in second.json()["items"]] == [3]
     assert all(item["type"] == "call.status" for item in first.json()["items"] + second.json()["items"])
     assert invalid_signal_limit.status_code == 422
+
+
+def test_partner_contract_omits_browser_destination_fields(history: HistoryFixture) -> None:
+    headers = {"Authorization": f"Bearer {history.partner_key}"}
+    detail = history.client.get(f"/api/v1/partner/calls/{history.call_one}", headers=headers)
+    listing = history.client.get("/api/v1/partner/calls", headers=headers)
+    assert detail.status_code == listing.status_code == 200
+    assert "called_number" not in detail.json()
+    assert "routing_context" not in detail.json()
+    assert all(
+        "called_number" not in item and "routing_context" not in item
+        for item in listing.json()["items"]
+    )
 
 
 def test_list_filters_and_stable_tie_cursor_pagination(history: HistoryFixture) -> None:

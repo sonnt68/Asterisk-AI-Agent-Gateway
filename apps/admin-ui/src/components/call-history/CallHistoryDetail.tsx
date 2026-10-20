@@ -82,8 +82,11 @@ export const CallHistoryDetail = ({
                 <dl className="grid gap-4 sm:grid-cols-2">
                     <DetailField label="Call ID" value={<code className="text-xs">{call.call_id}</code>} />
                     <DetailField label="Agent slug" value={<code className="text-primary">{call.agent_slug || '—'}</code>} />
+                    <DetailField label="Partner application ID" value={call.partner_app_id || 'Not recorded'} />
                     <DetailField label="Status" value={<StatusPill tone={statusTone(call.status)}>{humanize(call.status)}</StatusPill>} />
                     <DetailField label="Direction" value={humanize(call.direction)} />
+                    <DetailField label="Called number" value={call.called_number || 'Not recorded'} />
+                    <DetailField label="Routing context" value={call.routing_context || 'Not recorded'} />
                     <DetailField label="Source" value={sourceLabel(call.source)} />
                     <DetailField label="Answered" value={call.answered ? 'Yes' : 'No'} />
                     <DetailField label="Reason" value={humanize(call.reason)} />

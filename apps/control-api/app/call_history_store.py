@@ -24,6 +24,8 @@ class _RecordPayload:
     organization_id: str | None
     partner_app_id: str | None
     agent_slug: str | None
+    called_number: str | None
+    routing_context: str | None
     direction: str
     source: str
     status: str
@@ -93,6 +95,8 @@ def _payload(call: ActiveCall, snapshot: dict[str, object]) -> _RecordPayload:
         organization_id=call.organization_id,
         partner_app_id=call.partner_app_id,
         agent_slug=call.agent_slug,
+        called_number=call.called_number,
+        routing_context=call.routing_context,
         direction=call.direction,
         source=call.source,
         status=status,
@@ -229,6 +233,8 @@ class CallHistoryStore:
                 if (
                     existing.organization_id != payload.organization_id
                     or existing.partner_app_id != payload.partner_app_id
+                    or existing.called_number != payload.called_number
+                    or existing.routing_context != payload.routing_context
                     or existing.source != "gateway"
                 ):
                     raise ValueError("Call history identity already belongs to another record")
@@ -251,6 +257,8 @@ class CallHistoryStore:
             if (
                 record.organization_id != payload.organization_id
                 or record.partner_app_id != payload.partner_app_id
+                or record.called_number != payload.called_number
+                or record.routing_context != payload.routing_context
             ):
                 raise ValueError("Call history owner cannot change")
             if payload.sequence < record.sequence:
@@ -280,6 +288,8 @@ class CallHistoryStore:
                 organization_id=payload.organization_id,
                 partner_app_id=payload.partner_app_id,
                 agent_slug=payload.agent_slug,
+                called_number=payload.called_number,
+                routing_context=payload.routing_context,
                 direction=payload.direction,
                 source=payload.source,
                 status=payload.status,
