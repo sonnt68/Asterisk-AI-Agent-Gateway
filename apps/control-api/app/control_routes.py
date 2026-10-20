@@ -12,13 +12,12 @@ from app.auth import Principal, require_principal, require_role
 from app.database import get_session
 from app.destination_policy import validate_entry
 from app.models import ApiKey, PartnerApp
+from app.partner_auth import authenticate_api_key
 from app.rate_limits import enforce_token_rate_limit
 from app.security import (
     hash_api_secret,
     issue_api_key,
     issue_realtime_token,
-    timestamp_expired,
-    verify_api_secret,
 )
 from app.settings import get_settings
 
@@ -194,26 +193,13 @@ def create_realtime_token(
     authorization: str = Header(),
     session: Session = Depends(get_session),
 ) -> dict[str, str]:
-    if not authorization.startswith("Bearer agw_live_"):
-        raise HTTPException(status_code=401, detail="Bearer API key required")
-    parts = authorization.removeprefix("Bearer ").split("_", 3)
-    if len(parts) != 4:
-        raise HTTPException(status_code=401, detail="Malformed API key")
-    key = session.scalar(select(ApiKey).where(ApiKey.prefix == parts[2]))
-    invalid = not key or key.revoked_at or (key and timestamp_expired(key.expires_at))
-    if invalid or not verify_api_secret(parts[3], key.secret_hash, settings):
-        raise HTTPException(status_code=401, detail="Invalid API key")
-    app = session.get(PartnerApp, key.partner_app_id)
-    if not app or not app.enabled:
-        raise HTTPException(status_code=403, detail="Partner application disabled")
-    enforce_token_rate_limit(request, settings, key.prefix, key.organization_id)
-    key.last_used_at = datetime.now(UTC)
-    session.commit()
+    identity = authenticate_api_key(authorization, session)
+    enforce_token_rate_limit(request, settings, identity.prefix, identity.organization_id)
     subject = {
-        "api_key_id": key.id,
-        "organization_id": key.organization_id,
-        "partner_app_id": app.id,
-        "agent_slug": app.agent_slug,
-        "scopes": key.scopes,
+        "api_key_id": identity.key_id,
+        "organization_id": identity.organization_id,
+        "partner_app_id": identity.partner_app_id,
+        "agent_slug": identity.agent_slug,
+        "scopes": ",".join(sorted(identity.scopes)),
     }
     return {"token": issue_realtime_token(subject, settings), "expires_in": "300"}

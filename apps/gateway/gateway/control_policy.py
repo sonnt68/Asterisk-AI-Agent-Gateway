@@ -8,6 +8,7 @@ COMMAND_SCOPES = {
     "call.mute": "calls:mute",
     "call.unmute": "calls:mute",
     "call.hangup": "calls:hangup",
+    "call.status": "calls:read",
     "transfer.blind": "calls:transfer",
     "transfer.attended": "calls:transfer",
     "transfer.cancel": "calls:transfer",

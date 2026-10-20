@@ -6,11 +6,9 @@ only the first announces itself:
 
   1. `<context>:<number>` is accepted by the partner app allowlist. PSTN needs
      a prefix rule such as `from-internal:84*`, since the callee changes every
-     call. A miss returns `outbound-failed` before Asterisk is touched.
-  2. The context routes a number outward. Origination dials
-     `Local/<extension>@<context>`, so an inbound trunk context matches
-     incoming DIDs and routes nothing out — it clears the allowlist and then
-     fails inside the dialplan, with no error frame to read.
+     call. A miss returns `outbound-failed` before dialing.
+  2. The context is the outbound routing identifier supplied by the Gateway
+     operator and can reach the destination.
 
 Both are the operator's to set. Settle them before writing code against them.
 
@@ -60,8 +58,8 @@ async def main() -> None:
                 await client.originate(CONTEXT, NUMBER, timeout=45)
                 print("dialling", f"{CONTEXT}:{NUMBER}")
             elif kind == "outbound.accepted":
-                # Accepted is not answered: Asterisk took the request, nothing more.
-                print("ringing", item["call_id"])
+                # Acceptance does not establish ringing or an answer.
+                print("request accepted", item["call_id"])
             elif kind == "call.started":
                 # The rate is announced per call. Never assume one.
                 print("answered at", item["media"]["sample_rate"], "Hz")

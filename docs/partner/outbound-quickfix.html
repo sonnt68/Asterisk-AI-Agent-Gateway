@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Asterisk AI Agent Gateway — sửa nhanh lỗi agent không gọi ra được, kèm script kiểm chứng / the one-line fix for an agent that cannot dial out, with a verification script.">
+<meta name="description" content="Gateway — sửa nhanh lỗi agent không gọi ra được, kèm script kiểm chứng / the one-line fix for an agent that cannot dial out, with a verification script.">
 <title>Sửa nhanh cuộc gọi ra</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -482,7 +482,7 @@ footer.doc-footer p { max-width: none; }
 <body>
 <div class="langbar">
   <div class="langbar-inner">
-    <span class="wordmark">Asterisk AI Agent Gateway · Partner v1</span>
+    <span class="wordmark">Gateway · Partner v1</span>
     <div class="switch" role="group" aria-label="Ngôn ngữ tài liệu / Document language">
       <button type="button" data-lang="vi" aria-pressed="false">VI</button>
       <button type="button" data-lang="en" aria-pressed="true">EN</button>
@@ -498,13 +498,13 @@ footer.doc-footer p { max-width: none; }
       <span class="e">The outbound call, fixed</span>
     </h1>
     <p class="lede">
-      <span class="v">Agent báo <code>outbound-failed</code> khi gọi ra. Không phải lỗi API key, không phải lỗi scope, và không cần ai đổi cấu hình trên gateway. Chỉ một dòng trong cấu hình agent của bạn.</span>
-      <span class="e">Your agent reports <code>outbound-failed</code> when it dials. It is not the API key, not the scopes, and nothing on the gateway needs changing. It is one line in your own agent configuration.</span>
+      <span class="v">Hướng dẫn này xử lý trường hợp <code>outbound-failed</code> do gửi sai <code>context</code> đã được cấp. Dùng đúng giá trị do quản trị viên Gateway cung cấp; với các lỗi khác, đọc <code>message</code> để xác định nguyên nhân.</span>
+      <span class="e">This guide covers an <code>outbound-failed</code> caused by sending the wrong assigned <code>context</code>. Use the value supplied by the Gateway operator; for other failures, read <code>message</code> to identify the cause.</span>
     </p>
     <div class="masthead-meta">
       <span><b>Code</b> outbound-failed</span>
       <span><b><span class="v">Thời gian sửa</span><span class="e">Time to fix</span></b> <span class="v">một phút</span><span class="e">one minute</span></span>
-      <span><b><span class="v">Cần khởi động lại</span><span class="e">Restart needed</span></b> <span class="v">agent, không phải gateway</span><span class="e">your agent, not the gateway</span></span>
+      <span><b><span class="v">Cần khởi động lại</span><span class="e">Restart needed</span></b> <span class="v">agent, không phải Gateway</span><span class="e">your agent, not Gateway</span></span>
     </div>
   </div>
 </header>
@@ -529,19 +529,19 @@ footer.doc-footer p { max-width: none; }
       </div>
 
       <p>
-        <span class="v">Gateway khởi tạo cuộc gọi bằng <code>Local/&lt;số&gt;@&lt;context&gt;</code>, nên context phải là nơi chứa outbound route của tổng đài. <code>from-trunk</code> là context <em>chiều vào</em>: nó khớp DID của cuộc gọi đến và không có route nào đẩy số ra ngoài.</span>
-        <span class="e">The gateway originates the call as <code>Local/&lt;number&gt;@&lt;context&gt;</code>, so the context has to be the one holding the PBX's outbound routes. <code>from-trunk</code> is the <em>inbound</em> context: it matches the DIDs of incoming calls and holds no route that sends a number out.</span>
+          <span class="v"><code>context</code> là route identifier do quản trị viên Gateway cung cấp. Trong ví dụ này, <code>from-internal</code> là giá trị đúng; <code>from-trunk</code> không được cấu hình cho gọi ra.</span>
+          <span class="e"><code>context</code> is a route identifier supplied by the Gateway operator. In this example, <code>from-internal</code> is the correct value; <code>from-trunk</code> is not configured for outbound calls.</span>
       </p>
       <p>
-        <span class="v">Allowlist trên partner app của bạn đã chấp nhận <code>from-internal</code> từ trước, nên không cần yêu cầu quản trị viên thêm gì. Nếu tổng đài của bạn không phải FreePBX, hỏi quản trị viên tên context tương ứng.</span>
-        <span class="e">Your partner app's allowlist already accepts <code>from-internal</code>, so there is nothing to request from the operator. If your PBX is not FreePBX, ask the operator for the equivalent context name.</span>
+        <span class="v">Allowlist của partner app trong ví dụ đã chấp nhận <code>from-internal</code>, nên không cần thay đổi thêm. Nếu quản trị viên Gateway cung cấp context khác, dùng đúng giá trị đó hoặc hỏi quản trị viên để xác nhận allowlist.</span>
+        <span class="e">The partner app allowlist in this example already accepts <code>from-internal</code>, so no further change is needed. If the Gateway operator supplied another context, use that exact value or ask the operator to confirm the allowlist.</span>
       </p>
 
       <div class="note">
         <p class="note-title"><span class="v">Đã kiểm chứng</span><span class="e">Verified</span></p>
         <p>
-          <span class="v">Chúng tôi đã quay số thật qua chính partner app và API key của bạn: cùng gateway, cùng key, chỉ đổi context — máy đổ chuông, nhấc lên, audio chạy hai chiều ở 8000 Hz. Kết quả ở mục dưới.</span>
-          <span class="e">We placed a real call using your own partner app and API key: same gateway, same key, only the context changed — it rang, it answered, and audio flowed both ways at 8000 Hz. The output is in the section below.</span>
+          <span class="v">Đường kiểm chứng dùng cùng partner app và API key, chỉ đổi <code>context</code>: cuộc gọi đổ chuông, được trả lời, và audio chạy hai chiều ở 8000 Hz. Kết quả ở mục dưới.</span>
+          <span class="e">The verification path uses the same partner app and API key, changing only <code>context</code>: the call rings, is answered, and audio flows both ways at 8000 Hz. The output is in the section below.</span>
         </p>
       </div>
     </section>
@@ -596,7 +596,7 @@ python dial_out.py 84969097109</code></pre>
             <span class="v">Chép</span><span class="e">Copy</span>
           </button>
         </div>
-        <pre><code id="listing">&quot;&quot;&quot;Dial a PSTN number and echo the callee back to themselves.
+        <pre><code id="listing">&quot;&quot;&quot;Dial an outbound number and echo the callee back to themselves.
 
     export GATEWAY_URL=https://gateway.example.com
     export GATEWAY_API_KEY=agw_live_...
@@ -606,11 +606,10 @@ python dial_out.py 84969097109</code></pre>
 
 Two things have to be true before this rings, and only the first one produces
 an error you can see: the destination must be allowlisted on the partner app
-(outbound PSTN needs a prefix rule such as `from-internal:84*`, since the
-callee differs per call), and the context must be one that actually routes a
-number outward. Origination dials `Local/&lt;extension&gt;@&lt;context&gt;`, so an inbound
-trunk context matches incoming DIDs and routes nothing out — it passes the
-allowlist and then fails inside the dialplan.
+(outbound calls may need a prefix rule such as `from-internal:84*`, since the
+callee differs per call), and the `context` must be the route identifier
+supplied by the Gateway operator. If either value is uncertain, send the
+operator the exact `context:number` pair from the log.
 &quot;&quot;&quot;
 
 from __future__ import annotations
@@ -628,7 +627,7 @@ LOGGER = logging.getLogger(&quot;dial-out&quot;)
 DEFAULT_NUMBER = &quot;84969097109&quot;
 
 #: Long enough to hear yourself and know the media path works, short enough
-#: that a forgotten run does not sit on a live trunk.
+#: that a forgotten run does not keep a call active.
 ECHO_SECONDS = 30
 
 
@@ -651,7 +650,7 @@ async def main() -&gt; int:
 
     async def hang_up_after(call_id: str) -&gt; None:
         # A timer, not a frame counter: a silent callee sends no audio, and
-        # the call would otherwise sit on a live trunk until someone noticed.
+        # the call would otherwise remain active until someone noticed.
         await asyncio.sleep(ECHO_SECONDS)
         LOGGER.info(&quot;echoed for %ss, hanging up&quot;, ECHO_SECONDS)
         await client.hangup(call_id)
@@ -660,7 +659,7 @@ async def main() -&gt; int:
         async for item in client.stream():
             if isinstance(item, Audio):
                 # Send it straight back, so the callee hearing themselves
-                # proves partner -&gt; gateway -&gt; Asterisk and the return path.
+                # proves the partner-to-Gateway media path in both directions.
                 await client.send_audio(item.call_id, item.pcm)
                 continue
 
@@ -673,7 +672,7 @@ async def main() -&gt; int:
 
             elif kind == &quot;outbound.accepted&quot;:
                 # Accepted is not answered. Nothing is live until call.started.
-                LOGGER.info(&quot;Asterisk took the request, call_id=%s — ringing&quot;, item[&quot;call_id&quot;])
+                LOGGER.info(&quot;Gateway accepted the request, call_id=%s — waiting for answer&quot;, item[&quot;call_id&quot;])
 
             elif kind == &quot;call.started&quot;:
                 media = item.get(&quot;media&quot;, {})
@@ -695,7 +694,7 @@ async def main() -&gt; int:
                 LOGGER.error(&quot;gateway error [%s] %s&quot;, item.get(&quot;code&quot;), item.get(&quot;message&quot;))
                 if item.get(&quot;code&quot;) == &quot;outbound-failed&quot;:
                     LOGGER.error(
-                        &quot;The gateway refused this before Asterisk saw it, so retrying &quot;
+                        &quot;Gateway refused this request before call setup, so retrying &quot;
                         &quot;will not help. Ask the operator to confirm both: that &quot;
                         &quot;&#x27;%s:%s&#x27; is accepted by the partner app allowlist, and that &quot;
                         &quot;&#x27;%s&#x27; is a context with an outbound route.&quot;,
@@ -732,14 +731,14 @@ if __name__ == &quot;__main__&quot;:
         <div class="code-head"><span><span class="v">chạy thật</span><span class="e">a real run</span></span><span>84969097109</span></div>
         <pre><code>15:51:27 INFO registered as 62ca7644-fc40-4c1d-893e-5ea89fe486b5
 15:51:27 INFO dialling from-internal:84969097109 request_id=58206769-…
-15:51:27 INFO Asterisk took the request, call_id=690cfd3e-… — ringing
+15:51:27 INFO Gateway accepted the request, call_id=690cfd3e-… — waiting for answer
 15:51:42 INFO answered 690cfd3e-… at 8000 Hz, pcm_s16le
 15:51:49 INFO call ended 690cfd3e-…</code></pre>
       </div>
 
       <p>
-        <span class="v">Hai mốc đáng phân biệt: <code>outbound.accepted</code> chỉ nghĩa là Asterisk nhận yêu cầu, còn <code>call.started</code> mới là đã nhấc máy. Tần số 8000 Hz được gateway công bố theo từng cuộc gọi — đọc nó từ <code>call.started</code>, đừng gán cứng.</span>
-        <span class="e">Two milestones worth telling apart: <code>outbound.accepted</code> only means Asterisk took the request, while <code>call.started</code> means someone answered. The 8000 Hz rate is announced per call — read it from <code>call.started</code> rather than hardcoding it.</span>
+        <span class="v">Hai mốc đáng phân biệt: <code>outbound.accepted</code> chỉ nghĩa là Gateway chấp nhận yêu cầu, còn <code>call.started</code> mới xác nhận đã trả lời và sẵn sàng cho media. Tần số được Gateway công bố theo từng cuộc gọi — đọc nó từ <code>call.started</code>, đừng gán cứng.</span>
+        <span class="e">Two milestones are worth separating: <code>outbound.accepted</code> only means Gateway accepted the request, while <code>call.started</code> confirms that the call is answered and media-ready. Gateway announces the rate per call; read it from <code>call.started</code> rather than hardcoding it.</span>
       </p>
     </section>
 
@@ -769,28 +768,23 @@ if __name__ == &quot;__main__&quot;:
             </tr>
             <tr>
               <td><span class="v"><code>accepted</code> nhưng không có <code>call.started</code></span><span class="e"><code>accepted</code> but no <code>call.started</code></span></td>
-              <td><span class="v">Context không định tuyến ra được, hoặc không ai nhấc máy</span><span class="e">The context routes nothing outward, or nobody answered</span></td>
-              <td><span class="v">Nhờ quản trị viên quay tay bằng lệnh dưới</span><span class="e">Have the operator dial it by hand, below</span></td>
+              <td><span class="v">Gateway đã nhận yêu cầu nhưng chưa có <code>call.started</code></span><span class="e">Gateway accepted the request but no <code>call.started</code> arrived</span></td>
+              <td><span class="v">Gửi <code>call_id</code>, <code>context</code> và số đích cho quản trị viên Gateway</span><span class="e">Send the <code>call_id</code>, <code>context</code>, and destination to the Gateway operator</span></td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      <div class="code">
-        <div class="code-head"><span>asterisk cli</span><span><span class="v">phía quản trị viên</span><span class="e">operator side</span></span></div>
-        <pre><code>asterisk -rx 'channel originate Local/84969097109@from-internal application Echo'</code></pre>
-      </div>
-
       <p>
-        <span class="v">Nếu lệnh này không đổ chuông thì vấn đề nằm ở dialplan của tổng đài, không nằm ở gateway và cũng không nằm ở agent của bạn.</span>
-        <span class="e">If that does not ring, the problem is in the PBX dialplan — not the gateway, and not your agent.</span>
+        <span class="v">Nếu vẫn không nhận được <code>call.started</code>, gửi log và payload cho quản trị viên Gateway để kiểm tra route và allowlist. Không cần chạy lệnh vận hành nội bộ.</span>
+        <span class="e">If <code>call.started</code> still does not arrive, send the logs and payload to the Gateway operator so they can check the route and allowlist. You do not need to run internal operating commands.</span>
       </p>
     </section>
 
     <footer class="doc-footer">
       <p>
-        <span class="v">Giải thích đầy đủ vì sao <code>from-trunk</code> lọt qua cú pháp nhưng hỏng ở dialplan: <a href="outbound-allowlist.html">Gọi ra bị allowlist chặn</a>. Toàn bộ giao thức: <a href="integration-guide.html">Tài liệu tích hợp</a>.</span>
-        <span class="e">The full account of why <code>from-trunk</code> passes syntax and fails in the dialplan: <a href="outbound-allowlist.html">An outbound call the allowlist refused</a>. The whole protocol: <a href="integration-guide.html">Partner integration guide</a>.</span>
+        <span class="v">Giải thích đầy đủ về allowlist và route <code>context</code>: <a href="outbound-allowlist.html">Gọi ra bị allowlist chặn</a>. Toàn bộ giao thức: <a href="integration-guide.html">Tài liệu tích hợp</a>.</span>
+        <span class="e">For the full explanation of the allowlist and <code>context</code> route: <a href="outbound-allowlist.html">An outbound call the allowlist refused</a>. The whole protocol: <a href="integration-guide.html">Partner integration guide</a>.</span>
       </p>
     </footer>
 

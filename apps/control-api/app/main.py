@@ -13,6 +13,8 @@ from sqlalchemy import select
 from app.ari_listener import AriEventListener
 from app.auth_routes import router as auth_router
 from app.browser_security import BrowserOriginMiddleware
+from app.call_history_routes import router as history_router
+from app.call_history_store import CallHistoryStore
 from app.call_lifecycle import CallLifecycle
 from app.control_routes import router as control_router
 from app.database import SessionLocal
@@ -76,6 +78,15 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         bootstrap_database()
+        history_store = CallHistoryStore(SessionLocal)
+        await history_store.recover_interrupted()
+        registry.history_store = history_store
+
+        async def flush_history() -> None:
+            while True:
+                await asyncio.sleep(5)
+                await history_store.flush_pending()
+
         if presence and not await presence.ready():
             raise RuntimeError("Redis presence store is unavailable")
         await audio_server.start()
@@ -84,15 +95,23 @@ def create_app() -> FastAPI:
         app.state.presence = presence
         app.state.ari_listener = listener
         listener_task = asyncio.create_task(listener.run())
-        yield
-        listener.stop()
-        listener_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await listener_task
-        await audio_server.stop()
-        external_media.close_all()
-        if presence:
-            await presence.close()
+        history_task = asyncio.create_task(flush_history())
+        try:
+            yield
+        finally:
+            listener.stop()
+            listener_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await listener_task
+            history_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await history_task
+            await audio_server.stop()
+            external_media.close_all()
+            if presence:
+                await presence.close()
+            await registry.flush_history()
+            registry.history_store = None
 
     app = FastAPI(
         title="Asterisk AI Agent Gateway Control API",
@@ -115,6 +134,7 @@ def create_app() -> FastAPI:
     app.include_router(management_router, prefix="/api/v1")
     app.include_router(key_management_router, prefix="/api/v1")
     app.include_router(runtime_router, prefix="/api/v1")
+    app.include_router(history_router, prefix="/api/v1")
     app.include_router(realtime_router)
     return app
 

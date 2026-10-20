@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Asterisk AI Agent Gateway — tài liệu tích hợp song ngữ cho đối tác / bilingual partner integration guide.">
-<title>Asterisk AI Gateway Integration</title>
+<meta name="description" content="Gateway — tài liệu tích hợp song ngữ cho đối tác / bilingual partner integration guide.">
+<title>Gateway Integration</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
@@ -581,7 +581,7 @@ html { scroll-behavior: smooth; }
 <body>
 <div class="langbar">
   <div class="langbar-inner">
-    <span class="wordmark">Asterisk AI Agent Gateway · Partner v1</span>
+    <span class="wordmark">Gateway · Partner v1</span>
     <div class="switch" role="group" aria-label="Ngôn ngữ tài liệu / Document language">
       <button type="button" data-lang="vi" aria-pressed="false">VI</button>
       <button type="button" data-lang="en" aria-pressed="true">EN</button>
@@ -597,8 +597,8 @@ html { scroll-behavior: smooth; }
       <span class="e">Partner integration guide</span>
     </h1>
     <p class="lede">
-      <span class="v">Kết nối AI agent của bạn vào tổng đài Asterisk qua một API key và một kết nối WebSocket. Bạn không cần — và sẽ không được cấp — thông tin ARI, SIP, AudioSocket hay RTP.</span>
-      <span class="e">Connect your AI agent to an Asterisk PBX with one API key and one WebSocket. You never need — and are never given — ARI, SIP, AudioSocket, or RTP credentials.</span>
+      <span class="v">Kết nối AI agent của bạn với Gateway qua một API key, các API công khai và SDK. WebSocket là tuỳ chọn cho luồng realtime; lịch sử bền vững dùng GET trực tiếp.</span>
+      <span class="e">Connect your AI agent to Gateway with one API key, the public APIs, and an SDK. WebSocket is optional for realtime; durable history uses direct GET requests.</span>
     </p>
     <div class="masthead-meta">
       <span><b>Control API</b> 1.0.0</span>
@@ -618,6 +618,7 @@ html { scroll-behavior: smooth; }
     <a href="#auth"><span class="v">Xác thực &amp; token</span><span class="e">Authentication</span></a>
     <a href="#connect"><span class="v">Kết nối realtime</span><span class="e">Realtime session</span></a>
     <a href="#events"><span class="v">Sự kiện vòng đời</span><span class="e">Lifecycle events</span></a>
+    <a href="#history"><span class="v">Lịch sử bền vững</span><span class="e">Durable history</span></a>
     <a href="#audio"><span class="v">Khung audio</span><span class="e">Audio frames</span></a>
     <a href="#control"><span class="v">Điều khiển cuộc gọi</span><span class="e">Call control</span></a>
     <a href="#outbound"><span class="v">Gọi ra</span><span class="e">Outbound calls</span></a>
@@ -635,20 +636,20 @@ html { scroll-behavior: smooth; }
       <h2><span class="v">Gateway làm gì cho bạn</span><span class="e">What the gateway does for you</span></h2>
 
       <p>
-        <span class="v">Gateway đứng giữa tổng đài Asterisk và AI agent của bạn. Nó giữ toàn bộ phần telephony — kênh thoại, bridge, ARI, chuyển mã âm thanh — ở phía trong, và chỉ phơi ra hai bề mặt công khai: một REST endpoint để đổi token, và một WebSocket realtime để nhận sự kiện, truyền audio hai chiều, và gửi lệnh điều khiển cuộc gọi.</span>
-        <span class="e">The gateway sits between the Asterisk PBX and your AI agent. It keeps all telephony — channels, bridges, ARI, audio transport — on its side of the boundary and exposes exactly two public surfaces: a REST endpoint that exchanges your key for a token, and a realtime WebSocket that carries events, bidirectional audio, and scoped call-control commands.</span>
+        <span class="v">Gateway kết nối hệ thống cuộc gọi với AI agent của bạn. Gateway giữ phần kết nối thoại ở phía mình và phơi ra ba bề mặt công khai: REST endpoint để đổi token, REST GET để đọc lịch sử bền vững, và WebSocket realtime để nhận sự kiện, truyền audio hai chiều, và gửi lệnh điều khiển cuộc gọi.</span>
+        <span class="e">Gateway connects the call service to your AI agent. It keeps call connectivity on its side of the boundary and exposes three public surfaces: a REST endpoint that exchanges your key for a token, REST GET endpoints for durable history, and a realtime WebSocket for events, bidirectional audio, and scoped call-control commands.</span>
       </p>
 
       <div class="flow">
         <div class="flow-node">
-          <p class="flow-tag">Asterisk</p>
-          <h4><span class="v">Tổng đài</span><span class="e">The PBX</span></h4>
-          <p><span class="v">Nhận cuộc gọi, đẩy kênh vào ứng dụng Stasis của gateway. Bạn không chạm vào lớp này.</span><span class="e">Takes the call and hands the channel to the gateway's Stasis app. You never touch this layer.</span></p>
+          <p class="flow-tag"><span class="v">Nguồn cuộc gọi</span><span class="e">Call service</span></p>
+          <h4><span class="v">Nguồn cuộc gọi</span><span class="e">Call source</span></h4>
+          <p><span class="v">Chuyển cuộc gọi tới Gateway để xử lý. Bạn không cần truy cập lớp kết nối này.</span><span class="e">Hands the call to Gateway for processing. You do not access this connectivity layer.</span></p>
         </div>
         <div class="flow-node">
           <p class="flow-tag">Gateway</p>
           <h4><span class="v">Biên bảo mật</span><span class="e">The boundary</span></h4>
-          <p><span class="v">Xác thực API key, cấp token 5 phút, kiểm tra scope và allowlist đích trước khi gọi ARI.</span><span class="e">Authenticates the key, mints a 5-minute token, and checks scope and destination allowlist before it calls ARI.</span></p>
+          <p><span class="v">Xác thực API key, cấp token 5 phút, kiểm tra scope và allowlist đích trước khi xử lý yêu cầu.</span><span class="e">Authenticates the key, mints a 5-minute token, and checks scope and destination allowlist before processing a request.</span></p>
         </div>
         <div class="flow-node">
           <p class="flow-tag">Partner</p>
@@ -673,11 +674,11 @@ html { scroll-behavior: smooth; }
             </tr>
             <tr>
               <td><code>call_id</code></td>
-              <td><span class="v">UUID cuộc gọi do gateway cấp. Luôn dùng giá trị này để đối chiếu và phân luồng — <strong>không bao giờ</strong> dùng channel ID của Asterisk.</span><span class="e">The gateway-issued call UUID. Always correlate on this — <strong>never</strong> on an Asterisk channel ID.</span></td>
+              <td><span class="v">UUID cuộc gọi do Gateway cấp. Luôn dùng giá trị này để đối chiếu và phân luồng — không cần biết định danh nội bộ.</span><span class="e">The Gateway-issued call UUID. Always correlate on this; you do not need any internal identifier.</span></td>
             </tr>
             <tr>
               <td><span class="v">Scope</span><span class="e">Scope</span></td>
-              <td><span class="v">Quyền gắn vào API key. Lệnh không có scope tương ứng bị từ chối trước khi gateway chạm tới Asterisk.</span><span class="e">A permission attached to the API key. A command without its scope is rejected before the gateway touches Asterisk.</span></td>
+              <td><span class="v">Quyền gắn vào API key. Lệnh không có scope tương ứng bị Gateway từ chối trước khi được xử lý.</span><span class="e">A permission attached to the API key. A command without its scope is rejected by Gateway before it is processed.</span></td>
             </tr>
             <tr>
               <td><span class="v">Allowlist đích</span><span class="e">Destination allowlist</span></td>
@@ -723,8 +724,8 @@ html { scroll-behavior: smooth; }
       <h2><span class="v">API key và token realtime</span><span class="e">API keys and realtime tokens</span></h2>
 
       <p>
-        <span class="v">API key là bí mật dài hạn, chỉ dùng cho đúng một việc: đổi lấy token realtime. Không bao giờ đặt API key lên query string, không log, không commit vào repo.</span>
-        <span class="e">The API key is a long-lived secret with exactly one job: exchanging it for a realtime token. Never put the key in a query string, a log line, or a repository.</span>
+        <span class="v">API key là bí mật dài hạn, dùng trong header <code>Authorization: Bearer</code> để đổi token realtime hoặc đọc lịch sử bền vững. Không bao giờ đặt API key lên query string, không log, không commit vào repo.</span>
+        <span class="e">The API key is a long-lived secret sent in the <code>Authorization: Bearer</code> header for realtime token exchange or durable history reads. Never put the key in a query string, a log line, or a repository.</span>
       </p>
 
       <div class="code">
@@ -809,8 +810,8 @@ html { scroll-behavior: smooth; }
         <span class="e">The <code>agent_slug</code> you send must match the slug bound to your API key, and <code>protocol_version</code> must be the string <code>"1"</code>. Either mismatch returns <code>registration-rejected</code>.</span>
       </p>
       <p>
-        <span class="v">Mỗi slug chỉ có một kết nối sống, và kết nối đăng ký sau cùng được giữ. Khi một tiến trình mới đăng ký slug đang có người giữ, kết nối cũ nhận lỗi <code>session-superseded</code>, mọi cuộc gọi của nó bị cúp, rồi nó bị đóng với mã <code>4409</code>. Kết nối cũ không được tự kết nối lại, nếu không hai worker sẽ giành slug của nhau mãi. Hãy chạy một worker duy nhất cho mỗi slug, hoặc dùng slug riêng cho từng instance.</span>
-        <span class="e">Each slug has one live connection, and the most recent registration keeps it. When a new process registers a slug that is already held, the old connection gets <code>session-superseded</code>, every call it owns is hung up, and it is closed with <code>4409</code>. The old connection must not reconnect, or two workers will take the slug from each other forever. Run a single worker per slug, or give each instance its own slug.</span>
+        <span class="v">Mỗi slug chỉ có một kết nối sống, và kết nối đăng ký sau cùng được giữ. Khi một client mới đăng ký slug đang có người giữ, kết nối cũ nhận lỗi <code>session-superseded</code>, mọi cuộc gọi của nó bị cúp, rồi nó bị đóng với mã <code>4409</code>. Kết nối cũ không được tự kết nối lại, nếu không hai client sẽ giành slug của nhau mãi. Hãy chạy một client duy nhất cho mỗi slug, hoặc dùng slug riêng cho từng instance.</span>
+        <span class="e">Each slug has one live connection, and the most recent registration keeps it. When a new client registers a slug that is already held, the old connection gets <code>session-superseded</code>, every call it owns is hung up, and it is closed with <code>4409</code>. The old connection must not reconnect, or two clients will take the slug from each other forever. Run a single client per slug, or give each instance its own slug.</span>
       </p>
 
       <h3><span class="v">Mã đóng kết nối</span><span class="e">Close codes</span></h3>
@@ -836,12 +837,12 @@ html { scroll-behavior: smooth; }
             </tr>
             <tr>
               <td><code>1012</code></td>
-              <td><span class="v">Quyền giữ slug đã hết hạn trên gateway</span><span class="e">The slug lease expired on the gateway</span></td>
+              <td><span class="v">Phiên giữ slug đã hết hạn trên Gateway</span><span class="e">The Gateway session holding the slug expired</span></td>
               <td><span class="v">Kết nối lại sau backoff</span><span class="e">Reconnect after a backoff</span></td>
             </tr>
             <tr>
               <td><code>1013</code></td>
-              <td><span class="v">Kho lưu trạng thái kết nối của gateway không sẵn sàng</span><span class="e">The gateway's connection lease store is unavailable</span></td>
+              <td><span class="v">Gateway chưa sẵn sàng để duy trì trạng thái kết nối</span><span class="e">Gateway cannot maintain connection state right now</span></td>
               <td><span class="v">Backoff rồi thử lại; đây là sự cố phía gateway</span><span class="e">Back off and retry; this is a gateway-side incident</span></td>
             </tr>
           </tbody>
@@ -860,8 +861,8 @@ html { scroll-behavior: smooth; }
       <h2><span class="v">Gateway gửi gì cho bạn</span><span class="e">What the gateway sends you</span></h2>
 
       <p>
-        <span class="v">Toàn bộ sự kiện là khung text JSON. Mỗi cuộc gọi bắt đầu bằng <code>call.started</code> và kết thúc bằng <code>call.ended</code>; hãy giữ đúng một chuỗi xử lý và một buffer cho mỗi <code>call_id</code>.</span>
-        <span class="e">Every event is a JSON text frame. A call opens with <code>call.started</code> and closes with <code>call.ended</code>; keep exactly one handler and buffer chain per <code>call_id</code>.</span>
+        <span class="v">Toàn bộ sự kiện là khung text JSON. Cuộc gọi đã kết nối có <code>call.started</code>; cả cuộc gọi không được trả lời cũng kết thúc bằng <code>call.ended</code>; hãy giữ đúng một chuỗi xử lý và một buffer cho mỗi <code>call_id</code>.</span>
+        <span class="e">Every event is a JSON text frame. An answered call produces <code>call.started</code>; unanswered attempts also close with <code>call.ended</code>; keep exactly one handler and buffer chain per <code>call_id</code>.</span>
       </p>
 
       <div class="code">
@@ -889,7 +890,7 @@ html { scroll-behavior: smooth; }
             <tr>
               <td><code>call.started</code></td>
               <td><code>call_id</code>, <code>sequence</code>, <code>agent_slug</code>, <code>media</code>, <code>caller</code></td>
-              <td><span class="v">Kênh đã được trả lời và ghép bridge; audio bắt đầu chảy ngay sau đó</span><span class="e">The channel is answered and bridged; audio starts flowing right after</span></td>
+              <td><span class="v">Gateway xác nhận cuộc gọi đã được trả lời và sẵn sàng cho media; audio bắt đầu chảy ngay sau đó</span><span class="e">Gateway confirms that the call is answered and media-ready; audio starts flowing right after</span></td>
             </tr>
             <tr>
               <td><code>dtmf.received</code></td>
@@ -909,12 +910,12 @@ html { scroll-behavior: smooth; }
             <tr>
               <td><code>outbound.accepted</code></td>
               <td><code>call_id</code>, <code>request_id</code></td>
-              <td><span class="v">Yêu cầu gọi ra đã được Asterisk nhận; cuộc gọi chưa chắc đã được trả lời</span><span class="e">Asterisk accepted the origination; the call is not answered yet</span></td>
+              <td><span class="v">Gateway đã chấp nhận yêu cầu gọi ra; cuộc gọi chưa chắc đã được trả lời</span><span class="e">Gateway accepted the outbound request; the call is not answered yet</span></td>
             </tr>
             <tr>
               <td><code>transfer.consulting</code></td>
               <td><code>call_id</code></td>
-              <td><span class="v">Nhánh tư vấn của chuyển máy có giám sát đã vào bridge</span><span class="e">The consulting leg of an attended transfer joined the bridge</span></td>
+              <td><span class="v">Nhánh tư vấn của chuyển máy có giám sát đã sẵn sàng</span><span class="e">The consulting leg of an attended transfer is ready</span></td>
             </tr>
             <tr>
               <td><code>transfer.ended</code></td>
@@ -922,9 +923,14 @@ html { scroll-behavior: smooth; }
               <td><span class="v">Nhánh tư vấn rời đi (hoàn tất hoặc bị huỷ)</span><span class="e">The consulting leg left, completed or cancelled</span></td>
             </tr>
             <tr>
+              <td><code>call.status</code></td>
+              <td><code>call_id</code>, <code>status</code>, <code>terminal</code>, <code>answered</code>, <code>sequence</code>, <code>reason</code>, <code>hangup_cause</code>, <code>dial_status</code>, <code>updated_at</code></td>
+              <td><span class="v">Sự kiện tiến trình và kết quả cuối được Gateway chủ động gửi; cũng là phản hồi truy vấn trạng thái. Các giá trị <code>status</code> ở <a href="#call-status">mục trạng thái cuộc gọi</a>.</span><span class="e">Unsolicited progress and terminal events, also used for status query replies. See <a href="#call-status">call statuses</a> for the valid <code>status</code> values.</span></td>
+            </tr>
+            <tr>
               <td><code>call.ended</code></td>
-              <td><code>call_id</code></td>
-              <td><span class="v">Cuộc gọi kết thúc. Giải phóng toàn bộ trạng thái gắn với <code>call_id</code> này</span><span class="e">The call is over. Release every piece of state keyed on this <code>call_id</code></span></td>
+              <td><code>call_id</code>, <code>status</code>, <code>terminal</code>, <code>answered</code>, <code>sequence</code>, <code>reason</code>, <code>hangup_cause</code>, <code>dial_status</code>, <code>updated_at</code></td>
+              <td><span class="v">Cuộc gọi kết thúc. Giải phóng audio và xử lý đang chạy; có thể lưu kết quả cuối</span><span class="e">The call is over. Release audio and active processing; the final result may be retained</span></td>
             </tr>
             <tr>
               <td><code>error</code></td>
@@ -934,6 +940,117 @@ html { scroll-behavior: smooth; }
           </tbody>
         </table>
       </div>
+    </section>
+
+    <section id="call-status">
+      <h2><span class="v">Nhấc máy, dập máy, không trả lời và kiểm tra kết quả</span><span class="e">Answer, hangup, no answer and checking results</span></h2>
+      <p><span class="v"><code>call.status</code> trả <code>dialing</code> (đang gọi), <code>ringing</code> (đổ chuông), <code>answered</code> (đã nhấc máy). Chờ <code>call.started</code> để bắt đầu audio. Khi kết thúc, nhận <code>call.status</code> với <code>terminal: true</code>, rồi <code>call.ended</code> kèm kết quả và mã nguyên nhân.</span><span class="e"><code>call.status</code> reports <code>dialing</code>, <code>ringing</code> and <code>answered</code>. Wait for <code>call.started</code> before audio. Termination produces <code>call.status</code> with <code>terminal: true</code>, followed by <code>call.ended</code> carrying the result and cause.</span></p>
+      <p><span class="v">Kết quả cuối: <code>completed</code> (đã nghe rồi dập máy), <code>busy</code> (bận), <code>no_answer</code> (không trả lời), <code>rejected</code> (bị từ chối), <code>unavailable</code> (không liên lạc được), <code>failed</code> (lỗi), <code>cancelled</code> (hủy trước khi nghe). Gateway phân loại dựa trên tín hiệu cuộc gọi và thời hạn quay số; cùng một mã nguyên nhân có thể bao quát nhiều hành động trên điện thoại.</span><span class="e">Final results: <code>completed</code>, <code>busy</code>, <code>no_answer</code>, <code>rejected</code>, <code>unavailable</code>, <code>failed</code>, <code>cancelled</code>. Gateway classifies them from call signals and the dialing deadline; one cause can cover more than one handset action.</span></p>
+      <p><span class="v">Mỗi lần đọc <code>call.status</code> qua WebSocket chỉ là một snapshot trong phiên. Dùng bề mặt GET ở mục <a href="#history">lịch sử bền vững</a> để đọc danh sách và timeline sau khi reconnect hoặc khởi động lại.</span><span class="e">Each WebSocket <code>call.status</code> read is a snapshot within the session. Use the <a href="#history">durable history</a> GET surface for lists and timelines that survive reconnects or restarts.</span></p>
+      <p><span class="v">Để kiểm tra theo <code>call_id</code>, key cần <code>calls:read</code>. SDK hiện có dùng được ngay:</span><span class="e">Check by <code>call_id</code> with <code>calls:read</code>. Existing SDKs work immediately:</span></p>
+      <pre><code>await client.control(call_id, "call.status")  # Python
+client.control(callId, "call.status");       // Node.js</code></pre>
+      <p><span class="v">Phản hồi là <code>call.status</code> với <code>request_id</code> tương ứng, không phải <code>call.control.accepted</code>. Truy vấn luôn đọc trạng thái mới nhất. Chỉ xem được cuộc gọi của chính kết nối WebSocket; giữ tối đa 256 kết quả đã kết thúc trong phiên. Mất kết nối, khởi động lại hoặc bị loại khỏi bộ nhớ thì không tra lại được; dùng GET ở mục dưới nếu cần lịch sử lâu dài.</span><span class="e">The reply is <code>call.status</code> with the matching <code>request_id</code>, rather than <code>call.control.accepted</code>. Every query reads fresh state. Only the owning WebSocket can read its calls; up to 256 completed results remain in that session. Disconnect, restart or eviction clears access; use the GET surface below for durable history.</span></p>
+    </section>
+
+    <!-- ============ DURABLE HISTORY ============ -->
+    <section id="history">
+      <p class="eyebrow"><span class="v">Lịch sử</span><span class="e">History</span></p>
+      <h2><span class="v">Lịch sử bền vững qua REST GET</span><span class="e">Durable history through REST GET</span></h2>
+
+      <p>
+        <span class="v">Lịch sử bền vững là bề mặt đọc HTTPS riêng. Gửi API key trực tiếp trong header <code>Authorization: Bearer</code>; không đổi sang realtime token và không cần mở WebSocket. Key phải có scope <code>calls:read</code>. Mỗi request bị giới hạn đồng thời theo organization và partner app của key.</span>
+        <span class="e">Durable history is a separate HTTPS read surface. Send the API key directly in the <code>Authorization: Bearer</code> header; do not exchange a realtime token and do not open a WebSocket. The key needs the <code>calls:read</code> scope. Every request is restricted to both the key's organization and partner app.</span>
+      </p>
+      <p><span class="v">Các helper history trong ví dụ cần build SDK <code>0.4.0</code> do quản trị viên cung cấp (ví dụ wheel hoặc tarball nội bộ) cho tới khi việc phát hành được xác nhận; gói public <code>0.3.2</code> hiện tại chưa có các helper này.</span><span class="e">The history helpers in these examples require the operator-provided SDK <code>0.4.0</code> build (for example, a local wheel or tarball) until publication is confirmed; the current public <code>0.3.2</code> package does not include them.</span></p>
+      <p><span class="v">Cài artifact do quản trị viên cung cấp bằng URL host đã được cấp:</span><span class="e">Install the operator-provided artifact with the supplied host URL:</span></p>
+      <pre><code>python -m pip install "https://gateway.example.com/downloads/sdk-0.4.0/asterisk_ai_agent_gateway_sdk-0.4.0-py3-none-any.whl"
+npm install "https://gateway.example.com/downloads/sdk-0.4.0/asterisk-ai-agent-gateway-sdk-0.4.0.tgz"</code></pre>
+
+      <div class="code">
+        <div class="code-head"><span>HTTP</span><span>GET /api/v1/partner/calls</span></div>
+        <pre><code>curl -G https://&lt;gateway&gt;/api/v1/partner/calls \
+  -H "Authorization: Bearer agw_live_&lt;prefix&gt;_&lt;secret&gt;" \
+  --data-urlencode "limit=50" \
+  --data-urlencode "agent_slug=support-agent" \
+  --data-urlencode "status=completed" \
+  --data-urlencode "started_after=2026-10-20T00:00:00Z"
+
+{
+  "items": [ { "call_id": "…", "status": "completed", "sequence": 3 } ],
+  "next_cursor": null,
+  "page": null,
+  "page_size": null,
+  "total": null,
+  "total_pages": null
+}</code></pre>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th><span class="v">Endpoint</span><span class="e">Endpoint</span></th>
+              <th><span class="v">Tham số</span><span class="e">Parameters</span></th>
+              <th><span class="v">Kết quả</span><span class="e">Result</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>GET /api/v1/partner/calls</code></td>
+              <td><code>limit</code> 1–100 (mặc định 50), <code>cursor</code>, <code>page</code>, <code>agent_slug</code>, <code>status</code>, <code>direction</code>, <code>started_after</code>, <code>started_before</code></td>
+              <td><span class="v">Danh sách mới nhất trước, gói <code>items</code> + <code>next_cursor</code>; mode <code>page</code> thêm metadata tổng</span><span class="e">Newest first, in an <code>items</code> + <code>next_cursor</code> envelope; <code>page</code> mode adds count metadata</span></td>
+            </tr>
+            <tr>
+              <td><code>GET /api/v1/partner/calls/&lt;call_id&gt;</code></td>
+              <td>—</td>
+              <td><span class="v">Một summary cuộc gọi</span><span class="e">One call summary</span></td>
+            </tr>
+            <tr>
+              <td><code>GET /api/v1/partner/calls/&lt;call_id&gt;/signals</code></td>
+              <td><code>limit</code> 1–100 (mặc định 50), <code>cursor</code></td>
+              <td><span class="v">Snapshot <code>call.status</code> theo thứ tự tăng dần của <code>sequence</code>, gói <code>items</code> + <code>next_cursor</code></span><span class="e"><code>call.status</code> snapshots in ascending <code>sequence</code>, with the same <code>items</code> + <code>next_cursor</code> envelope</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p><span class="v"><code>started_after</code> và <code>started_before</code> phải là timestamp ISO 8601 có timezone rõ ràng. <code>agent_slug</code> lọc đúng slug lịch sử. Giá trị <code>cursor</code> là opaque; hãy gửi lại nguyên văn. <code>page</code> phải từ <code>1</code> trở lên và không được đi cùng <code>cursor</code>; gửi cả hai trả <code>422</code>. ID không tồn tại hoặc không thuộc organization/partner app của bạn đều trả cùng một <code>404</code>. Mode <code>page</code> trả <code>page</code>, <code>page_size</code>, <code>total</code>, <code>total_pages</code> và <code>next_cursor: null</code>; <code>total_pages</code> vẫn ít nhất là <code>1</code> khi danh sách rỗng. Trang đánh số có thể dịch chuyển khi có cuộc gọi mới, nên dùng cursor để duyệt ổn định.</span><span class="e"><code>started_after</code> and <code>started_before</code> must be ISO 8601 timestamps with an explicit timezone. <code>agent_slug</code> filters an exact historic slug. Treat <code>cursor</code> as opaque and send it back unchanged. <code>page</code> must be at least <code>1</code> and cannot be combined with <code>cursor</code>; sending both returns <code>422</code>. Unknown or non-owned IDs all return the same <code>404</code>. <code>page</code> mode returns <code>page</code>, <code>page_size</code>, <code>total</code>, <code>total_pages</code> and <code>next_cursor: null</code>; <code>total_pages</code> is still at least <code>1</code> when the list is empty. Numbered pages can shift when new calls arrive, so use cursor mode for stable iteration.</span></p>
+
+      <div class="code">
+        <div class="code-head"><span>Python</span><span>async history helpers</span></div>
+        <pre><code>async def read_history(client, call_id, signal_cursor=None):
+    page = await client.list_calls(
+        limit=50,
+        cursor=None,                     # cursor mode; recommended for iteration
+        agent_slug="support-agent",     # exact historic slug; omit for all
+        status="completed",
+        direction="outbound",
+        started_after="2026-10-20T00:00:00Z",
+        started_before="2026-10-21T00:00:00Z",
+    )
+    call = await client.get_call(call_id)
+    signals = await client.list_call_signals(call_id, limit=50, cursor=signal_cursor)
+    return page, call, signals
+# Numbered mode instead: omit cursor and pass page=1.</code></pre>
+      </div>
+
+      <div class="code">
+        <div class="code-head"><span>Node</span><span>history helpers</span></div>
+        <pre><code>const page = await client.listCalls({
+  limit: 50,
+  agentSlug: "support-agent",        // exact historic slug; omit for all
+  status: "completed",
+  direction: "outbound",
+  startedAfter: "2026-10-20T00:00:00Z",
+  startedBefore: "2026-10-21T00:00:00Z",
+});
+const call = await client.getCall(callId);
+const signals = await client.listCallSignals(callId, { limit: 50, cursor: signalCursor });
+// Numbered mode instead: omit cursor and pass page: 1.</code></pre>
+      </div>
+
+      <p><span class="v">Gateway giữ metadata cuộc gọi và các signal trạng thái chuẩn hoá vô thời hạn, không tự động xoá. Bề mặt này không lưu audio, transcript hoặc số điện thoại. Summary cũ được import không có partner-app ownership nên không xuất hiện ở partner API; chỉ owner/admin của organization thấy chúng trong màn hình quản trị nội bộ.</span><span class="e">Gateway retains call metadata and normalized status signals indefinitely, with no automatic deletion. This surface stores no audio, transcripts, or phone numbers. Imported legacy summaries have no partner-app ownership, so they do not appear in the partner API; only an organization owner/admin can see them in the internal management view.</span></p>
     </section>
 
     <!-- ============ AUDIO ============ -->
@@ -972,7 +1089,7 @@ html { scroll-behavior: smooth; }
         <li><span class="v">Bạn phải <code>session.register</code> thành công trước; gửi audio sớm hơn sẽ nhận <code>protocol-invalid</code>.</span><span class="e">You must have completed <code>session.register</code>; audio sent earlier returns <code>protocol-invalid</code>.</span></li>
         <li><span class="v">Khung phải dài <strong>hơn</strong> 16 byte. Khung chỉ có UUID mà không có audio bị từ chối với <code>audio-invalid</code>.</span><span class="e">The frame must be <strong>longer</strong> than 16 bytes. A UUID with no audio behind it is rejected with <code>audio-invalid</code>.</span></li>
         <li><span class="v"><code>call_id</code> phải thuộc một cuộc gọi đang hoạt động của chính kết nối này, nếu không sẽ nhận <code>call-not-active</code>.</span><span class="e">The <code>call_id</code> must belong to an active call owned by this connection, or you get <code>call-not-active</code>.</span></li>
-        <li><span class="v">Nếu đường media phía Asterisk chưa sẵn sàng, gateway trả <code>media-unavailable</code> thay vì im lặng bỏ khung.</span><span class="e">If the Asterisk-side media path is not ready, the gateway answers <code>media-unavailable</code> rather than dropping the frame silently.</span></li>
+        <li><span class="v">Nếu đường media của Gateway chưa sẵn sàng, Gateway trả <code>media-unavailable</code> thay vì im lặng bỏ khung.</span><span class="e">If Gateway's media path is not ready, it returns <code>media-unavailable</code> rather than dropping the frame silently.</span></li>
       </ul>
 
       <h3><span class="v">Tần số lấy mẫu do gateway công bố, không cố định</span><span class="e">The sample rate is announced, not fixed</span></h3>
@@ -983,8 +1100,8 @@ html { scroll-behavior: smooth; }
       </p>
 
       <p>
-        <span class="v">Mặc định là <strong>8000 Hz</strong>, vì đường trung kế thoại vốn là 8 kHz. Một triển khai nối các thiết bị đầu cuối băng rộng thật sự có thể chạy cao hơn, và khi đó cùng một đoạn mã của bạn phải hoạt động được mà không cần sửa.</span>
-        <span class="e">The default is <strong>8000 Hz</strong>, because a voice trunk is 8 kHz anyway. A deployment bridging genuinely wideband endpoints may run higher, and the same code of yours has to keep working when it does.</span>
+        <span class="v">Mặc định là <strong>8000 Hz</strong>. Một cấu hình Gateway nối các thiết bị đầu cuối băng rộng thật sự có thể công bố tần số cao hơn, và khi đó cùng một đoạn mã của bạn phải hoạt động được mà không cần sửa.</span>
+        <span class="e">The default is <strong>8000 Hz</strong>. A Gateway configuration that connects genuinely wideband endpoints may announce a higher rate, and the same code of yours has to keep working when it does.</span>
       </p>
 
       <div class="note note-warn">
@@ -994,8 +1111,8 @@ html { scroll-behavior: smooth; }
           <span class="e">Every rate change is a resample, and not all of them are harmless. The anti-alias filter in most libraries only handles <em>integer ratios</em>. If your model emits 24 kHz and you force it to 16 kHz, the ratio is 1.5× — many libraries silently drop the filter and interpolate linearly, leaving aliasing that no log reports. 24 kHz to 8 kHz is 3×, an integer ratio, and keeps the filter.</span>
         </p>
         <p>
-          <span class="v">Chúng tôi đo được điều này trên chính đường gọi thật: đường 16 kHz đặt 56% năng lượng giọng nói trong dải thoại 300–3400 Hz, còn đường 8 kHz đạt 68%. Người nghe mô tả sự khác biệt là “ồm ồm, xa xăm”. Đường truyền rộng hơn không làm cuộc gọi rộng hơn — trung kế vẫn 8 kHz — nó chỉ thêm những bước đổi tần số mà bạn phải trả giá.</span>
-          <span class="e">We measured this on a live call path: the 16 kHz wire put 56% of the speech energy in the 300–3400 Hz telephony band, where the 8 kHz one reached 68%. Listeners described the difference as “boomy and far away”. A wider wire does not widen the call — the trunk is 8 kHz regardless — it only adds rate changes you pay for.</span>
+          <span class="v">Trên đường gọi thực tế, đường 16 kHz đặt 56% năng lượng giọng nói trong dải thoại 300–3400 Hz, còn đường 8 kHz đạt 68%. Người nghe mô tả sự khác biệt là “ồm ồm, xa xăm”. Tần số cao hơn không tự làm cuộc gọi rõ hơn — nó chỉ thêm những bước đổi tần số mà bạn phải xử lý.</span>
+          <span class="e">On a live call path, the 16 kHz wire put 56% of speech energy in the 300–3400 Hz telephony band, while the 8 kHz path reached 68%. Listeners described the difference as “boomy and far away”. A higher rate does not automatically make the call clearer; it only adds resampling steps for you to handle.</span>
         </p>
       </div>
 
@@ -1046,7 +1163,7 @@ async def on_event(event):
             <tr><td><code>call.hold</code> / <code>call.resume</code></td><td><span class="chip chip-scope">calls:hold</span></td><td>—</td></tr>
             <tr><td><code>call.mute</code> / <code>call.unmute</code></td><td><span class="chip chip-scope">calls:mute</span></td><td>—</td></tr>
             <tr><td><code>dtmf.send</code></td><td><span class="chip chip-scope">calls:dtmf</span></td><td><code>{ "digits": "123" }</code></td></tr>
-            <tr><td><code>audio.clear</code></td><td><span class="chip chip-scope">media:control</span></td><td><span class="v">—, chỉ xoá buffer phát, không gọi Asterisk</span><span class="e">— clears the playback buffer only; no ARI call</span></td></tr>
+            <tr><td><code>audio.clear</code></td><td><span class="chip chip-scope">media:control</span></td><td><span class="v">—, chỉ xoá buffer phát, không thay đổi kết nối cuộc gọi</span><span class="e">— clears the playback buffer only; it does not change the call connection</span></td></tr>
             <tr><td><code>transfer.blind</code></td><td><span class="chip chip-scope">calls:transfer</span></td><td><code>{ "context": …, "extension": … }</code></td></tr>
             <tr><td><code>transfer.attended</code></td><td><span class="chip chip-scope">calls:transfer</span></td><td><code>{ "context": …, "extension": … }</code></td></tr>
             <tr><td><code>transfer.cancel</code></td><td><span class="chip chip-scope">calls:transfer</span></td><td><span class="v">— không kiểm tra allowlist</span><span class="e">— no allowlist check</span></td></tr>
@@ -1063,8 +1180,8 @@ async def on_event(event):
 
       <h3><span class="v">Chống trùng lặp bằng <code>request_id</code></span><span class="e">Idempotency with <code>request_id</code></span></h3>
       <p>
-        <span class="v">Đặt một UUID vào <code>request_id</code> cho mọi lệnh bạn có thể phải gửi lại. Kết nối hiện tại ghi nhớ kết quả đã chấp nhận và trả lại đúng phản hồi cũ thay vì chạy lại hành động ARI lần thứ hai. Bộ nhớ này giữ 256 request gần nhất và <strong>mất khi kết nối đóng</strong>.</span>
-        <span class="e">Put a UUID in <code>request_id</code> on every command you might retry. The current connection remembers accepted results and replays the original response instead of running the ARI action twice. That memory holds the last 256 requests and <strong>is lost when the connection closes</strong>.</span>
+        <span class="v">Đặt một UUID vào <code>request_id</code> cho mọi lệnh bạn có thể phải gửi lại. Kết nối hiện tại ghi nhớ kết quả đã chấp nhận và trả lại đúng phản hồi cũ thay vì chạy lại thao tác điều khiển lần thứ hai. Bộ nhớ này giữ 256 request gần nhất và <strong>mất khi kết nối đóng</strong>.</span>
+        <span class="e">Put a UUID in <code>request_id</code> on every command you might retry. The current connection remembers accepted results and replays the original response instead of running the control action twice. That memory holds the last 256 requests and <strong>is lost when the connection closes</strong>.</span>
       </p>
 
       <h3><span class="v">Allowlist đích</span><span class="e">Destination allowlist</span></h3>
@@ -1073,11 +1190,11 @@ async def on_event(event):
         <span class="e">Every <code>transfer.*</code> (except <code>transfer.cancel</code>), <code>route.*</code>, and <code>outbound.originate</code> must carry a <code>context</code> and <code>extension</code> whose <code>context:extension</code> pair is accepted by your partner app's allowlist.</span>
       </p>
       <p>
-        <span class="v">Entry thường là cặp <code>context:extension</code> chính xác. Extension kết thúc bằng <code>*</code> là <strong>luật tiền tố</strong>: <code>from-internal:84*</code> cho phép mọi extension dài hơn bắt đầu bằng <code>84</code> trong context đó — đây là cách gọi ra PSTN hoạt động khi số đích đổi theo từng cuộc gọi. Luật cố tình hẹp:</span>
-        <span class="e">Entries are usually exact <code>context:extension</code> pairs. An extension ending in <code>*</code> is a <strong>prefix rule</strong> instead: <code>from-internal:84*</code> permits any longer extension starting <code>84</code> in that context, which is how outbound PSTN works when the callee differs on every call. The rules are deliberately narrow:</span>
+        <span class="v">Entry thường là cặp <code>context:extension</code> chính xác. Extension kết thúc bằng <code>*</code> là <strong>luật tiền tố</strong>: <code>from-internal:84*</code> cho phép mọi extension dài hơn bắt đầu bằng <code>84</code> trong context đó — đây là cách gọi ra hoạt động khi số đích đổi theo từng cuộc gọi. Luật cố tình hẹp:</span>
+        <span class="e">Entries are usually exact <code>context:extension</code> pairs. An extension ending in <code>*</code> is a <strong>prefix rule</strong> instead: <code>from-internal:84*</code> permits any longer extension starting <code>84</code> in that context, which is how outbound dialing works when the callee differs on every call. The rules are deliberately narrow:</span>
       </p>
       <ul>
-        <li><span class="v">Chỉ dấu sao ở <strong>cuối</strong> mới là ký tự đại diện, nên feature code như <code>*43</code> vẫn là đích chính xác.</span><span class="e">Only a <strong>trailing</strong> asterisk is a wildcard, so feature codes like <code>*43</code> stay exact destinations.</span></li>
+        <li><span class="v">Chỉ dấu sao ở <strong>cuối</strong> mới là ký tự đại diện, nên feature code như <code>*43</code> vẫn là đích chính xác.</span><span class="e">Only a <strong>trailing</strong> <code>*</code> is a wildcard, so feature codes like <code>*43</code> stay exact destinations.</span></li>
         <li><span class="v">Tiền tố cần tối thiểu hai ký tự thật — một ký tự không phải là ràng buộc.</span><span class="e">A prefix needs at least two literal characters — one is not a restriction.</span></li>
         <li><span class="v">Luật không bao giờ khớp đúng phần tiền tố (<code>84*</code> không cho quay <code>84</code>) và không bao giờ lan sang context khác.</span><span class="e">A rule never matches the bare prefix itself (<code>84*</code> does not permit dialling <code>84</code>) and never crosses into another context.</span></li>
       </ul>
@@ -1090,15 +1207,15 @@ async def on_event(event):
         <span class="e">Bad syntax and a missing allowlist entry both return <code>command-denied</code>. That is a configuration error, not a transient one — retrying will not help.</span>
       </p>
 
-      <h3><span class="v">Phát media và biến kênh</span><span class="e">Playback and channel variables</span></h3>
+      <h3><span class="v">Phát media và biến cuộc gọi</span><span class="e">Playback and call variables</span></h3>
       <p>
-        <span class="v">Hai lệnh này chạm tới Asterisk bằng chuỗi do bạn chọn, nên gateway kiểm tra chặt và <strong>fail closed</strong>: cái gì không chứng minh được là an toàn thì bị từ chối trước khi ARI được gọi.</span>
-        <span class="e">These two hand Asterisk a string you chose, so the gateway validates hard and <strong>fails closed</strong>: anything not provably safe is refused before ARI is called.</span>
+        <span class="v">Hai lệnh này nhận chuỗi do bạn chọn, nên Gateway kiểm tra chặt và <strong>fail closed</strong>: giá trị nào không hợp lệ đều bị từ chối trước khi lệnh được xử lý.</span>
+        <span class="e">These two commands accept strings you choose, so Gateway validates them strictly and <strong>fails closed</strong>: invalid values are refused before the command is processed.</span>
       </p>
       <ul>
-        <li><span class="v"><code>media</code> chỉ nhận <code>sound:&lt;tên&gt;</code> hoặc <code>recording:&lt;tên&gt;</code>. Các scheme khác như <code>file:</code> hay <code>http:</code> bị chặn vì sẽ đọc được file trên host qua ARI. Tên chỉ gồm <code>A-Za-z0-9/_-</code> và không được chứa <code>..</code>.</span><span class="e"><code>media</code> accepts only <code>sound:&lt;name&gt;</code> or <code>recording:&lt;name&gt;</code>. Schemes like <code>file:</code> or <code>http:</code> are refused because they would read host files through ARI. Names allow <code>A-Za-z0-9/_-</code> and may not contain <code>..</code>.</span></li>
+        <li><span class="v"><code>media</code> chỉ nhận <code>sound:&lt;tên&gt;</code> hoặc <code>recording:&lt;tên&gt;</code>. Các scheme khác như <code>file:</code> hay <code>http:</code> bị chặn vì nằm ngoài phạm vi media được Gateway hỗ trợ. Tên chỉ gồm <code>A-Za-z0-9/_-</code> và không được chứa <code>..</code>.</span><span class="e"><code>media</code> accepts only <code>sound:&lt;name&gt;</code> or <code>recording:&lt;name&gt;</code>. Schemes like <code>file:</code> or <code>http:</code> are refused because they are outside the media sources Gateway supports. Names allow <code>A-Za-z0-9/_-</code> and may not contain <code>..</code>.</span></li>
         <li><span class="v"><code>playback_id</code> do gateway sinh và trả về trong <code>result</code> của <code>call.control.accepted</code>. Bạn chỉ dừng được playback của chính cuộc gọi mình sở hữu; mỗi cuộc gọi tối đa 8 playback đồng thời.</span><span class="e">The <code>playback_id</code> is minted by the gateway and returned in the <code>result</code> of <code>call.control.accepted</code>. You can only stop a playback your own call started; a call holds at most 8 concurrent playbacks.</span></li>
-        <li><span class="v">Tên biến phải khớp <code>AI_[A-Z0-9_]{1,60}</code>. Tiền tố giữ bạn trong namespace riêng, và việc cấm ký tự <code>(</code> chặn các hàm dialplan như <code>CHANNEL(...)</code>, <code>CDR(...)</code>, <code>SHELL(...)</code> — chúng <em>thực thi</em> chứ không phải gán giá trị.</span><span class="e">Variable names must match <code>AI_[A-Z0-9_]{1,60}</code>. The prefix keeps you in your own namespace, and rejecting <code>(</code> blocks dialplan functions such as <code>CHANNEL(...)</code>, <code>CDR(...)</code> and <code>SHELL(...)</code>, which <em>execute</em> rather than assign.</span></li>
+        <li><span class="v">Tên biến phải khớp <code>AI_[A-Z0-9_]{1,60}</code>. Tiền tố giữ bạn trong namespace riêng, và việc cấm ký tự <code>(</code> ngăn các giá trị có thể thực thi thay vì chỉ gán dữ liệu.</span><span class="e">Variable names must match <code>AI_[A-Z0-9_]{1,60}</code>. The prefix keeps you in your own namespace, and rejecting <code>(</code> blocks values that could execute instead of assigning data.</span></li>
         <li><span class="v">Giá trị tối đa 512 ký tự, không chứa ký tự điều khiển.</span><span class="e">Values are capped at 512 characters and may not contain control characters.</span></li>
       </ul>
     </section>
@@ -1123,23 +1240,19 @@ async def on_event(event):
       <ul>
         <li><span class="v">Cần scope <span class="chip chip-scope">calls:originate</span> và đích phải nằm trong allowlist.</span><span class="e">Requires the <span class="chip chip-scope">calls:originate</span> scope, and the destination must be allowlisted.</span></li>
         <li><span class="v"><code>timeout</code> tính bằng giây, từ 1 đến 120; mặc định 30. Ngoài khoảng này trả <code>outbound-failed</code>.</span><span class="e"><code>timeout</code> is in seconds, from 1 to 120, defaulting to 30. Anything outside that returns <code>outbound-failed</code>.</span></li>
-        <li><span class="v"><code>outbound.accepted</code> nghĩa là Asterisk đã nhận yêu cầu, <strong>chưa</strong> phải đã được trả lời. Cuộc gọi chỉ thực sự sống khi bạn nhận <code>call.started</code> cho cùng <code>call_id</code>.</span><span class="e"><code>outbound.accepted</code> means Asterisk took the request, <strong>not</strong> that anyone answered. The call is live only when <code>call.started</code> arrives for the same <code>call_id</code>.</span></li>
-        <li><span class="v">Huỷ bằng <code>{"type":"outbound.cancel","call_id":"…"}</code>; gateway sẽ cúp kênh tương ứng.</span><span class="e">Cancel with <code>{"type":"outbound.cancel","call_id":"…"}</code>; the gateway hangs the channel up.</span></li>
+        <li><span class="v"><code>outbound.accepted</code> nghĩa là Gateway đã chấp nhận yêu cầu, <strong>chưa</strong> phải đã được trả lời. Cuộc gọi chỉ thực sự sống khi bạn nhận <code>call.started</code> cho cùng <code>call_id</code>.</span><span class="e"><code>outbound.accepted</code> means Gateway accepted the request, <strong>not</strong> that anyone answered. The call is live only when <code>call.started</code> arrives for the same <code>call_id</code>.</span></li>
+        <li><span class="v">Huỷ bằng <code>{"type":"outbound.cancel","call_id":"…"}</code>; Gateway sẽ kết thúc cuộc gọi tương ứng.</span><span class="e">Cancel with <code>{"type":"outbound.cancel","call_id":"…"}</code>; Gateway ends the corresponding call.</span></li>
       </ul>
 
-      <h3><span class="v">Chọn đúng <code>context</code></span><span class="e">Choosing the <code>context</code></span></h3>
+      <h3><span class="v">Dùng <code>context</code> do Gateway cung cấp</span><span class="e">Use the <code>context</code> supplied by Gateway</span></h3>
       <p>
-        <span class="v">Gateway khởi tạo cuộc gọi bằng <code>Local/&lt;extension&gt;@&lt;context&gt;</code>. Vì vậy <code>context</code> phải là context định tuyến số <strong>ra ngoài</strong> — trên FreePBX là <code>from-internal</code>, nơi chứa các outbound route.</span>
-        <span class="e">The gateway originates the call as <code>Local/&lt;extension&gt;@&lt;context&gt;</code>. So <code>context</code> must be one that routes the number <strong>outward</strong> — on FreePBX that is <code>from-internal</code>, which carries the outbound routes.</span>
+        <span class="v"><code>context</code> là route identifier do quản trị viên Gateway cung cấp. Hãy gửi đúng giá trị đó cùng <code>extension</code>; trong ví dụ này, giá trị được cung cấp là <code>from-internal</code>. Không tự đoán tên context hoặc thay bằng giá trị của hệ thống khác.</span>
+        <span class="e"><code>context</code> is a route identifier supplied by the Gateway operator. Send that exact value with <code>extension</code>; in this example the supplied value is <code>from-internal</code>. Do not infer a context name or substitute a value from another system.</span>
       </p>
       <p>
-        <span class="v">Context trunk chiều vào (thường tên là <code>from-trunk</code>) là lựa chọn sai dù nghe hợp lý: nó khớp DID của cuộc gọi <em>đến</em> và không có route nào đẩy số ra. Nếu bạn không chắc, nhờ quản trị viên chạy thử — nếu lệnh này không đổ chuông thì không entry allowlist nào cứu được:</span>
-        <span class="e">The inbound trunk context (usually named <code>from-trunk</code>) is the wrong choice even though it sounds right: it matches the DIDs of <em>incoming</em> calls and holds no route that sends a number out. If you are unsure, ask the operator to test it — if this does not ring, no allowlist entry will make it ring:</span>
+        <span class="v">Nếu chưa chắc route nào được cấp, hãy gửi cho quản trị viên Gateway payload gồm <code>context</code>, <code>extension</code> và <code>timeout</code>. Quản trị viên sẽ xác nhận route và allowlist; bạn không cần truy cập công cụ vận hành nội bộ.</span>
+        <span class="e">If you are unsure which route was assigned, send the Gateway operator the payload with <code>context</code>, <code>extension</code>, and <code>timeout</code>. The operator will confirm the route and allowlist; you do not need access to internal operating tools.</span>
       </p>
-      <div class="code">
-        <div class="code-head"><span class="chip">asterisk CLI</span><span><span class="v">phía quản trị viên</span><span class="e">operator side</span></span></div>
-        <pre><code>channel originate Local/84901234567@from-internal application Echo</code></pre>
-      </div>
     </section>
 
     <!-- ============ SCOPES ============ -->
@@ -1148,8 +1261,8 @@ async def on_event(event):
       <h2><span class="v">Danh mục scope</span><span class="e">The scope catalogue</span></h2>
 
       <p>
-        <span class="v">Key của bạn chỉ mang được tập con scope của partner app. Hãy yêu cầu đúng những scope bạn dùng — lệnh nằm ngoài scope bị chặn ngay tại gateway, trước khi Asterisk được gọi.</span>
-        <span class="e">Your key can only carry a subset of the partner app's scopes. Ask for the ones you actually use — anything outside them is blocked at the gateway, before Asterisk is ever called.</span>
+        <span class="v">Key của bạn chỉ mang được tập con scope của partner app. Hãy yêu cầu đúng những scope bạn dùng — lệnh nằm ngoài scope bị chặn ngay tại Gateway, trước khi được xử lý.</span>
+        <span class="e">Your key can only carry a subset of the partner app's scopes. Ask for the ones you actually use; anything outside them is blocked at Gateway before it is processed.</span>
       </p>
 
       <div class="table-wrap">
@@ -1161,7 +1274,7 @@ async def on_event(event):
             </tr>
           </thead>
           <tbody>
-            <tr><td><code>calls:read</code></td><td><span class="v">Nhận sự kiện vòng đời cuộc gọi</span><span class="e">Receiving call lifecycle events</span></td></tr>
+            <tr><td><code>calls:read</code></td><td><span class="v">Truy vấn <code>call.status</code>, đọc GET history và nhận sự kiện vòng đời</span><span class="e">Querying <code>call.status</code>, reading GET history, and receiving lifecycle events</span></td></tr>
             <tr><td><code>media:stream</code></td><td><span class="v">Truyền và nhận audio PCM</span><span class="e">Streaming PCM audio in and out</span></td></tr>
             <tr><td><code>media:control</code></td><td><code>audio.clear</code></td></tr>
             <tr><td><code>calls:dtmf</code></td><td><code>dtmf.send</code></td></tr>
@@ -1231,7 +1344,7 @@ async def on_event(event):
             </tr>
             <tr>
               <td><code>media-unavailable</code></td>
-              <td><span class="v">Đường media phía Asterisk chưa sẵn sàng</span><span class="e">The Asterisk-side media path is not ready</span></td>
+              <td><span class="v">Đường media của Gateway chưa sẵn sàng</span><span class="e">Gateway's media path is not ready</span></td>
               <td><span class="v">Có, khung tiếp theo</span><span class="e">Yes, on the next frame</span></td>
             </tr>
             <tr>
@@ -1241,17 +1354,17 @@ async def on_event(event):
             </tr>
             <tr>
               <td><code>command-failed</code></td>
-              <td><span class="v">Asterisk từ chối lệnh, hoặc kênh chưa sẵn sàng</span><span class="e">Asterisk rejected the command, or the channel is not ready yet</span></td>
+              <td><span class="v">Gateway không thể thực thi lệnh, hoặc cuộc gọi chưa sẵn sàng</span><span class="e">Gateway could not execute the command, or the call is not ready yet</span></td>
               <td><span class="v">Có, một lần với <code>request_id</code></span><span class="e">Yes, once, with a <code>request_id</code></span></td>
             </tr>
             <tr>
               <td><code>outbound-failed</code></td>
-              <td><span class="v">Đích bị từ chối, timeout ngoài khoảng 1–120, hoặc ARI báo lỗi</span><span class="e">Destination refused, timeout outside 1–120, or ARI returned an error</span></td>
+              <td><span class="v">Đích bị từ chối, timeout ngoài khoảng 1–120, hoặc Gateway báo lỗi khi xử lý</span><span class="e">Destination refused, timeout outside 1–120, or Gateway reported a processing error</span></td>
               <td><span class="v">Tuỳ nội dung <code>message</code></span><span class="e">Depends on the <code>message</code></span></td>
             </tr>
             <tr>
               <td><code>presence-unavailable</code></td>
-              <td><span class="v">Kho lưu trạng thái kết nối của gateway gặp sự cố</span><span class="e">The gateway's connection lease store is failing</span></td>
+              <td><span class="v">Gateway gặp sự cố khi duy trì trạng thái kết nối</span><span class="e">Gateway is having trouble maintaining connection state</span></td>
               <td><span class="v">Có, sau backoff</span><span class="e">Yes, after a backoff</span></td>
             </tr>
           </tbody>
@@ -1268,6 +1381,7 @@ async def on_event(event):
         <span class="v">SDK chính thức lo phần đổi token, đăng ký phiên, heartbeat 10 giây, kết nối lại kèm token mới, retry xác thực có giới hạn, và đóng/gỡ khung audio. Mọi lệnh điều khiển đều có helper tương ứng và tự sinh <code>request_id</code>. Chỉ tự dựng khung thô khi môi trường của bạn không dùng được SDK.</span>
         <span class="e">The official SDKs handle token exchange, registration, 10-second heartbeats, reconnect with a fresh token, bounded authentication retries, and the audio envelope. Every control command has a helper that generates its own <code>request_id</code>. Hand-roll the raw framing only when your runtime cannot use an SDK.</span>
       </p>
+      <p><span class="v">Để đọc history, dùng các helper <code>listCalls()</code>/<code>list_calls()</code>, <code>getCall()</code>/<code>get_call()</code> và <code>listCallSignals()</code>/<code>list_call_signals()</code>. Chúng dùng API key trực tiếp với <code>calls:read</code>, không mở WebSocket.</span><span class="e">For history reads, use <code>listCalls()</code>/<code>list_calls()</code>, <code>getCall()</code>/<code>get_call()</code>, and <code>listCallSignals()</code>/<code>list_call_signals()</code>. They use the API key directly with <code>calls:read</code> and do not open a WebSocket.</span></p>
 
       <div class="table-wrap">
         <table>
@@ -1283,14 +1397,14 @@ async def on_event(event):
               <td>
                 <a href="https://pypi.org/project/asterisk-ai-agent-gateway-sdk/" target="_blank" rel="noopener noreferrer">PyPI</a>
               </td>
-              <td><code>pip install asterisk-ai-agent-gateway-sdk</code></td>
+              <td><code>pip install asterisk-ai-agent-gateway-sdk==0.3.2</code></td>
               <td>Python 3.10+</td>
             </tr>
             <tr>
               <td>
                 <a href="https://www.npmjs.com/package/asterisk-ai-agent-gateway-sdk" target="_blank" rel="noopener noreferrer">npm</a>
               </td>
-              <td><code>npm install asterisk-ai-agent-gateway-sdk</code></td>
+              <td><code>npm install asterisk-ai-agent-gateway-sdk@0.3.2</code></td>
               <td>Node 18.17+</td>
             </tr>
           </tbody>
@@ -1303,7 +1417,7 @@ async def on_event(event):
       </p>
 
       <div class="code">
-        <div class="code-head"><span>Python</span><span>pip install asterisk-ai-agent-gateway-sdk</span></div>
+        <div class="code-head"><span>Python</span><span>pip install asterisk-ai-agent-gateway-sdk==0.3.2</span></div>
         <pre><code>import asyncio, os
 from asterisk_ai_gateway import GatewayClient
 
@@ -1329,7 +1443,7 @@ asyncio.run(client.run(on_event=on_event, on_audio=on_audio))</code></pre>
       </div>
 
       <div class="code">
-        <div class="code-head"><span>Node</span><span>npm install asterisk-ai-agent-gateway-sdk</span></div>
+        <div class="code-head"><span>Node</span><span>npm install asterisk-ai-agent-gateway-sdk@0.3.2</span></div>
         <pre><code>import { GatewayClient } from "asterisk-ai-agent-gateway-sdk";
 
 const client = new GatewayClient({
@@ -1377,20 +1491,20 @@ socket.on("message", (data, isBinary) => {
         <li><span class="v">Heartbeat 10 giây một lần, và bạn xử lý đúng các mã đóng 4401 / 4409 / 1012 / 1013.</span><span class="e">Heartbeats go out every 10 seconds, and close codes 4401 / 4409 / 1012 / 1013 are handled distinctly.</span></li>
         <li><span class="v">Mỗi <code>call_id</code> có đúng một chuỗi xử lý, và trạng thái được giải phóng khi <code>call.ended</code>.</span><span class="e">Exactly one handler chain per <code>call_id</code>, and state is released on <code>call.ended</code>.</span></li>
         <li><span class="v">Mọi lệnh có thể gửi lại đều mang <code>request_id</code> dạng UUID.</span><span class="e">Every retryable command carries a UUID <code>request_id</code>.</span></li>
-        <li><span class="v">Chỉ một worker giữ mỗi <code>agent_slug</code>; kịch bản triển khai chờ cuộc gọi kết thúc trước khi tắt tiến trình cũ.</span><span class="e">One worker per <code>agent_slug</code>, and your deploy drains in-flight calls before the old process exits.</span></li>
+        <li><span class="v">Chỉ một client giữ mỗi <code>agent_slug</code>; kịch bản triển khai chờ cuộc gọi kết thúc trước khi tắt phiên cũ.</span><span class="e">One client per <code>agent_slug</code>, and your deploy drains in-flight calls before the old session exits.</span></li>
         <li><span class="v">Bạn đã thử nghiệm với gateway thật và xác nhận allowlist đích đủ cho mọi luồng chuyển máy.</span><span class="e">You have tested against a real gateway and confirmed the allowlist covers every transfer path you use.</span></li>
       </ul>
 
       <div class="note">
         <p class="note-title"><span class="v">Giới hạn phạm vi</span><span class="e">Scope of this boundary</span></p>
-        <p><span class="v">Đừng yêu cầu quyền truy cập ARI, SIP, AudioSocket, RTP, Docker hay máy chủ. Mọi thứ bạn cần đều nằm trong tài liệu này; nếu một tình huống không giải quyết được bằng các bề mặt trên, hãy trao đổi với bên vận hành gateway thay vì đi vòng qua biên bảo mật.</span><span class="e">Do not request ARI, SIP, AudioSocket, RTP, Docker, or host access. Everything you need is in this document; if a case cannot be solved with these surfaces, raise it with the gateway operator rather than routing around the boundary.</span></p>
+        <p><span class="v">Nếu một tình huống không giải quyết được bằng API, WebSocket hoặc SDK, hãy gửi log cùng <code>call_id</code>, <code>request_id</code> và payload liên quan cho quản trị viên Gateway để được hỗ trợ.</span><span class="e">If a case cannot be solved through the API, WebSocket, or SDK, send the relevant logs together with <code>call_id</code>, <code>request_id</code>, and payload to the Gateway operator for support.</span></p>
       </div>
     </section>
 
     <footer class="doc-footer">
       <p>
-        <span class="v">Asterisk AI Agent Gateway · Control API 1.0.0 · Realtime protocol v1. Tài liệu này mô tả các bề mặt công khai dành cho đối tác; mọi thay đổi phá vỡ tương thích sẽ đi kèm phiên bản protocol mới.</span>
-        <span class="e">Asterisk AI Agent Gateway · Control API 1.0.0 · Realtime protocol v1. This document covers the partner-facing surfaces only; any breaking change ships as a new protocol version.</span>
+        <span class="v">Gateway · Control API 1.0.0 · Realtime protocol v1. Tài liệu này mô tả các bề mặt công khai dành cho đối tác; mọi thay đổi phá vỡ tương thích sẽ đi kèm phiên bản protocol mới.</span>
+        <span class="e">Gateway · Control API 1.0.0 · Realtime protocol v1. This document covers the partner-facing surfaces only; any breaking change ships as a new protocol version.</span>
       </p>
     </footer>
 

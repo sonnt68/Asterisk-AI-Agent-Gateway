@@ -7,14 +7,17 @@ import contextlib
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypedDict
+from urllib.parse import quote, urlencode
 from uuid import UUID, uuid4
 
 import aiohttp
+from yarl import URL
 
 from .errors import (
     AuthenticationError,
     GatewayError,
+    GatewayHTTPError,
     RateLimitedError,
     SessionSupersededError,
 )
@@ -26,6 +29,7 @@ PROTOCOL_VERSION = "1"
 DEFAULT_HEARTBEAT_SECONDS = 10.0
 TOKEN_PATH = "/api/v1/realtime/tokens"
 REALTIME_PATH = "/v1/realtime"
+PARTNER_CALLS_PATH = "/api/v1/partner/calls"
 
 #: Close code the gateway uses for a dead token or a revoked key.
 CLOSE_UNAUTHORIZED = 4401
@@ -35,6 +39,71 @@ AUTH_RETRY_LIMIT = 3
 
 EventHandler = Callable[[dict[str, Any]], Awaitable[None]]
 AudioHandler = Callable[[str, bytes], Awaitable[None]]
+
+
+class CallRecord(TypedDict, total=False):
+    """A customer-visible durable call summary returned by the Gateway."""
+
+    call_id: str
+    partner_app_id: str | None
+    agent_slug: str | None
+    direction: str
+    source: str
+    status: str
+    terminal: bool
+    answered: bool
+    reason: str | None
+    hangup_cause: int | None
+    dial_status: str | None
+    sequence: int
+    created_at: str
+    updated_at: str
+    answered_at: str | None
+    ended_at: str | None
+    duration_seconds: float | None
+    talk_seconds: float | None
+    history_complete: bool
+
+
+class CallSignal(TypedDict, total=False):
+    """One current call-status snapshot from the durable signal history."""
+
+    type: str
+    call_id: str
+    status: str
+    terminal: bool
+    answered: bool
+    reason: str | None
+    hangup_cause: int | None
+    dial_status: str | None
+    sequence: int
+    updated_at: str
+
+
+class CallListResponse(TypedDict):
+    items: list[CallRecord]
+    next_cursor: str | None
+    page: int | None
+    page_size: int | None
+    total: int | None
+    total_pages: int | None
+
+
+class CallSignalListResponse(TypedDict):
+    items: list[CallSignal]
+    next_cursor: str | None
+
+
+def _query_params(**values: object) -> dict[str, str]:
+    """Drop unset filters while preserving URL-safe string conversion."""
+    return {key: str(value) for key, value in values.items() if value is not None}
+
+
+def _call_history_path(call_id: str) -> str:
+    """Encode a call id as one path segment and reject empty identifiers."""
+    if not isinstance(call_id, str) or not call_id.strip():
+        raise ValueError("call_id must be a non-empty string")
+    return f"{PARTNER_CALLS_PATH}/{quote(call_id, safe='')}"
 
 
 @dataclass(slots=True)
@@ -112,6 +181,70 @@ class GatewayClient:
         finally:
             if owned:
                 await session.close()
+
+    # ----------------------------------------------------------- call history
+
+    async def list_calls(
+        self,
+        *,
+        limit: int = 50,
+        cursor: str | None = None,
+        status: str | None = None,
+        direction: str | None = None,
+        agent_slug: str | None = None,
+        page: int | None = None,
+        started_after: str | None = None,
+        started_before: str | None = None,
+    ) -> CallListResponse:
+        """List this API key's durable calls using its ``calls:read`` scope.
+
+        This is a direct API-key request and does not create a realtime token or
+        open a WebSocket. The Gateway remains the authority for filter bounds,
+        including the maximum page size of 100 and agent slug length of 80.
+        ``page`` selects numbered pagination (1 through 2147483647); the
+        Gateway rejects combining it with ``cursor`` using HTTP 422.
+        """
+        params = _query_params(
+            limit=limit,
+            cursor=cursor,
+            status=status,
+            direction=direction,
+            agent_slug=agent_slug,
+            page=page,
+            started_after=started_after,
+            started_before=started_before,
+        )
+        return await self._history_get(PARTNER_CALLS_PATH, params)
+
+    async def get_call(self, call_id: str) -> CallRecord:
+        """Return one customer-owned durable call summary."""
+        path = _call_history_path(call_id)
+        return await self._history_get(path, {})
+
+    async def list_call_signals(
+        self,
+        call_id: str,
+        *,
+        limit: int = 50,
+        cursor: str | None = None,
+    ) -> CallSignalListResponse:
+        """List status snapshots for one customer-owned call."""
+        params = _query_params(limit=limit, cursor=cursor)
+        return await self._history_get(f"{_call_history_path(call_id)}/signals", params)
+
+    async def _history_get(self, path: str, params: dict[str, str]) -> Any:
+        """Make one safe, non-retrying API-key request for call history."""
+        headers = {
+            "Authorization": f"Bearer {self._api_key}",
+            "Accept": "application/json",
+        }
+        query = urlencode(params)
+        url = f"{self.gateway_url}{path}{f'?{query}' if query else ''}"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(URL(url, encoded=True), headers=headers) as response:
+                if not 200 <= response.status < 300:
+                    raise GatewayHTTPError(response.status, method="GET", path=path)
+                return await response.json()
 
     # ----------------------------------------------------------- connection
 

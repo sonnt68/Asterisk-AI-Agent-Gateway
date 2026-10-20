@@ -1,8 +1,8 @@
 # Keys, tokens, and rotation
 
-The API key is long-lived and goes to exactly one place: the
-`Authorization: Bearer` header of `POST /api/v1/realtime/tokens`. Never in a
-URL — URLs land in proxy logs, browser history, and crash reports.
+The API key is long-lived and goes in the `Authorization: Bearer` header of
+`POST /api/v1/realtime/tokens` or the durable history GET endpoints. Never put
+it in a URL — URLs land in proxy logs, browser history, and crash reports.
 
 The token that comes back expires in five minutes and is used only to open the
 WebSocket. Do not cache it beyond a single handshake; each reconnect mints a
@@ -34,7 +34,10 @@ Retries cannot revive a revoked key. Direct `realtime_token()` and
 
 A key belongs to one organization and one partner app. Its scopes are a subset
 of that app's scopes, so a key can be narrower than the app but never wider.
-Commands outside the granted scopes are refused before Asterisk is called.
+Commands outside the granted scopes are refused by Gateway before execution.
+Durable history reads also require `calls:read`, use the key directly, and are
+restricted to the same organization and partner app; they do not use a
+realtime token or WebSocket session.
 
 ## Rate limits
 

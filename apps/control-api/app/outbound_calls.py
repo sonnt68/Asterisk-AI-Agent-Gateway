@@ -1,15 +1,23 @@
 """Partner-initiated outbound origination through scoped ARI."""
 
+import asyncio
+import logging
 import re
+import time
+from datetime import UTC, datetime
+from uuid import uuid4
 
 import aiohttp
 from gateway.control_policy import require_command_scope
 
+from app.call_signals import call_snapshot, publish_status
 from app.database import SessionLocal
 from app.destination_policy import destination_allowed
 from app.models import PartnerApp
 from app.realtime_registry import Connection, registry
 from app.settings import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 async def originate(connection: Connection, message: dict[str, object]) -> None:
@@ -37,6 +45,18 @@ async def originate(connection: Connection, message: dict[str, object]) -> None:
         raise ValueError("Outbound timeout must be between 1 and 120 seconds")
 
     call = registry.reserve_call(connection)
+    # Bind identities before POST: a busy destination can be destroyed before
+    # Asterisk's HTTP response reaches us. Both Local legs belong to this call.
+    call.channel_id = str(uuid4())
+    call.other_channel_id = str(uuid4())
+    call.accepted = asyncio.Event()
+    call.dial_deadline = time.monotonic() + timeout
+    try:
+        await registry.persist_start(call)
+    except Exception:
+        registry.finish_call(call.id)
+        call.accepted.set()
+        raise
     settings = get_settings()
     auth = aiohttp.BasicAuth(settings.ari_username or "", settings.ari_password or "")
     params = {
@@ -48,19 +68,50 @@ async def originate(connection: Connection, message: dict[str, object]) -> None:
         "app": "asterisk-ai-gateway",
         "appArgs": f"outbound,{call.id}",
         "timeout": str(timeout),
+        "channelId": call.channel_id,
+        "otherChannelId": call.other_channel_id,
     }
     try:
-        async with aiohttp.ClientSession(auth=auth) as session:
+        async with aiohttp.ClientSession(auth=auth, timeout=aiohttp.ClientTimeout(total=10)) as session:
             async with session.post(f"{settings.ari_base_url}/channels", params=params) as response:
                 if response.status >= 400:
                     raise RuntimeError(f"ARI originate returned {response.status}")
-                channel = await response.json()
-        call.channel_id = str(channel["id"])
+                await response.json()
         result = {"type": "outbound.accepted", "call_id": call.id}
         if request_id:
             result["request_id"] = request_id
             connection.remember(request_id, result)
         await connection.send_json(result)
-    except Exception:
+        await publish_status(call, registry, "dialing")
+    except Exception as error:
         registry.finish_call(call.id)
+        call.accepted.set()
+        store = getattr(registry, "history_store", None)
+        if store is not None:
+            call.status = "failed"
+            call.reason = "originate_failed"
+            call.ended_at = datetime.now(UTC)
+            call.duration_seconds = max(
+                0, int((call.ended_at - call.created_at).total_seconds())
+            )
+            call.sequence += 1
+            call.updated_at = call.ended_at.isoformat()
+            try:
+                await store.record(call, call_snapshot(call))
+            except Exception:
+                logger.exception(
+                    "failed to persist originate failure call_id=%s", call.id
+                )
+        # An HTTP/partner transport failure can happen after channel creation.
+        async with aiohttp.ClientSession(auth=auth, timeout=aiohttp.ClientTimeout(total=5)) as session:
+            for channel_id in (call.channel_id, call.other_channel_id):
+                try:
+                    async with session.delete(f"{settings.ari_base_url}/channels/{channel_id}"):
+                        pass
+                except Exception:
+                    pass
+        if isinstance(error, (aiohttp.ClientError, TimeoutError)):
+            raise RuntimeError("Asterisk originate is unavailable") from None
         raise
+    finally:
+        call.accepted.set()

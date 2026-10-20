@@ -1,11 +1,12 @@
-# Asterisk AI Agent Gateway — Node SDK
+# AI Agent Gateway — Node SDK
 
 Realtime protocol v1 client. Exchanges your API key for a five-minute token,
 registers the agent slug, heartbeats, reconnects with a fresh token, and hides
 the 16-byte binary audio envelope.
 
 ```bash
-npm install asterisk-ai-agent-gateway-sdk
+# Public realtime package (currently 0.3.2)
+npm install asterisk-ai-agent-gateway-sdk@0.3.2
 ```
 
 ```js
@@ -48,3 +49,59 @@ Authentication and transport failures share that backoff, so preceding
 transport failures can increase the next authentication retry's delay.
 
 See `examples/echo-agent.mjs` and `docs/partner/integration-guide.html`.
+
+## Durable call history
+
+The history-enabled SDK build exposes the durable history GET API. The current
+published `0.3.2` package does not include these helpers; install the
+operator-provided `0.4.0` tarball until publication is confirmed:
+
+```bash
+npm install "https://gateway.example.com/downloads/sdk-0.4.0/asterisk-ai-agent-gateway-sdk-0.4.0.tgz"
+```
+
+Replace `gateway.example.com` with the artifact host supplied by the operator.
+These helpers send the long-lived API key directly as `Authorization: Bearer`;
+they do not mint a realtime token, open a WebSocket, or depend on a live
+session. The key needs the `calls:read` scope and is restricted to its
+organization and partner app.
+
+```js
+const page = await client.listCalls({
+  limit: 50,                         // 1..100; default 50
+  cursor: nextCursor,                // omit on the first page
+  agentSlug: "support-agent",        // exact historic slug; omit for all
+  status: "completed",
+  direction: "outbound",
+  startedAfter: "2026-10-20T00:00:00Z",
+  startedBefore: "2026-10-21T00:00:00Z",
+});
+
+const call = await client.getCall(callId);
+const signals = await client.listCallSignals(callId, {
+  limit: 50,                         // 1..100; default 50
+  cursor: signalCursor,
+});
+
+// Numbered mode alternative: omit cursor and pass a positive page number.
+const numbered = await client.listCalls({ agentSlug: "support-agent", page: 1 });
+```
+
+`listCalls()` returns `{ items, next_cursor, page, page_size, total,
+total_pages }`; the four numbered metadata fields are `null` in cursor mode.
+`getCall()` returns one call summary, and `listCallSignals()` returns its
+`items` plus `next_cursor`. Node uses camelCase `agentSlug`, `startedAfter`,
+and `startedBefore`; the REST spellings `agent_slug`, `started_after`, and
+`started_before` are also accepted when mirroring query parameters. Pass a
+positive integer `page` to use numbered pagination instead of `cursor`; the
+Gateway rejects both together with `422`, returns `next_cursor: null` in page
+mode, and reports `page_size`, `total`, and `total_pages` (with
+`total_pages >= 1` even for an empty result). Timestamps must include an ISO
+8601 timezone. Call summaries are newest first; signals are oldest first by
+`sequence`. Numbered pages can shift when new calls arrive, so use cursor mode
+for reliable iteration.
+
+History contains metadata and normalized status signals only. It does not store
+audio, transcripts, or phone numbers, and records have no automatic deletion.
+The WebSocket `call.status` read remains session-bounded to active calls and
+the last 256 completed snapshots; use these GET helpers for durable history.

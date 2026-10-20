@@ -13,7 +13,7 @@
 ```
 
 The gateway answers `session.ready`. Heartbeat every 10 seconds; the lease in
-Redis expires after 30. The most recent registration for an `agent_slug`
+Gateway expires after 30. The most recent registration for an `agent_slug`
 wins: the older connection receives `session-superseded`, its calls are hung
 up, and it is closed with `4409`. A superseded client must not reconnect.
 
@@ -62,7 +62,7 @@ A frame is rejected when:
 - it arrives before `session.register` succeeded → `protocol-invalid`
 - it is 16 bytes or shorter, i.e. a UUID with no audio → `audio-invalid`
 - the `call_id` is not an active call on this connection → `call-not-active`
-- the Asterisk-side media path is not ready yet → `media-unavailable`
+- the call's media path is not ready yet → `media-unavailable`
 
 Partner-bound audio sits in a bounded 100-frame queue. A consumer that stalls
 loses its oldest frames — deliberately, so that live audio stays live — and a
@@ -74,3 +74,36 @@ not to buffer more.
 Disconnecting terminates the calls that connection owns. Revoking the key
 blocks new tokens and new sessions but does not cut a call already in
 progress.
+
+## Durable call history
+
+Durable history is a separate HTTPS read surface. Send the long-lived API key
+directly as `Authorization: Bearer`; do not exchange a realtime token and do
+not open a WebSocket for these requests. The key needs `calls:read`, and every
+request is restricted to both its organization and partner app.
+
+```text
+GET /api/v1/partner/calls
+GET /api/v1/partner/calls/<call_id>
+GET /api/v1/partner/calls/<call_id>/signals
+```
+
+The list endpoint accepts `limit` from `1` through `100` (default `50`),
+`cursor`, exact historic `agent_slug`, `status`, `direction`, and
+timezone-qualified ISO 8601 `started_after` / `started_before` filters. A
+positive `page` selects numbered pagination; `page` and `cursor` are mutually
+exclusive and return `422` when combined. Cursor mode returns the existing
+`items` + `next_cursor` envelope with `page`, `page_size`, `total`, and
+`total_pages` all null. Numbered mode returns those four metadata fields as
+integers, sets `next_cursor` to null, and reports `total_pages` of at least `1`
+even for an empty result. New calls can shift numbered pages, so use cursors
+for iteration. The list and signal endpoints return `items` and
+`next_cursor`; signals accept `limit` and `cursor` and are ordered by ascending
+`sequence`.
+Use the SDK history helpers when possible. History stores metadata and
+normalized status signals only; it has no audio, transcripts, or phone numbers,
+and has no automatic deletion. Legacy summaries without partner-app ownership
+are not visible through partner endpoints.
+
+The current published SDK `0.3.2` does not include these helper methods. Use
+the operator-provided `0.4.0` build until publication is confirmed.

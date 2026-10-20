@@ -3,7 +3,16 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -77,3 +86,70 @@ class AuditEvent(Base):
     action: Mapped[str] = mapped_column(String(100))
     target_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class CallRecord(Base):
+    """Durable, partner-safe call metadata and its latest normalized state."""
+
+    __tablename__ = "call_records"
+    __table_args__ = (
+        Index(
+            "ix_call_records_org_app_created_call",
+            "organization_id",
+            "partner_app_id",
+            "created_at",
+            "call_id",
+        ),
+        Index(
+            "ix_call_records_org_created_call",
+            "organization_id",
+            "created_at",
+            "call_id",
+        ),
+    )
+    call_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    organization_id: Mapped[str] = mapped_column(
+        ForeignKey("organizations.id"), index=True
+    )
+    partner_app_id: Mapped[str | None] = mapped_column(
+        ForeignKey("partner_apps.id"), nullable=True, index=True
+    )
+    agent_slug: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    direction: Mapped[str] = mapped_column(String(16))
+    source: Mapped[str] = mapped_column(String(16))
+    status: Mapped[str] = mapped_column(String(32))
+    terminal: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    answered: Mapped[bool] = mapped_column(Boolean, default=False)
+    reason: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    hangup_cause: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    dial_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    sequence: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    answered_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    ended_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    talk_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    history_complete: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class CallSignal(Base):
+    """An immutable normalized status snapshot for one call sequence."""
+
+    __tablename__ = "call_signals"
+    __table_args__ = (UniqueConstraint("call_id", "sequence"),)
+    call_id: Mapped[str] = mapped_column(
+        ForeignKey("call_records.call_id", ondelete="CASCADE"), primary_key=True
+    )
+    sequence: Mapped[int] = mapped_column(Integer, primary_key=True)
+    status: Mapped[str] = mapped_column(String(32))
+    terminal: Mapped[bool] = mapped_column(Boolean, default=False)
+    answered: Mapped[bool] = mapped_column(Boolean, default=False)
+    reason: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    hangup_cause: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    dial_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

@@ -1,6 +1,6 @@
 asyncapi: 3.0.0
 info:
-  title: Asterisk AI Agent Gateway Realtime Protocol
+  title: AI Agent Gateway Realtime Protocol
   version: 1.0.0
   description: >-
     Partner-facing realtime protocol. JSON text frames carry lifecycle and
@@ -25,6 +25,8 @@ channels:
         $ref: '#/components/messages/CallControlAccepted'
       callEnded:
         $ref: '#/components/messages/CallEnded'
+      callStatus:
+        $ref: '#/components/messages/CallStatus'
       outboundOriginate:
         $ref: '#/components/messages/OutboundOriginate'
       outboundAccepted:
@@ -93,6 +95,15 @@ components:
         properties:
           type: { const: call.ended }
           call_id: { type: string, format: uuid }
+          status:
+            enum: [completed, busy, no_answer, rejected, unavailable, failed, cancelled]
+          terminal: { const: true }
+          answered: { type: boolean }
+          sequence: { type: integer, minimum: 1 }
+          updated_at: { type: string, format: date-time }
+          reason: { type: [string, 'null'] }
+          hangup_cause: { type: [integer, 'null'] }
+          dial_status: { type: [string, 'null'] }
     OutboundOriginate:
       payload:
         type: object
@@ -130,3 +141,24 @@ components:
           type: { const: error }
           code: { type: string }
           message: { type: string }
+    CallStatus:
+      description: >-
+        Transition or fresh reply to call.control command call.status
+        (calls:read). The last 256 completed snapshots live only in their
+        owning connection. call.ended includes the same fields after cleanup.
+      payload:
+        type: object
+        required: [type, call_id, status, terminal, answered, sequence, updated_at]
+        properties:
+          type: { const: call.status }
+          call_id: { type: string, format: uuid }
+          request_id: { type: string, format: uuid }
+          status:
+            enum: [dialing, ringing, answered, completed, busy, no_answer, rejected, unavailable, failed, cancelled]
+          terminal: { type: boolean }
+          answered: { type: boolean }
+          sequence: { type: integer, minimum: 1 }
+          updated_at: { type: string, format: date-time }
+          reason: { type: [string, 'null'] }
+          hangup_cause: { type: [integer, 'null'] }
+          dial_status: { type: [string, 'null'] }

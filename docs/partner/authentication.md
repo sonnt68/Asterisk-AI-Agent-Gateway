@@ -1,13 +1,25 @@
 # Partner authentication
 
-Send the long-lived key only to `POST /api/v1/realtime/tokens` using
-`Authorization: Bearer <key>`. The response token expires after five minutes
-and is used only for the WSS handshake. Never place the API key in a URL.
+Send the long-lived key only in an `Authorization: Bearer <key>` header. Use
+it in either of these two places:
+
+- `POST /api/v1/realtime/tokens` to exchange the key for a five-minute token
+  used only for the WSS handshake.
+- The durable history GET routes under `/api/v1/partner/calls` to read call
+  metadata and status signals directly. These requests require `calls:read`,
+  do not mint a realtime token, and do not require a WebSocket session.
+
+Never place the API key in a URL.
 
 Keys are bound to one organization and partner app. Their scopes must be a
-subset of the app scopes. Expired or revoked keys cannot mint tokens; tokens
-whose key was revoked or expired are rejected when opening a new WSS session.
-An already established call is not forcibly interrupted by key rotation.
+subset of the app scopes. Expired or revoked keys cannot mint tokens or read
+history; tokens whose key was revoked or expired are rejected when opening a
+new WSS session. An already established call is not forcibly interrupted by
+key rotation.
+
+History requests enforce both the key's organization and partner-app scope.
+Unknown or non-owned call IDs return the same `404` response, so a caller
+cannot use the history API to discover another app's records.
 
 ## Automatic SDK connection retries
 

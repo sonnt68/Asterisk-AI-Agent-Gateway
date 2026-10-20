@@ -1,11 +1,10 @@
 """call.started must mean the callee answered, and no call may outlive its channel."""
 
 import asyncio
-from types import SimpleNamespace
 
 import pytest
 from app.call_lifecycle import CallLifecycle
-from app.realtime_registry import ActiveCall, ConnectionRegistry
+from app.realtime_registry import ActiveCall, Connection, ConnectionRegistry
 
 
 class FakeAri:
@@ -14,6 +13,14 @@ class FakeAri:
 
     async def delete(self, session, path):
         self.deleted.append(path)
+
+
+class CaptureSocket:
+    def __init__(self) -> None:
+        self.messages: list[dict[str, object]] = []
+
+    async def send_json(self, payload: dict[str, object]) -> None:
+        self.messages.append(payload)
 
 
 @pytest.fixture
@@ -33,7 +40,14 @@ def lifecycle():
 
 
 def _connected(lifecycle) -> ActiveCall:
-    connection = SimpleNamespace(id="conn-1", agent_slug="support-agent")
+    connection = Connection(
+        id="conn-1",
+        organization_id="org-1",
+        partner_app_id="app-1",
+        agent_slug="support-agent",
+        scopes={"calls:originate"},
+        socket=CaptureSocket(),
+    )
     lifecycle.registry.connections["conn-1"] = connection
     call = ActiveCall("call-1", None, "conn-1", "support-agent")
     lifecycle.registry.calls["call-1"] = call
@@ -89,6 +103,77 @@ class TestOutboundWaitsForAnswer:
         )
 
         assert lifecycle.activated == []
+
+    def test_primary_up_before_stasis_does_not_activate(self, lifecycle):
+        call = _connected(lifecycle)
+        call.channel_id = "chan-1"
+
+        asyncio.run(
+            lifecycle._on_channel_state_change(
+                "chan-1", {"id": "chan-1", "state": "Up"}, None
+            )
+        )
+
+        assert lifecycle.activated == []
+        assert call.bridge_id is None
+
+    def test_early_up_then_stale_stasis_ring_activates_once(self, lifecycle):
+        """An early answer must survive a stale Ring snapshot from StasisStart."""
+        call = _connected(lifecycle)
+        call.channel_id = "chan-1"
+
+        async def events_in_ari_order():
+            await lifecycle.on_ari_event(
+                {
+                    "type": "ChannelStateChange",
+                    "channel": {"id": "chan-1", "state": "Up"},
+                },
+                None,
+            )
+            assert call.answered is True
+            assert lifecycle.activated == []
+
+            await lifecycle.on_ari_event(
+                {
+                    "type": "StasisStart",
+                    "channel": {
+                        "id": "chan-1",
+                        "name": "Local/123@from-internal-0001;1",
+                        "state": "Ring",
+                    },
+                    "args": ["outbound", "call-1"],
+                },
+                None,
+            )
+            await lifecycle.on_ari_event(
+                {
+                    "type": "ChannelStateChange",
+                    "channel": {"id": "chan-1", "state": "Up"},
+                },
+                None,
+            )
+
+        asyncio.run(events_in_ari_order())
+
+        assert lifecycle.activated == ["call-1"]
+        assert call.status == "answered"
+        assert call.bridge_id == "bridge-1"
+
+    def test_local_secondary_up_never_answers_or_activates(self, lifecycle):
+        call = _connected(lifecycle)
+        call.channel_id = "primary-1"
+        call.other_channel_id = "secondary-1"
+        call.in_stasis = True
+
+        asyncio.run(
+            lifecycle._on_channel_state_change(
+                "secondary-1", {"id": "secondary-1", "state": "Up"}, None
+            )
+        )
+
+        assert lifecycle.activated == []
+        assert call.answered is False
+        assert call.status == "dialing"
 
     def test_two_answer_events_start_the_call_once(self, lifecycle):
         """Asterisk repeats ChannelStateChange; the second must find it taken."""

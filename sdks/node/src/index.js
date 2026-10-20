@@ -18,6 +18,7 @@ export {
 
 export const PROTOCOL_VERSION = "1";
 export const DEFAULT_HEARTBEAT_MS = 10_000;
+export const PARTNER_CALLS_PATH = "/api/v1/partner/calls";
 
 const INITIAL_BACKOFF_MS = 1000;
 const MAX_AUTHENTICATION_ATTEMPTS = 4;
@@ -55,6 +56,21 @@ export class RateLimitedError extends Error {
     this.name = "RateLimitedError";
   }
 }
+
+/** A non-success response from a Gateway HTTP endpoint. */
+export class GatewayHttpError extends Error {
+  constructor(status, { method = "GET", path = "" } = {}) {
+    super(`Gateway ${method} ${path || "request"} failed with HTTP ${status}`);
+    this.name = "GatewayHttpError";
+    this.status = status;
+    this.statusCode = status;
+    this.method = method;
+    this.path = path;
+  }
+}
+
+// Keep the spelling discoverable for callers that use the Python SDK name.
+export { GatewayHttpError as GatewayHTTPError };
 
 /**
  * One partner connection to one `agentSlug`.
@@ -116,6 +132,47 @@ export class GatewayClient extends EventEmitter {
       throw new Error(`Token exchange failed with HTTP ${response.status}`);
     }
     return (await response.json()).token;
+  }
+
+  /**
+   * List this API key's durable calls using its `calls:read` scope.
+   * `page` selects numbered pagination; the Gateway returns HTTP 422 when it
+   * is combined with `cursor`.
+   */
+  listCalls({
+    limit = 50,
+    cursor,
+    status,
+    direction,
+    agentSlug,
+    page,
+    startedAfter,
+    startedBefore,
+    // Accept wire names too for callers that mirror the REST contract.
+    agent_slug: agentSlugWire,
+    started_after: startedAfterWire,
+    started_before: startedBeforeWire,
+  } = {}) {
+    return this.#historyGet(PARTNER_CALLS_PATH, {
+      limit,
+      cursor,
+      status,
+      direction,
+      agent_slug: agentSlug ?? agentSlugWire,
+      page,
+      started_after: startedAfter ?? startedAfterWire,
+      started_before: startedBefore ?? startedBeforeWire,
+    });
+  }
+
+  /** Return one customer-owned durable call summary. */
+  getCall(callId) {
+    return this.#historyGet(this.#callHistoryPath(callId));
+  }
+
+  /** List status snapshots for one customer-owned call. */
+  listCallSignals(callId, { limit = 50, cursor } = {}) {
+    return this.#historyGet(`${this.#callHistoryPath(callId)}/signals`, { limit, cursor });
   }
 
   /**
@@ -294,6 +351,33 @@ export class GatewayClient extends EventEmitter {
   }
 
   // ------------------------------------------------------------- internals
+
+  async #historyGet(path, parameters = {}) {
+    const url = new URL(`${this.gatewayUrl}${path}`);
+    for (const [key, value] of Object.entries(parameters)) {
+      if (value !== undefined && value !== null) url.searchParams.set(key, String(value));
+    }
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${this.#apiKey}`,
+        Accept: "application/json",
+      },
+    });
+    if (!response.ok) {
+      // Do not copy an arbitrary response body into an exception: a gateway
+      // error body must never become an API-key or tenant-data log sink.
+      throw new GatewayHttpError(response.status, { method: "GET", path });
+    }
+    return response.json();
+  }
+
+  #callHistoryPath(callId) {
+    if (typeof callId !== "string" || callId.trim() === "") {
+      throw new TypeError("callId must be a non-empty string");
+    }
+    return `${PARTNER_CALLS_PATH}/${encodeURIComponent(callId)}`;
+  }
 
   async #connect({ initial = false } = {}) {
     let token;

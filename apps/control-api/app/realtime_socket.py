@@ -5,6 +5,7 @@ import json
 from uuid import UUID
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from gateway.control_policy import require_command_scope
 
 from app.database import SessionLocal
 from app.metrics import audio_bytes, command_outcomes, partner_disconnects
@@ -119,6 +120,12 @@ async def handle_json(
 async def cancel_outbound(
     socket: WebSocket, connection: Connection, payload: dict[str, object]
 ) -> None:
+    try:
+        require_command_scope("outbound.cancel", connection.scopes)
+    except PermissionError as error:
+        command_outcomes.labels("denied").inc()
+        await send_error(socket, "command-denied", str(error))
+        return
     call_id = str(payload.get("call_id", ""))
     if not registry.owns_call(call_id, connection):
         await send_error(socket, "call-not-active", "Outbound call is not active")
@@ -127,7 +134,14 @@ async def cancel_outbound(
     if call.channel_id:
         from app.call_control import execute
 
-        await execute(call.channel_id, "call.hangup", {})
+        previous_end_reason = getattr(call, "requested_end_reason", None)
+        call.requested_end_reason = "completed" if call.answered else "cancelled"
+        try:
+            await execute(call.channel_id, "call.hangup", {})
+        except Exception as error:
+            call.requested_end_reason = previous_end_reason
+            command_outcomes.labels("failed").inc()
+            await send_error(socket, "outbound-failed", str(error))
 
 
 @router.websocket("/v1/realtime")

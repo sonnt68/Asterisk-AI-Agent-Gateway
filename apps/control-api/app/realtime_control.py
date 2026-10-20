@@ -19,10 +19,13 @@ from app.realtime_registry import ActiveCall, Connection, registry
 
 async def handle_control(connection: Connection, message: dict[str, object]) -> None:
     request_id = str(message.get("request_id", ""))
+    command = str(message.get("command"))
+    if command == "call.status":
+        await handle_status_query(connection, message, request_id)
+        return
     if request_id and request_id in connection.idempotency:
         await connection.send_json(connection.idempotency[request_id])
         return
-    command = str(message.get("command"))
     require_command_scope(command, connection.scopes)
     call_id = str(message.get("call_id"))
     if not registry.owns_call(call_id, connection):
@@ -41,7 +44,15 @@ async def handle_control(connection: Connection, message: dict[str, object]) -> 
 
         if not call.channel_id:
             raise LookupError("Call channel is not active yet")
-        result = await execute(call.channel_id, command, payload, call_id=call.id)
+        previous_end_reason = getattr(call, "requested_end_reason", None)
+        if command == "call.hangup":
+            call.requested_end_reason = "completed" if call.answered else "cancelled"
+        try:
+            result = await execute(call.channel_id, command, payload, call_id=call.id)
+        except Exception:
+            if command == "call.hangup":
+                call.requested_end_reason = previous_end_reason
+            raise
     if command == "playback.start" and result:
         call.playbacks.add(result["playback_id"])
     elif command == "playback.stop":
@@ -52,6 +63,30 @@ async def handle_control(connection: Connection, message: dict[str, object]) -> 
     if request_id:
         response["request_id"] = request_id
         connection.remember(request_id, response)
+    await connection.send_json(response)
+    command_outcomes.labels("accepted").inc()
+
+
+async def handle_status_query(
+    connection: Connection, message: dict[str, object], request_id: str
+) -> None:
+    """Send the current or last terminal snapshot for this connection's call."""
+    require_command_scope("call.status", connection.scopes)
+    call_id = str(message.get("call_id"))
+    call = registry.calls.get(call_id)
+    if call:
+        if call.connection_id != connection.id:
+            raise LookupError("No gateway call is available on this connection")
+        from app.call_signals import call_snapshot
+
+        response = call_snapshot(call)
+    else:
+        response = connection.completed_calls.get(call_id)
+    if response is None:
+        raise LookupError("No gateway call is available on this connection")
+    response = dict(response)
+    if request_id:
+        response["request_id"] = request_id
     await connection.send_json(response)
     command_outcomes.labels("accepted").inc()
 

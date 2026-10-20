@@ -10,6 +10,15 @@ from app.settings import Settings
 class AriRequests:
     def __init__(self, settings: Settings) -> None:
         self.base_url = settings.ari_base_url
+        self._username = settings.ari_username or ""
+        self._password = settings.ari_password or ""
+
+    def session(self) -> aiohttp.ClientSession:
+        """Give deferred work a session independent of the ARI WebSocket lifetime."""
+        return aiohttp.ClientSession(
+            auth=aiohttp.BasicAuth(self._username, self._password),
+            timeout=aiohttp.ClientTimeout(total=10),
+        )
 
     async def channel_variable(
         self, session: aiohttp.ClientSession, channel_id: str, variable: str

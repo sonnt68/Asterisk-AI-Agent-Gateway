@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from app.auth import Principal
 from app.control_routes import KeyRequest, create_key
 from app.database import Base
@@ -9,10 +10,24 @@ from app.models import ApiKey, Organization, PartnerApp
 from app.settings import get_settings
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 
-def test_session_cookie_write_requires_configured_origin() -> None:
+@pytest.fixture
+def isolated_app_database(tmp_path, monkeypatch):
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'gateway.db'}",
+        future=True,
+        connect_args={"check_same_thread": False},
+    )
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    monkeypatch.setattr("app.main.SessionLocal", factory)
+    yield
+    engine.dispose()
+
+
+def test_session_cookie_write_requires_configured_origin(isolated_app_database) -> None:
     with TestClient(app) as client:
         client.cookies.set("gateway_session", "present")
         denied = client.post("/api/v1/auth/logout")

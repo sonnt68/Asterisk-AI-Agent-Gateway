@@ -1,10 +1,27 @@
 import pytest
+from app.database import Base
 from app.main import app
 from app.realtime_registry import registry
 from app.security import issue_realtime_token
 from app.settings import get_settings
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 from starlette.websockets import WebSocketDisconnect
+
+
+@pytest.fixture
+def isolated_app_database(tmp_path, monkeypatch):
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'gateway.db'}",
+        future=True,
+        connect_args={"check_same_thread": False},
+    )
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    monkeypatch.setattr("app.main.SessionLocal", factory)
+    yield
+    engine.dispose()
 
 
 def test_realtime_socket_registers_matching_agent() -> None:
@@ -124,6 +141,7 @@ def _register(socket: object, agent_slug: str = "takeover-agent") -> dict[str, o
 
 def test_newest_registration_supersedes_the_old_connection_and_hangs_up_its_calls(
     monkeypatch: pytest.MonkeyPatch,
+    isolated_app_database,
 ) -> None:
     hangups: list[tuple[str, str]] = []
 

@@ -7,6 +7,26 @@ class GatewayError(Exception):
     """Base class for every SDK failure."""
 
 
+class GatewayHTTPError(GatewayError):
+    """A non-success response from a Gateway HTTP endpoint.
+
+    The exception deliberately keeps only request metadata and the HTTP status.
+    Gateway response bodies are not copied into the exception because they may
+    contain credentials or other tenant-controlled data.
+    """
+
+    def __init__(self, status: int, *, method: str = "GET", path: str = "") -> None:
+        self.status = status
+        self.status_code = status
+        self.method = method
+        self.path = path
+        super().__init__(f"Gateway {method} {path or 'request'} failed with HTTP {status}")
+
+
+# Keep the spelling discoverable for callers that use the JavaScript SDK name.
+GatewayHttpError = GatewayHTTPError
+
+
 class AuthenticationError(GatewayError):
     """The API key or realtime token was refused.
 

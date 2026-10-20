@@ -1,6 +1,7 @@
 """Own ARI call events, bridges, partner events, and cleanup."""
 
 import asyncio
+import logging
 import time
 from urllib.parse import quote
 
@@ -8,10 +9,14 @@ import aiohttp
 from gateway.external_media_manager import ExternalMediaManager
 
 from app.ari_requests import AriRequests
+from app.call_events import CallEvents
 from app.call_media import CallMedia
-from app.metrics import ari_events, call_outcomes, call_setup_seconds
+from app.call_signals import publish_status, remember_completed, termination
+from app.metrics import call_outcomes, call_setup_seconds
 from app.realtime_registry import ActiveCall, Connection, ConnectionRegistry
 from app.settings import Settings
+
+logger = logging.getLogger(__name__)
 
 
 class CallLifecycle:
@@ -29,56 +34,7 @@ class CallLifecycle:
     async def on_ari_event(
         self, event: dict[str, object], session: aiohttp.ClientSession
     ) -> None:
-        event_type = event.get("type")
-        ari_events.labels(str(event_type or "unknown")).inc()
-        channel = event.get("channel")
-        if not isinstance(channel, dict) or not isinstance(channel.get("id"), str):
-            return
-        channel_id = channel["id"]
-        if event_type == "StasisEnd":
-            await self._on_stasis_end(channel_id, session)
-            return
-        if event_type == "ChannelStateChange":
-            await self._on_channel_state_change(channel_id, channel, session)
-            return
-        if event_type == "ChannelDestroyed":
-            # A dialled channel that never answered produces no StasisEnd, so
-            # without this the reservation would sit in the registry forever
-            # and active_calls would drift away from reality.
-            call = self.registry.by_channel(channel_id)
-            if call:
-                await self.cleanup(call, session, notify=True)
-            return
-        if event_type != "StasisStart" or str(channel.get("name", "")).startswith(
-            "AudioSocket/"
-        ):
-            return
-        args = event.get("args")
-        if isinstance(args, list) and args and args[0] == "externalmedia":
-            return
-        if isinstance(args, list) and len(args) >= 2 and args[0] == "transfer-helper":
-            await self._attach_transfer_helper(str(args[1]), channel_id, session)
-            return
-        if isinstance(args, list) and len(args) >= 2 and args[0] == "outbound":
-            await self._start_outbound(str(args[1]), channel_id, channel, session)
-            return
-        await self._start_inbound(channel_id, channel, session)
-
-    async def _on_stasis_end(
-        self, channel_id: str, session: aiohttp.ClientSession
-    ) -> None:
-        transfer_call = self.registry.by_transfer_channel(channel_id)
-        if transfer_call:
-            transfer_call.transfer_channel_id = None
-            connection = self.registry.connections.get(transfer_call.connection_id)
-            if connection:
-                await connection.send_json(
-                    {"type": "transfer.ended", "call_id": transfer_call.id}
-                )
-            return
-        call = self.registry.by_channel(channel_id)
-        if call:
-            await self.cleanup(call, session, notify=True)
+        await CallEvents(self).dispatch(event, session)
 
     async def _on_channel_state_change(
         self,
@@ -87,10 +43,16 @@ class CallLifecycle:
         session: aiohttp.ClientSession,
     ) -> None:
         """Activate an outbound call once the callee actually answers."""
-        if str(channel.get("state") or "") != "Up":
-            return
         call = self.registry.by_channel(channel_id)
-        if not call or call.bridge_id or call.activating or call.channel_id != channel_id:
+        if not call or call.channel_id != channel_id:
+            return
+        if channel.get("state") == "Ringing":
+            await publish_status(call, self.registry, "ringing")
+            return
+        if channel.get("state") != "Up":
+            return
+        await publish_status(call, self.registry, "answered")
+        if not call.in_stasis or call.bridge_id or call.activating:
             return
         connection = self.registry.connections.get(call.connection_id)
         if not connection:
@@ -112,16 +74,20 @@ class CallLifecycle:
         if not call or not connection:
             await self.ari.delete(session, f"/channels/{quote(channel_id, safe='')}")
             return
+        if call.channel_id and call.channel_id != channel_id:
+            return
         call.channel_id = channel_id
+        call.in_stasis = True
         if call.activating or call.bridge_id:
             return
-        if str(channel.get("state") or "") != "Up":
+        if str(channel.get("state") or "") != "Up" and not call.answered:
             # A dialled channel enters Stasis while the far end is still
             # ringing. Activating here would answer our own leg and emit
             # call.started, so the partner would greet a phone nobody has
             # picked up and its audio would land nowhere. Wait for the
             # ChannelStateChange that says the callee answered.
             return
+        await publish_status(call, self.registry, "answered")
         call.activating = True
         await self._activate_call(call, channel, connection, session)
 
@@ -165,6 +131,15 @@ class CallLifecycle:
             await self.ari.delete(session, f"/channels/{quote(channel_id, safe='')}")
             return
         call = self.registry.create_call(channel_id, connection)
+        try:
+            await self.registry.persist_start(call)
+        except Exception:
+            logger.exception("inbound call history start failed call_id=%s", call.id)
+            self.registry.finish_call(call.id)
+            await self.ari.delete(session, f"/channels/{quote(channel_id, safe='')}")
+            return
+        call.in_stasis = True
+        call.activating = True
         await self._activate_call(call, channel, connection, session)
 
     async def _activate_call(
@@ -181,6 +156,7 @@ class CallLifecycle:
             await self.ari.post(
                 session, f"/channels/{quote(call.channel_id, safe='')}/answer"
             )
+            await publish_status(call, self.registry, "answered")
             bridge = await self.ari.post(session, "/bridges", type="mixing")
             call.bridge_id = str(bridge["id"])
             await self.ari.post(
@@ -204,7 +180,7 @@ class CallLifecycle:
             call_outcomes.labels("started").inc()
         except Exception:
             call_outcomes.labels("failed").inc()
-            await self.cleanup(call, session, notify=False)
+            await self.cleanup(call, session, notify=True, reason="media_failed")
             raise
 
     async def send_to_asterisk(self, call: ActiveCall, payload: bytes) -> bool:
@@ -223,15 +199,27 @@ class CallLifecycle:
         await self.media.disconnect(connection_id)
 
     async def cleanup(
-        self, call: ActiveCall, session: aiohttp.ClientSession, notify: bool
+        self, call: ActiveCall, session: aiohttp.ClientSession, notify: bool,
+        reason: str | None = None,
     ) -> None:
         if not self.registry.finish_call(call.id):
             return
+        if call.end_task and call.end_task is not asyncio.current_task():
+            call.end_task.cancel()
+        status, call.reason = termination(call)
+        if reason:
+            status, call.reason = "failed", reason
+        try:
+            await publish_status(call, self.registry, status)
+        except Exception:
+            pass
+        snapshot = remember_completed(call, self.registry)
         await self.media.close(call)
         for channel_id in (
             call.transfer_channel_id,
             call.media_channel_id,
             call.channel_id,
+            call.other_channel_id,
         ):
             if channel_id:
                 try:
@@ -250,7 +238,7 @@ class CallLifecycle:
         connection = self.registry.connections.get(call.connection_id)
         if notify and connection:
             try:
-                await connection.send_json({"type": "call.ended", "call_id": call.id})
+                await connection.send_json({**snapshot, "type": "call.ended"})
             except Exception:
                 pass
         call_outcomes.labels("ended").inc()

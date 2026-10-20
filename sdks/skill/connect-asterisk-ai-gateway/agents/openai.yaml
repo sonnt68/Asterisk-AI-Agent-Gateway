@@ -1,4 +1,4 @@
 interface:
-  display_name: "Connect Asterisk AI Gateway"
-  short_description: "Build or debug an AI voice agent on the Asterisk AI Agent Gateway."
-  default_prompt: "Connect this AI agent to the Asterisk AI Agent Gateway."
+  display_name: "Connect AI Agent Gateway"
+  short_description: "Build or debug a Gateway voice-agent integration."
+  default_prompt: "Use $connect-asterisk-ai-gateway to connect this AI agent to Gateway."

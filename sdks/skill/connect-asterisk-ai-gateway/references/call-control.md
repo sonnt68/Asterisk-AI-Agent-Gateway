@@ -14,13 +14,14 @@ UUID `request_id`:
 ```
 
 Reusing a `request_id` on the same connection returns the remembered
-acceptance instead of repeating the Asterisk action. This is what makes a
+acceptance instead of repeating the call-control action. This is what makes a
 retry safe — generate the UUID once per logical command, not once per attempt.
 
 ## Commands and required scopes
 
 | Commands | Scope |
 |---|---|
+| `call.status` (fresh snapshot; recent completed calls supported) | `calls:read` |
 | `audio.clear` | `media:control` |
 | `dtmf.send` | `calls:dtmf` |
 | `call.hold`, `call.resume` | `calls:hold` |
@@ -33,8 +34,14 @@ retry safe — generate the UUID once per logical command, not once per attempt.
 | `channel.set_var` | `channel:variables` |
 | `outbound.originate`, `outbound.cancel` | `calls:originate` |
 
+`call.status` reads the current session snapshot on the registered WebSocket.
+Active calls and the last 256 completed snapshots remain available only to that
+connection. Use the durable GET history helpers for reads that survive
+reconnects or process restarts; they use the API key directly and also require
+`calls:read`.
+
 Unknown, out-of-scope, cross-call, and non-allowlisted commands are all
-rejected before ARI is invoked.
+rejected by Gateway before execution.
 
 ## Destinations and the allowlist
 
@@ -46,7 +53,7 @@ prefix rule instead: `from-internal:84*` permits any longer extension starting
 `84` in that context, which is how outbound PSTN works when the callee differs
 on every call. The rules are deliberately narrow:
 
-- Only a **trailing** asterisk is a wildcard, so feature codes like `*43` stay
+- Only a **trailing** `*` is a wildcard, so feature codes like `*43` stay
   exact destinations.
 - A prefix needs at least two literal characters — one is not a restriction.
 - A rule never matches the bare prefix itself (`84*` does not permit dialling
@@ -57,18 +64,10 @@ first, and changing it is the operator's call, not yours.
 
 ## Which context dials out
 
-`outbound.originate` is dialled as `Local/<extension>@<context>`, so the
-`context` you send must be one that routes the number *outward*. On FreePBX
-that is `from-internal`, which carries the outbound routes.
-
-The inbound trunk context — usually `from-trunk` — is the wrong choice even
-though it reads like "the context my trunk uses". It matches the DIDs of
-incoming calls and holds no route that sends a number out, so `Local/84…@from-trunk`
-matches no extension. Allowlisting it does not fix that: the call then fails
-inside the dialplan instead of at the boundary, which is harder to diagnose,
-not easier.
-
-Settle the context with the operator before asking for the allowlist entry.
+For `outbound.originate`, use the outbound `context` supplied by the Gateway
+operator. Treat it as a routing identifier. An allowlist match alone does not
+establish that the destination is reachable; ask the operator to confirm the
+route before requesting an allowlist change.
 
 ## Transfers
 
@@ -80,7 +79,7 @@ hand the caller off with the approved blind route.
 
 `playback.start` takes `{"media": "sound:<name>"}` or `recording:<name>`. No
 other scheme is accepted, because `file:` and `http:` would reach the host
-filesystem or the network through ARI. Names allow `A-Za-z0-9/_-` only and may
+filesystem or the network. Names allow `A-Za-z0-9/_-` only and may
 not contain `..`.
 
 The gateway mints the playback id and returns it on the acceptance:
@@ -96,12 +95,11 @@ started, and a call may hold eight concurrent playbacks.
 
 `channel.set_var` takes `{"variable": "AI_INTENT", "value": "book_flight"}`.
 Names must match `AI_[A-Z0-9_]{1,60}`. The prefix keeps you inside your own
-namespace, and rejecting `(` blocks dialplan functions such as `CHANNEL(...)`,
-`CDR(...)`, and `SHELL(...)`, which execute rather than assign. Values are
+namespace; function expressions are not allowed. Values are
 capped at 512 characters and may not contain control characters.
 
 ## Handing the call back
 
 `dialplan.continue` takes the same `{"context", "extension"}` shape and is
-checked against the same allowlist. Use it to return a call to the dialplan
+checked against the same allowlist. Use it to return a call to the operator's call flow
 when the agent is finished with it.

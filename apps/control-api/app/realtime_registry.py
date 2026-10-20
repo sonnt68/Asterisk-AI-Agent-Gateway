@@ -1,7 +1,9 @@
 """In-process WebSocket handles and gateway call ownership."""
 
 import asyncio
+from collections import deque
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from fastapi import WebSocket
@@ -28,6 +30,7 @@ class Connection:
     )
     audio_sender: asyncio.Task[None] | None = None
     idempotency: dict[str, dict[str, object]] = field(default_factory=dict)
+    completed_calls: dict[str, dict[str, object]] = field(default_factory=dict)
 
     async def send_json(self, payload: dict[str, object]) -> None:
         async with self.send_lock:
@@ -73,6 +76,13 @@ class ActiveCall:
     channel_id: str | None
     connection_id: str
     agent_slug: str
+    # These fields are captured from the authenticated connection at creation
+    # time and are never inferred from later ARI events.
+    organization_id: str | None = None
+    partner_app_id: str | None = None
+    direction: str = "unknown"
+    source: str = "gateway"
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     bridge_id: str | None = None
     media_channel_id: str | None = None
     media_connection_id: str | None = None
@@ -84,12 +94,32 @@ class ActiveCall:
     # enough: it lands partway through _activate_call, and a second answer
     # event arriving in that window would start the same call twice.
     activating: bool = False
+    other_channel_id: str | None = None
+    in_stasis: bool = False
+    status: str = "dialing"
+    sequence: int = 0
+    answered: bool = False
+    answered_at: datetime | None = None
+    ended_at: datetime | None = None
+    duration_seconds: int | None = None
+    talk_seconds: int | None = None
+    hangup_cause: int | None = None
+    dial_status: str | None = None
+    requested_end_reason: str | None = None
+    reason: str | None = None
+    updated_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    dial_deadline: float | None = None
+    accepted: asyncio.Event | None = None
+    end_task: asyncio.Task[None] | None = None
+    pending_events: deque[dict[str, object]] = field(default_factory=deque)
+    event_task: asyncio.Task[None] | None = None
 
 
 class ConnectionRegistry:
-    def __init__(self) -> None:
+    def __init__(self, history_store: object | None = None) -> None:
         self.connections: dict[str, Connection] = {}
         self.calls: dict[str, ActiveCall] = {}
+        self.history_store = history_store
 
     def register(self, payload: dict[str, str], socket: WebSocket) -> Connection:
         connection = Connection(
@@ -114,20 +144,52 @@ class ConnectionRegistry:
         return next((item for item in self.connections.values() if item.agent_slug == agent_slug), None)
 
     def create_call(self, channel_id: str, connection: Connection) -> ActiveCall:
-        call = ActiveCall(str(uuid4()), channel_id, connection.id, connection.agent_slug)
+        call = ActiveCall(
+            str(uuid4()),
+            channel_id,
+            connection.id,
+            connection.agent_slug,
+            organization_id=connection.organization_id,
+            partner_app_id=connection.partner_app_id,
+            direction="inbound",
+        )
         self.calls[call.id] = call
         active_calls.set(len(self.calls))
         return call
 
     def reserve_call(self, connection: Connection) -> ActiveCall:
-        call = ActiveCall(str(uuid4()), None, connection.id, connection.agent_slug)
+        call = ActiveCall(
+            str(uuid4()),
+            None,
+            connection.id,
+            connection.agent_slug,
+            organization_id=connection.organization_id,
+            partner_app_id=connection.partner_app_id,
+            direction="outbound",
+        )
         self.calls[call.id] = call
         active_calls.set(len(self.calls))
         return call
 
+    async def persist_start(self, call: ActiveCall) -> None:
+        """Persist a new call before an ARI operation can create media."""
+        if self.history_store is not None:
+            await self.history_store.start(call)
+
+    async def flush_history(self) -> int:
+        """Flush queued signal writes when the application is shutting down."""
+        if self.history_store is None:
+            return 0
+        flush = getattr(self.history_store, "flush_pending", None)
+        if flush is None:
+            return 0
+        return await flush()
+
     def by_channel(self, channel_id: str) -> ActiveCall | None:
         return next(
-            (call for call in self.calls.values() if channel_id in {call.channel_id, call.media_channel_id}),
+            (call for call in self.calls.values() if channel_id in {
+                call.channel_id, call.other_channel_id, call.media_channel_id
+            }),
             None,
         )
 

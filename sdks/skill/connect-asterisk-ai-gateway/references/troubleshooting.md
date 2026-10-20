@@ -10,9 +10,9 @@ The gateway sends `{"type": "error", "code": "...", "message": "..."}`.
 | `protocol-invalid` | a frame arrived out of order — usually audio before `session.register` succeeded | wait for `session.ready` |
 | `audio-invalid` | the binary frame was 16 bytes or shorter, i.e. a UUID with no audio | do not send empty chunks |
 | `call-not-active` | the `call_id` is unknown, ended, or belongs to another connection | release state on `call.ended`; never reuse a stale id |
-| `media-unavailable` | the Asterisk-side media path is not ready | wait for `call.started`; brief occurrences at call setup are normal |
+| `media-unavailable` | the call's media path is not ready | wait for `call.started`; brief occurrences at call setup are normal |
 | `command-denied` | the key lacks the scope, or the destination is not allowlisted | see `call-control.md`; the fix is on the operator's side |
-| `command-failed` | the command was allowed but Asterisk refused it | read `message`; often the channel changed state underneath |
+| `command-failed` | the command could not execute in the current call state | read `message` and check the call's current state |
 | `outbound-failed` | origination was rejected or the callee never answered | check the destination against the allowlist, and check the context can dial out — see below |
 
 Transport-level closes are different from these. `4401` on the WebSocket means
@@ -27,6 +27,12 @@ revived by retrying.
 Transport failures share the same backoff and can increase the next delay
 beyond the authentication-only 1/2/4-second sequence, up to the configured cap.
 
+History GET requests return HTTP `422` when a filter is invalid. In particular,
+`page` must be at least `1`, and `page` cannot be combined with `cursor`; omit
+the cursor when requesting numbered pagination. Use cursor pagination when
+iterating a changing history because numbered pages can shift as new calls
+arrive.
+
 Set `reconnect=False`/`false` to disable this behavior. `close()` stops
 pending retries; Python task cancellation also stops them. Direct
 `realtime_token()`/`realtimeToken()` calls are single-request helpers and do
@@ -35,7 +41,7 @@ not retry themselves.
 ## `outbound-failed`: not in the partner app allowlist
 
 The full message is *Outbound destination is not in the partner app
-allowlist*. The gateway refused the call before it reached Asterisk, so
+allowlist*. Gateway refused the call before dialing, so
 nothing was dialled. It is a configuration error on the operator's side and
 never resolves on retry.
 
@@ -44,13 +50,11 @@ Two things have to be true, and only the first one produces this message:
 1. The `context:extension` you sent is accepted by the allowlist. Outbound
    PSTN needs a prefix rule such as `from-internal:84*`, because the callee
    differs on every call.
-2. The context can actually dial out. Origination runs
-   `Local/<extension>@<context>`, so the context needs an outbound route —
-   `from-internal` on FreePBX. An inbound trunk context like `from-trunk`
-   matches incoming DIDs and routes nothing outward.
+2. The `context` is the outbound routing identifier supplied by the Gateway
+   operator and can reach the destination.
 
 Getting only the first one right moves the failure from a clear rejection at
-the boundary into a call that Asterisk accepts and then drops. Send the
+the boundary into an accepted attempt that later fails. Send the
 operator the exact `context` and `extension` from your log and ask them to
 confirm both.
 

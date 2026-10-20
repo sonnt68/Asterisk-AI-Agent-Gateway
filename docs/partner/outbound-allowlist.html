@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Asterisk AI Agent Gateway — vì sao outbound.originate bị từ chối với outbound-failed, và hai điều kiện phải sửa / why an outbound call is refused, and the two conditions to fix.">
+<meta name="description" content="Gateway — vì sao outbound.originate bị từ chối với outbound-failed, và hai điều kiện phải sửa / why an outbound call is refused, and the two conditions to fix.">
 <title>Gọi ra bị allowlist chặn</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -394,7 +394,7 @@ code {
 <body>
 <div class="langbar">
   <div class="langbar-inner">
-    <span class="wordmark">Asterisk AI Agent Gateway · Partner v1</span>
+    <span class="wordmark">Gateway · Partner v1</span>
     <div class="switch" role="group" aria-label="Ngôn ngữ tài liệu / Document language">
       <button type="button" data-lang="vi" aria-pressed="false">VI</button>
       <button type="button" data-lang="en" aria-pressed="true">EN</button>
@@ -410,8 +410,8 @@ code {
       <span class="e">An outbound call the allowlist refused</span>
     </h1>
     <p class="lede">
-      <span class="v">Gateway từ chối cuộc gọi trước khi chạm tới Asterisk. Đây là lỗi cấu hình — thử lại không giúp ích — và có hai điều kiện phải đúng, không phải một.</span>
-      <span class="e">The gateway refused the call before it reached Asterisk. This is a configuration error — retrying never helps — and two conditions have to be true, not one.</span>
+      <span class="v">Gateway từ chối cuộc gọi ngay tại biên API. Đây là lỗi cấu hình — thử lại không giúp ích — và có hai điều kiện phải đúng, không phải một.</span>
+      <span class="e">Gateway refused the call at the API boundary. This is a configuration error — retrying never helps — and two conditions have to be true, not one.</span>
     </p>
     <div class="masthead-meta">
       <span><b>Code</b> outbound-failed</span>
@@ -435,8 +435,8 @@ Outbound destination is not in the partner app allowlist</code></pre>
       </div>
 
       <p>
-        <span class="v">Yêu cầu đã gửi là <code>from-trunk:84984497334</code>. Gateway dừng nó tại ranh giới đối tác: không có kênh nào được tạo, không có gì chạm tới tổng đài.</span>
-        <span class="e">The request sent was <code>from-trunk:84984497334</code>. The gateway stopped it at the partner boundary: no channel was created, nothing reached the PBX.</span>
+        <span class="v">Yêu cầu đã gửi là <code>from-trunk:84984497334</code>. Gateway dừng yêu cầu tại ranh giới đối tác: chưa có cuộc gọi nào được tạo.</span>
+        <span class="e">The request sent was <code>from-trunk:84984497334</code>. Gateway stopped it at the partner boundary; no call was created.</span>
       </p>
     </section>
 
@@ -448,20 +448,20 @@ Outbound destination is not in the partner app allowlist</code></pre>
         <li>
           <h3><span class="v">Đích nằm trong allowlist của partner app</span><span class="e">The destination is in the partner app allowlist</span></h3>
           <p>
-            <span class="v">Allowlist hiện chưa có luật nào khớp <code>from-trunk:84984497334</code>. Gọi ra PSTN cần <strong>luật tiền tố</strong>, vì số đích đổi theo từng cuộc gọi — dạng <code>from-internal:84*</code>. Chỉ dấu sao ở cuối mới là ký tự đại diện, và tiền tố cần tối thiểu hai ký tự thật.</span>
-            <span class="e">Nothing in the allowlist matches <code>from-trunk:84984497334</code>. Outbound PSTN needs a <strong>prefix rule</strong>, because the callee differs on every call — <code>from-internal:84*</code> is the shape. Only a trailing asterisk is a wildcard, and a prefix needs at least two literal characters.</span>
+            <span class="v">Allowlist hiện chưa có luật nào khớp <code>from-trunk:84984497334</code>. Gọi ra với số đích thay đổi theo từng cuộc gọi cần <strong>luật tiền tố</strong> — dạng <code>from-internal:84*</code>. Chỉ dấu sao ở cuối mới là ký tự đại diện, và tiền tố cần tối thiểu hai ký tự thật.</span>
+            <span class="e">Nothing in the allowlist matches <code>from-trunk:84984497334</code>. Outbound calls with changing destinations need a <strong>prefix rule</strong> — <code>from-internal:84*</code> is the shape. Only a trailing <code>*</code> is a wildcard, and a prefix needs at least two literal characters.</span>
           </p>
           <p class="verdict"><span class="v">→ đang sai, và đây là thứ bạn đang thấy</span><span class="e">→ currently false, and this is what you are seeing</span></p>
         </li>
         <li>
-          <h3><span class="v">Context đó thực sự gọi ra được</span><span class="e">That context can actually dial out</span></h3>
+          <h3><span class="v">Context do Gateway cung cấp có thể gọi ra</span><span class="e">The Gateway supplied context can dial out</span></h3>
           <p>
-            <span class="v">Gateway khởi tạo cuộc gọi bằng <code>Local/&lt;extension&gt;@&lt;context&gt;</code>, nên <code>context</code> phải chứa outbound route — trên FreePBX là <code>from-internal</code>.</span>
-            <span class="e">The gateway originates the call as <code>Local/&lt;extension&gt;@&lt;context&gt;</code>, so the <code>context</code> must hold an outbound route — on FreePBX that is <code>from-internal</code>.</span>
+            <span class="v"><code>context</code> là route identifier do quản trị viên Gateway cung cấp. Trong ví dụ này, route đúng là <code>from-internal</code>; hãy dùng đúng giá trị được cung cấp cho partner app.</span>
+            <span class="e"><code>context</code> is a route identifier supplied by the Gateway operator. In this example the correct route is <code>from-internal</code>; use the exact value supplied for the partner app.</span>
           </p>
           <p>
-            <span class="v"><code>from-trunk</code> là context <em>chiều vào</em>: nó khớp DID của cuộc gọi đến và không có route nào đẩy số ra ngoài. Thêm nó vào allowlist không sửa được gì — chỉ đổi một lỗi rõ ràng thành một cuộc gọi rớt im lặng bên trong dialplan.</span>
-            <span class="e"><code>from-trunk</code> is the <em>inbound</em> context: it matches the DIDs of incoming calls and holds no route that sends a number out. Allowlisting it fixes nothing — it turns a clear rejection into a call that fails silently inside the dialplan.</span>
+            <span class="v">Trong ví dụ này, <code>from-trunk</code> không phải route gọi ra. Thêm nó vào allowlist không sửa được route; hãy hỏi quản trị viên Gateway khi chưa chắc giá trị <code>context</code> nào được cấp.</span>
+            <span class="e">In this example, <code>from-trunk</code> is not an outbound route. Adding it to the allowlist does not repair the route; ask the Gateway operator when you are unsure which <code>context</code> was assigned.</span>
           </p>
           <p class="verdict"><span class="v">→ cũng đang sai, và sẽ lộ ra ngay sau khi sửa điều kiện 1</span><span class="e">→ also false, and it surfaces the moment condition 1 is fixed</span></p>
         </li>
@@ -475,13 +475,13 @@ Outbound destination is not in the partner app allowlist</code></pre>
       <div class="note">
         <p class="note-title"><span class="v">Phía bạn</span><span class="e">Your side</span></p>
         <p>
-          <span class="v">Đổi <code>OUTBOUND_CONTEXT</code> từ <code>from-trunk</code> sang context có outbound route trên tổng đài — thường là <code>from-internal</code>. Nếu tổng đài không phải FreePBX, hỏi quản trị viên tên context tương ứng. Số đích giữ nguyên định dạng E.164 không dấu cộng: <code>84984497334</code>.</span>
-          <span class="e">Change <code>OUTBOUND_CONTEXT</code> from <code>from-trunk</code> to a context that has an outbound route on the PBX — usually <code>from-internal</code>. If the PBX is not FreePBX, ask the operator for the equivalent context name. The destination stays in E.164 without the plus: <code>84984497334</code>.</span>
+          <span class="v">Đổi <code>OUTBOUND_CONTEXT</code> từ <code>from-trunk</code> sang route identifier do quản trị viên Gateway cung cấp — trong ví dụ này là <code>from-internal</code>. Số đích giữ nguyên định dạng E.164 không dấu cộng: <code>84984497334</code>.</span>
+          <span class="e">Change <code>OUTBOUND_CONTEXT</code> from <code>from-trunk</code> to the route identifier supplied by the Gateway operator — in this example, <code>from-internal</code>. Keep the destination in E.164 format without the plus sign: <code>84984497334</code>.</span>
         </p>
       </div>
 
       <div class="note note-warn">
-        <p class="note-title"><span class="v">Phía quản trị viên gateway</span><span class="e">The gateway operator's side</span></p>
+        <p class="note-title"><span class="v">Phía quản trị viên Gateway</span><span class="e">The Gateway operator's side</span></p>
         <p>
           <span class="v">Thêm <code>from-internal:84*</code> vào allowlist của partner app. Trường này là <strong>ghi đè</strong>, không phải nối thêm: phải gửi lại toàn bộ danh sách đang có cộng entry mới, nếu không các đích chuyển máy hiện tại sẽ mất.</span>
           <span class="e">Add <code>from-internal:84*</code> to the partner app's allowlist. The field <strong>replaces</strong>, it does not append: resend the full existing list plus the new entry, or the current transfer destinations are lost.</span>
@@ -489,18 +489,13 @@ Outbound destination is not in the partner app allowlist</code></pre>
       </div>
 
       <p>
-        <span class="v">Trước khi thêm entry, nhờ quản trị viên quay thử trực tiếp trên tổng đài. Nếu lệnh này không đổ chuông thì không entry allowlist nào cứu được — vấn đề nằm ở dialplan, không nằm ở gateway.</span>
-        <span class="e">Before adding the entry, have the operator dial it by hand on the PBX. If this does not ring, no allowlist entry will make it ring — the problem is in the dialplan, not the gateway.</span>
+        <span class="v">Nếu chưa chắc route có hoạt động, gửi cho quản trị viên Gateway chính xác <code>context</code>, <code>extension</code> và thông báo lỗi. Quản trị viên sẽ kiểm tra route và allowlist ở phía vận hành.</span>
+        <span class="e">If you are unsure whether the route is active, send the Gateway operator the exact <code>context</code>, <code>extension</code>, and error message. The operator will check the route and allowlist on the operating side.</span>
       </p>
 
-      <div class="code">
-        <div class="code-head"><span>asterisk cli</span><span><span class="v">phía quản trị viên</span><span class="e">operator side</span></span></div>
-        <pre><code>asterisk -rx 'channel originate Local/84984497334@from-internal application Echo'</code></pre>
-      </div>
-
       <p>
-        <span class="v">Sau khi allowlist được cập nhật, gọi lại là được — không cần khởi động lại agent. Allowlist được đọc từ database tại đúng thời điểm mỗi lần originate.</span>
-        <span class="e">Once the allowlist is updated, call again — no need to restart the agent. The allowlist is read from the database at the moment of each origination.</span>
+        <span class="v">Sau khi Gateway cập nhật allowlist, gửi lại yêu cầu gọi ra — không cần khởi động lại agent. Thay đổi được áp dụng cho yêu cầu gọi tiếp theo.</span>
+        <span class="e">Once Gateway updates the allowlist, send the outbound request again; you do not need to restart the agent. The change applies to the next outbound request.</span>
       </p>
     </section>
 
@@ -511,17 +506,17 @@ Outbound destination is not in the partner app allowlist</code></pre>
       <div class="code">
         <div class="code-head"><span><span class="v">luồng mong đợi</span><span class="e">expected sequence</span></span><span>outbound</span></div>
         <pre><code>outbound.originate   from-internal:84984497334
-  -> outbound.accepted   { call_id }   <span class="v">Asterisk đã nhận yêu cầu</span><span class="e">Asterisk took the request</span>
+  -> outbound.accepted   { call_id }   <span class="v">Gateway đã chấp nhận yêu cầu</span><span class="e">Gateway accepted the request</span>
   -> call.started        { call_id }   <span class="v">đã nhấc máy, audio bắt đầu chạy</span><span class="e">answered, audio starts flowing</span></code></pre>
       </div>
 
       <p>
-        <span class="v"><code>outbound.accepted</code> chỉ có nghĩa là Asterisk nhận yêu cầu, chưa phải đã có người nghe. Cuộc gọi chỉ thực sự sống khi <code>call.started</code> về với cùng <code>call_id</code>.</span>
-        <span class="e"><code>outbound.accepted</code> only means Asterisk took the request, not that anyone answered. The call is live only when <code>call.started</code> arrives for the same <code>call_id</code>.</span>
+        <span class="v"><code>outbound.accepted</code> chỉ có nghĩa là Gateway đã chấp nhận yêu cầu, chưa phải đã có người nghe. Cuộc gọi chỉ thực sự sẵn sàng cho media khi <code>call.started</code> về với cùng <code>call_id</code>.</span>
+        <span class="e"><code>outbound.accepted</code> only means Gateway accepted the request, not that anyone answered. The call is media-ready only when <code>call.started</code> arrives for the same <code>call_id</code>.</span>
       </p>
       <p>
-        <span class="v">Nếu <code>outbound.accepted</code> về nhưng <code>call.started</code> không bao giờ tới, đó chính là điều kiện 2: context không định tuyến số ra ngoài được.</span>
-        <span class="e">If <code>outbound.accepted</code> arrives but <code>call.started</code> never does, that is condition 2: the context cannot route the number outward.</span>
+        <span class="v">Nếu <code>outbound.accepted</code> về nhưng <code>call.started</code> không tới, hãy gửi <code>call_id</code> cùng <code>context</code> và <code>extension</code> cho quản trị viên Gateway để kiểm tra route.</span>
+        <span class="e">If <code>outbound.accepted</code> arrives but <code>call.started</code> does not, send the <code>call_id</code>, <code>context</code>, and <code>extension</code> to the Gateway operator so they can check the route.</span>
       </p>
     </section>
 

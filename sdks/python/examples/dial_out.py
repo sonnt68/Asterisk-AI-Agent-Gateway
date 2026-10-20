@@ -9,10 +9,9 @@
 Two things have to be true before this rings, and only the first one produces
 an error you can see: the destination must be allowlisted on the partner app
 (outbound PSTN needs a prefix rule such as `from-internal:84*`, since the
-callee differs per call), and the context must be one that actually routes a
-number outward. Origination dials `Local/<extension>@<context>`, so an inbound
-trunk context matches incoming DIDs and routes nothing out — it passes the
-allowlist and then fails inside the dialplan.
+callee differs per call), and the context must be the outbound routing
+identifier supplied by the Gateway operator. Ask the operator to confirm
+both the route and the allowlist before running this example.
 """
 
 from __future__ import annotations
@@ -62,7 +61,7 @@ async def main() -> int:
         async for item in client.stream():
             if isinstance(item, Audio):
                 # Send it straight back, so the callee hearing themselves
-                # proves partner -> gateway -> Asterisk and the return path.
+                # proves the complete Gateway audio round trip.
                 await client.send_audio(item.call_id, item.pcm)
                 continue
 
@@ -74,8 +73,8 @@ async def main() -> int:
                 LOGGER.info("dialling %s:%s request_id=%s", context, number, request_id)
 
             elif kind == "outbound.accepted":
-                # Accepted is not answered. Nothing is live until call.started.
-                LOGGER.info("Asterisk took the request, call_id=%s — ringing", item["call_id"])
+                # Acceptance does not establish ringing or an answer.
+                LOGGER.info("Gateway accepted the request, call_id=%s", item["call_id"])
 
             elif kind == "call.started":
                 media = item.get("media", {})
@@ -97,7 +96,7 @@ async def main() -> int:
                 LOGGER.error("gateway error [%s] %s", item.get("code"), item.get("message"))
                 if item.get("code") == "outbound-failed":
                     LOGGER.error(
-                        "The gateway refused this before Asterisk saw it, so retrying "
+                        "Gateway refused the outbound request, so retrying "
                         "will not help. Ask the operator to confirm both: that "
                         "'%s:%s' is accepted by the partner app allowlist, and that "
                         "'%s' is a context with an outbound route.",
