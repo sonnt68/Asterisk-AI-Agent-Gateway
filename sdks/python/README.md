@@ -1,12 +1,13 @@
 # AI Agent Gateway — Python SDK
 
-Realtime protocol v1 client. Exchanges your API key for a five-minute token,
-registers the agent slug, heartbeats, reconnects with a fresh token, and hides
-the 16-byte binary audio envelope.
+SDK 0.4.0 client for realtime protocol v1 and durable call history. It
+exchanges your API key for a five-minute token, registers the agent slug,
+heartbeats, reconnects with a fresh token, and hides the 16-byte binary audio
+envelope.
 
 ```bash
-# Public realtime package (currently 0.3.2)
-pip install asterisk-ai-agent-gateway-sdk==0.3.2
+# Realtime + durable history
+pip install asterisk-ai-agent-gateway-sdk==0.4.0
 ```
 
 ```python
@@ -51,19 +52,20 @@ See `examples/echo_agent.py` and `docs/partner/integration-guide.html`.
 
 ## Durable call history
 
-The history-enabled SDK build exposes the durable history GET API. The current
-published `0.3.2` package does not include these helpers; install the
-operator-provided `0.4.0` wheel until publication is confirmed:
+SDK 0.4.0 includes the durable history GET helpers alongside the realtime
+client. These async helpers send the long-lived API key directly as
+`Authorization: Bearer`; they do not mint a realtime token, open a WebSocket,
+or depend on a live session. The key needs the `calls:read` scope and is
+restricted to its organization and partner app.
+
+For a controlled rollout where the operator supplies a direct artifact, use it
+as a secondary install option:
 
 ```bash
 python -m pip install "https://gateway.example.com/downloads/sdk-0.4.0/asterisk_ai_agent_gateway_sdk-0.4.0-py3-none-any.whl"
 ```
 
 Replace `gateway.example.com` with the artifact host supplied by the operator.
-These async helpers send the long-lived API key directly as
-`Authorization: Bearer`; they do not mint a realtime token, open a WebSocket,
-or depend on a live session. The key needs the `calls:read` scope and is
-restricted to its organization and partner app.
 
 ```python
 async def read_history(call_id: str, next_cursor: str | None = None,

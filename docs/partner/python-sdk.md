@@ -1,17 +1,17 @@
 # Python SDK quickstart
 
 ```bash
-# Public realtime package (currently 0.3.2)
-pip install asterisk-ai-agent-gateway-sdk==0.3.2
+# SDK 0.4.0: realtime + durable history
+pip install asterisk-ai-agent-gateway-sdk==0.4.0
 export GATEWAY_URL=https://gateway.example.com
 export GATEWAY_API_KEY=agw_live_REDACTED
 export AGENT_SLUG=support-agent
 python sdks/python/examples/echo_agent.py
 ```
 
-The public `0.3.2` package supports the realtime client described above but
-does not include durable history helpers. To use those helpers, install the
-operator-provided `0.4.0` wheel until publication is confirmed:
+SDK 0.4.0 includes the realtime client and durable history helpers. For a
+controlled rollout where the operator supplies a direct artifact, use it as a
+secondary install option:
 
 ```bash
 python -m pip install "https://gateway.example.com/downloads/sdk-0.4.0/asterisk_ai_agent_gateway_sdk-0.4.0-py3-none-any.whl"

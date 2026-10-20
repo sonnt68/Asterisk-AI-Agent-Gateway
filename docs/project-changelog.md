@@ -1,5 +1,19 @@
 # Project changelog
 
+## SDK 0.4.0 release documentation — 2026-10-20
+
+- Updated the customer SDK guides and distributed integration skill to use the
+  pinned npm/PyPI `0.4.0` installs. SDK `0.4.0` includes the realtime client
+  and durable GET history helpers for list, detail, and signal reads, including
+  the exact historic `agent_slug` filter and optional numbered `page` mode.
+- Direct Node and Python artifacts remain a secondary operator rollout option
+  when supplied. Registry publication is in progress and pending root
+  verification; this entry does not claim that npm or PyPI publication is
+  complete.
+- Added a concise Vietnamese [SDK installation and call-signal guide](partner/sdk-0-4-call-signals.html)
+  with runnable Node/Python tracking examples. This handoff guide intentionally
+  covers realtime signals only; it does not introduce history reads.
+
 ## Durable history rollout and numbered pagination — 2026-10-20
 
 - Added the exact historic `agent_slug` list filter and optional numbered

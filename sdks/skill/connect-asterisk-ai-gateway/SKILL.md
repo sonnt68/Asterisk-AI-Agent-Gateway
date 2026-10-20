@@ -14,14 +14,14 @@ the Gateway operator — not something to work around.
 
 ## Start here
 
-Install a published SDK rather than framing the protocol by hand. Both
-packages share one name and version, and both handle the token exchange,
-registration, heartbeat, reconnect-with-fresh-token, and the binary audio
-envelope:
+Install the pinned SDK 0.4.0 release rather than framing the protocol by hand.
+It includes both realtime and durable call-history helpers. Both packages share
+one name and version, and both handle the token exchange, registration,
+heartbeat, reconnect-with-fresh-token, and the binary audio envelope:
 
 ```bash
-pip install asterisk-ai-agent-gateway-sdk==0.3.2  # Python 3.10+
-npm  install asterisk-ai-agent-gateway-sdk@0.3.2 # Node 18.17+
+pip install asterisk-ai-agent-gateway-sdk==0.4.0  # Python 3.10+
+npm  install asterisk-ai-agent-gateway-sdk@0.4.0 # Node 18.17+
 ```
 
 `examples/echo_agent.py` and `examples/echo-agent.mjs` are complete working
@@ -29,12 +29,8 @@ agents — start from one and replace the audio handler with your model.
 `examples/dial_out.py` adds the outbound case, where the destination is yours
 to choose and the allowlist is felt.
 
-The current published SDK `0.3.2` handles the realtime surface. The history
-helpers below require the operator-provided `0.4.0` build (such as a local
-wheel or tarball) until publication is confirmed; do not assume a registry
-install already contains them.
-
-Use the operator's supplied host for direct artifacts when needed:
+If the operator supplies a direct artifact for a controlled rollout, use it as
+a secondary install option:
 
 ```bash
 python -m pip install "https://gateway.example.com/downloads/sdk-0.4.0/asterisk_ai_agent_gateway_sdk-0.4.0-py3-none-any.whl"

@@ -1,17 +1,17 @@
 # Node SDK quickstart
 
 ```bash
-# Public realtime package (currently 0.3.2)
-npm install asterisk-ai-agent-gateway-sdk@0.3.2
+# SDK 0.4.0: realtime + durable history
+npm install asterisk-ai-agent-gateway-sdk@0.4.0
 export GATEWAY_URL=https://gateway.example.com
 export GATEWAY_API_KEY=agw_live_REDACTED
 export AGENT_SLUG=support-agent
 node sdks/node/examples/echo-agent.mjs
 ```
 
-The public `0.3.2` package supports the realtime client described above but
-does not include durable history helpers. To use those helpers, install the
-operator-provided `0.4.0` tarball until publication is confirmed:
+SDK 0.4.0 includes the realtime client and durable history helpers. For a
+controlled rollout where the operator supplies a direct artifact, use it as a
+secondary install option:
 
 ```bash
 npm install "https://gateway.example.com/downloads/sdk-0.4.0/asterisk-ai-agent-gateway-sdk-0.4.0.tgz"

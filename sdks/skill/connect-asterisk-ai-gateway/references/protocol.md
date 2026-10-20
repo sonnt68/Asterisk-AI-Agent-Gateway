@@ -105,5 +105,7 @@ normalized status signals only; it has no audio, transcripts, or phone numbers,
 and has no automatic deletion. Legacy summaries without partner-app ownership
 are not visible through partner endpoints.
 
-The current published SDK `0.3.2` does not include these helper methods. Use
-the operator-provided `0.4.0` build until publication is confirmed.
+SDK `0.4.0` provides these helper methods alongside the realtime client. Use
+the pinned package install in the skill's “Start here” section. If the Gateway
+operator supplies a direct artifact for a controlled rollout, that artifact is
+a secondary install option.

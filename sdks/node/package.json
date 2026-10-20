@@ -1,7 +1,7 @@
 {
   "name": "asterisk-ai-agent-gateway-sdk",
   "version": "0.4.0",
-  "description": "Partner SDK for the Asterisk AI Agent Gateway realtime protocol v1",
+  "description": "Partner SDK for AI Agent Gateway realtime and call-history APIs",
   "license": "MIT",
   "repository": {
     "type": "git",

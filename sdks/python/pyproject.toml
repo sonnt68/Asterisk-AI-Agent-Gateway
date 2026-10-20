@@ -8,7 +8,7 @@ packages = ["asterisk_ai_gateway"]
 [project]
 name = "asterisk-ai-agent-gateway-sdk"
 version = "0.4.0"
-description = "Partner SDK for the Asterisk AI Agent Gateway realtime protocol v1"
+description = "Partner SDK for AI Agent Gateway realtime and call-history APIs"
 readme = "README.md"
 # Deliberately wider than the gateway's own floor: partners run their own
 # stacks and must not be forced onto the server's Python version.
@@ -24,4 +24,6 @@ dev = [
 ]
 
 [project.urls]
-Documentation = "https://github.com/asterisk-ai-agent-gateway/docs/partner/integration-guide.html"
+Documentation = "https://github.com/sonnt68/Asterisk-AI-Agent-Gateway/blob/main/docs/partner/integration-guide.html"
+Repository = "https://github.com/sonnt68/Asterisk-AI-Agent-Gateway"
+Issues = "https://github.com/sonnt68/Asterisk-AI-Agent-Gateway/issues"

@@ -962,8 +962,8 @@ client.control(callId, "call.status");       // Node.js</code></pre>
         <span class="v">Lịch sử bền vững là bề mặt đọc HTTPS riêng. Gửi API key trực tiếp trong header <code>Authorization: Bearer</code>; không đổi sang realtime token và không cần mở WebSocket. Key phải có scope <code>calls:read</code>. Mỗi request bị giới hạn đồng thời theo organization và partner app của key.</span>
         <span class="e">Durable history is a separate HTTPS read surface. Send the API key directly in the <code>Authorization: Bearer</code> header; do not exchange a realtime token and do not open a WebSocket. The key needs the <code>calls:read</code> scope. Every request is restricted to both the key's organization and partner app.</span>
       </p>
-      <p><span class="v">Các helper history trong ví dụ cần build SDK <code>0.4.0</code> do quản trị viên cung cấp (ví dụ wheel hoặc tarball nội bộ) cho tới khi việc phát hành được xác nhận; gói public <code>0.3.2</code> hiện tại chưa có các helper này.</span><span class="e">The history helpers in these examples require the operator-provided SDK <code>0.4.0</code> build (for example, a local wheel or tarball) until publication is confirmed; the current public <code>0.3.2</code> package does not include them.</span></p>
-      <p><span class="v">Cài artifact do quản trị viên cung cấp bằng URL host đã được cấp:</span><span class="e">Install the operator-provided artifact with the supplied host URL:</span></p>
+      <p><span class="v">SDK <code>0.4.0</code> gồm các helper realtime và history dùng trong ví dụ. Hãy cài package đã ghim ở mục SDK; artifact trực tiếp do quản trị viên cung cấp là phương án phụ cho rollout có kiểm soát.</span><span class="e">SDK <code>0.4.0</code> includes the realtime and history helpers used in these examples. Install the pinned package in the SDK section; an operator-supplied direct artifact is a secondary option for a controlled rollout.</span></p>
+      <p><span class="v">Nếu dùng artifact phụ, cài bằng URL host do quản trị viên cung cấp:</span><span class="e">When using the secondary artifact, install it with the host URL supplied by the operator:</span></p>
       <pre><code>python -m pip install "https://gateway.example.com/downloads/sdk-0.4.0/asterisk_ai_agent_gateway_sdk-0.4.0-py3-none-any.whl"
 npm install "https://gateway.example.com/downloads/sdk-0.4.0/asterisk-ai-agent-gateway-sdk-0.4.0.tgz"</code></pre>
 
@@ -1397,14 +1397,14 @@ async def on_event(event):
               <td>
                 <a href="https://pypi.org/project/asterisk-ai-agent-gateway-sdk/" target="_blank" rel="noopener noreferrer">PyPI</a>
               </td>
-              <td><code>pip install asterisk-ai-agent-gateway-sdk==0.3.2</code></td>
+              <td><code>pip install asterisk-ai-agent-gateway-sdk==0.4.0</code></td>
               <td>Python 3.10+</td>
             </tr>
             <tr>
               <td>
                 <a href="https://www.npmjs.com/package/asterisk-ai-agent-gateway-sdk" target="_blank" rel="noopener noreferrer">npm</a>
               </td>
-              <td><code>npm install asterisk-ai-agent-gateway-sdk@0.3.2</code></td>
+              <td><code>npm install asterisk-ai-agent-gateway-sdk@0.4.0</code></td>
               <td>Node 18.17+</td>
             </tr>
           </tbody>
@@ -1417,7 +1417,7 @@ async def on_event(event):
       </p>
 
       <div class="code">
-        <div class="code-head"><span>Python</span><span>pip install asterisk-ai-agent-gateway-sdk==0.3.2</span></div>
+        <div class="code-head"><span>Python</span><span>pip install asterisk-ai-agent-gateway-sdk==0.4.0</span></div>
         <pre><code>import asyncio, os
 from asterisk_ai_gateway import GatewayClient
 
@@ -1443,7 +1443,7 @@ asyncio.run(client.run(on_event=on_event, on_audio=on_audio))</code></pre>
       </div>
 
       <div class="code">
-        <div class="code-head"><span>Node</span><span>npm install asterisk-ai-agent-gateway-sdk@0.3.2</span></div>
+        <div class="code-head"><span>Node</span><span>npm install asterisk-ai-agent-gateway-sdk@0.4.0</span></div>
         <pre><code>import { GatewayClient } from "asterisk-ai-agent-gateway-sdk";
 
 const client = new GatewayClient({
