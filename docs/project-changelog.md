@@ -1,18 +1,23 @@
 # Project changelog
 
-## SDK 0.4.0 release documentation — 2026-10-20
+## SDK 0.4.0 publication and call-signal guide — 2026-10-20
 
 - Updated the customer SDK guides and distributed integration skill to use the
   pinned npm/PyPI `0.4.0` installs. SDK `0.4.0` includes the realtime client
   and durable GET history helpers for list, detail, and signal reads, including
   the exact historic `agent_slug` filter and optional numbered `page` mode.
-- Direct Node and Python artifacts remain a secondary operator rollout option
-  when supplied. Registry publication is in progress and pending root
-  verification; this entry does not claim that npm or PyPI publication is
-  complete.
+- Published SDK `0.4.0` on [npm](https://www.npmjs.com/package/asterisk-ai-agent-gateway-sdk/v/0.4.0)
+  and [PyPI](https://pypi.org/project/asterisk-ai-agent-gateway-sdk/0.4.0/)
+  from tag `sdk-v0.4.0` at `0d21b5d`. The [publication workflow](https://github.com/sonnt68/Asterisk-AI-Agent-Gateway/actions/runs/39359601542)
+  passed both registry jobs. Downloaded npm tarball, Python wheel and sdist
+  match the locally validated artifacts byte-for-byte. Direct artifacts
+  supplied by the operator remain a secondary rollout option.
 - Added a concise Vietnamese [SDK installation and call-signal guide](partner/sdk-0-4-call-signals.html)
   with runnable Node/Python tracking examples. This handoff guide intentionally
   covers realtime signals only; it does not introduce history reads.
+- Validation: source CI passed before tagging; fresh public npm, PyPI wheel
+  and forced sdist installs passed their HTTP wire tests and the HTML examples'
+  token/WebSocket call-signal tracking checks. No application restart required.
 
 ## Durable history rollout and numbered pagination — 2026-10-20
 
