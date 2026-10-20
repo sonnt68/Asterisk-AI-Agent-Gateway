@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gateway: hệ thống và bảo mật — Asterisk AI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<aside class="sidebar">
+<div class="brand">Asterisk AI — Bộ tài liệu hệ thống</div>
+<div class="brand-sub">AVA Voice Agent &amp; AI Agent Gateway</div>
+<nav class="nav">
+<div class="nav-group">Tổng quan</div>
+<a href="index.html">Giới thiệu & ý tưởng</a>
+<div class="nav-group">AVA — AI Voice Agent</div>
+<a href="ava-he-thong.html">Hệ thống & thành phần</a>
+<a href="ava-luong-hoat-dong.html">Luồng hoạt động</a>
+<div class="nav-group">Asterisk AI Agent Gateway</div>
+<a class="active" href="gateway-he-thong.html">Hệ thống & bảo mật</a>
+<div class="toc">
+<a href="#y-tuong">Ý tưởng thiết kế</a>
+<a href="#kien-truc">Kiến trúc</a>
+<a href="#du-lieu">Mô hình dữ liệu</a>
+<a href="#tin-cay">Ranh giới tin cậy</a>
+<a href="#bao-mat">Các kiểm soát đang được thực thi</a>
+<a href="#dashboard">Dashboard quản trị</a>
+<a href="#quyet-dinh">Quyết định kiến trúc đã ghi nhận</a>
+</div>
+<a href="gateway-luong-hoat-dong.html">Luồng hoạt động</a>
+<a href="gateway-giao-thuc.html">Giao thức & API</a>
+<div class="nav-group">Kết hợp & vận hành</div>
+<a href="tich-hop.html">AVA chạy qua Gateway</a>
+<a href="van-hanh.html">Triển khai & vận hành</a>
+<a href="thuat-ngu.html">Thuật ngữ</a>
+</nav>
+</aside>
+<main>
+<div class="content">
+<span class="eyebrow">Asterisk AI Agent Gateway</span>
+<h1>Gateway: hệ thống và bảo mật</h1>
+<p class="lede">Gateway là lớp tích hợp SaaS giữa một Asterisk và các ứng dụng AI agent của bên thứ ba. Nó sở hữu kết nối tới Asterisk và vòng đời cuộc gọi; đối tác chỉ trao đổi âm thanh và lệnh điều khiển qua một giao thức thống nhất.</p>
+
+<h2 id="y-tuong">Ý tưởng thiết kế</h2>
+<div class="cards">
+  <div class="card gw"><h4>Đối tác chỉ có hai bề mặt</h4><p>Một REST endpoint để đổi API key lấy token, và một WebSocket. Không có gì khác.</p></div>
+  <div class="card gw"><h4>Đối tác gọi ra, không ai gọi vào</h4><p>SDK mở kết nối WSS đi ra tới gateway, nên đối tác không cần mở cổng hay có endpoint công khai.</p></div>
+  <div class="card gw"><h4>Giấu chi tiết tổng đài</h4><p>Một giao thức realtime duy nhất, độc lập với việc bên dưới là AudioSocket hay RTP.</p></div>
+  <div class="card gw"><h4>Không chứa AI</h4><p>Không STT/LLM/TTS, không prompt. Gateway chỉ là đường ống có kiểm soát.</p></div>
+</div>
+
+<h3>Phạm vi MVP</h3>
+<ul>
+  <li>Đúng một Asterisk cho mỗi bản triển khai gateway; chưa có lớp định tuyến nhiều tổng đài.</li>
+  <li>Luồng gọi vào và gọi ra.</li>
+  <li>Điều khiển: DTMF, giữ/tiếp tục, tắt/bật tiếng, cúp máy, chuyển mù, chuyển có tư vấn, hủy chuyển, định tuyến tới hàng đợi/ring group/thư thoại, phát âm thanh, đặt biến channel, trả về dialplan, originate.</li>
+  <li>Ghi âm và phiên âm tắt mặc định.</li>
+</ul>
+<h3>Cố ý không làm</h3>
+<ul>
+  <li>Không nhúng nhà cung cấp AI hay điều phối prompt.</li>
+  <li>Không cấp ARI/SIP trực tiếp cho đối tác.</li>
+  <li>Không mở Docker socket, terminal hay cấu hình host trên dashboard.</li>
+  <li>Không cho đối tác tự dựng bridge, chạy ứng dụng Asterisk tùy ý, hay ghi âm.</li>
+</ul>
+
+<h2 id="kien-truc">Kiến trúc</h2>
+<div class="diagram">
+  <p class="diagram-title">Thành phần và đường dữ liệu</p>
+  <div class="chain">
+    <div class="node pbx">Asterisk<small>ARI :8088<br>Stasis(asterisk-ai-gateway)</small></div>
+    <div class="link">ARI WS + REST<br>AudioSocket :8090<br><em>mạng riêng</em></div>
+    <div class="node gw">api (control-api)<small>vòng đời cuộc gọi · media · WSS · REST</small></div>
+    <div class="link">/v1/realtime<br>JSON + UUID/PCM</div>
+    <div class="node ext">SDK đối tác<small>Python / Node</small></div>
+  </div>
+  <div class="chain">
+    <div class="node ext">Trình duyệt quản trị</div>
+    <div class="link right">HTTP</div>
+    <div class="node gw">admin-ui (nginx)<small>dashboard + reverse proxy <code>/api/</code> và <code>/v1/realtime</code></small></div>
+    <div class="link right">nội bộ</div>
+    <div class="node gw">api</div>
+    <div class="link">SQL · lease</div>
+    <div class="node">PostgreSQL · Redis</div>
+  </div>
+</div>
+
+<div class="table-wrap">
+<table>
+  <tr><th>Dịch vụ Compose</th><th>Mã nguồn</th><th>Vai trò</th></tr>
+  <tr><td><code>api</code></td><td><code>apps/control-api</code> (FastAPI) + thư viện <code>apps/gateway</code></td><td>Tiến trình chính: lắng nghe sự kiện ARI, máy chủ AudioSocket, vòng đời cuộc gọi, WebSocket đối tác, REST quản trị, metrics.</td></tr>
+  <tr><td><code>admin-ui</code></td><td><code>apps/admin-ui</code> (React + nginx)</td><td>Dashboard; nginx chuyển tiếp <code>/api/</code> và <code>/v1/realtime</code> tới <code>api</code>, nên đối tác có thể dùng cùng một origin.</td></tr>
+  <tr><td><code>postgres</code></td><td>PostgreSQL 16</td><td>Tổ chức, người dùng, partner app, API key, audit. Nguồn sự thật bền vững.</td></tr>
+  <tr><td><code>redis</code></td><td>Redis 7</td><td>Lease kết nối theo slug và bộ đếm giới hạn tốc độ. Dữ liệu tạm, không cần sao lưu.</td></tr>
+  <tr><td><code>gateway</code></td><td><code>apps/gateway/gateway/runtime.py</code></td><td>Hiện là tiến trình giữ chỗ chỉ ghi log. Xem ghi chú bên dưới.</td></tr>
+</table>
+</div>
+
+<div class="callout warn">
+  <strong>Lưu ý về cách đóng gói hiện tại</strong>
+  <p>Tài liệu kiến trúc mô tả <code>apps/gateway</code> là nơi sở hữu vòng đời Asterisk. Trong mã hiện tại, <code>apps/gateway/gateway/</code> là <em>thư viện adapter</em> (AudioSocket, RTP, ARI client, chính sách scope) được tiến trình <code>api</code> import; còn container <code>gateway</code> riêng chỉ chạy một điểm vào giữ chỗ. Mọi luồng realtime mô tả trong tài liệu này diễn ra trong container <code>api</code>.</p>
+</div>
+
+<h3>Bản đồ mô-đun trong <code>api</code></h3>
+<div class="table-wrap">
+<table>
+  <tr><th>Mô-đun</th><th>Trách nhiệm</th></tr>
+  <tr><td><code>ari_listener.py</code>, <code>ari_requests.py</code></td><td>Giữ WebSocket sự kiện ARI và gọi REST ARI.</td></tr>
+  <tr><td><code>call_lifecycle.py</code></td><td>Xử lý <code>StasisStart/End</code>, trả lời, bridge, gửi <code>call.started</code>/<code>call.ended</code>, dọn dẹp.</td></tr>
+  <tr><td><code>call_media.py</code></td><td>Tạo chân media, nối luồng âm thanh hai chiều, công bố định dạng dây.</td></tr>
+  <tr><td><code>realtime_socket.py</code></td><td>Endpoint <code>/v1/realtime</code>: xác thực token, đăng ký, heartbeat, định tuyến khung.</td></tr>
+  <tr><td><code>realtime_registry.py</code></td><td>Sổ đăng ký kết nối và cuộc gọi đang hoạt động trong bộ nhớ; hàng đợi âm thanh 100 khung; bộ nhớ idempotency 256 mục.</td></tr>
+  <tr><td><code>realtime_control.py</code>, <code>call_control.py</code>, <code>transfer_control.py</code></td><td>Kiểm tra và thực thi lệnh <code>call.control</code>.</td></tr>
+  <tr><td><code>outbound_calls.py</code></td><td>Originate do đối tác yêu cầu.</td></tr>
+  <tr><td><code>destination_policy.py</code>, <code>media_policy.py</code></td><td>Allowlist đích; kiểm tra URI media và tên biến channel.</td></tr>
+  <tr><td><code>presence.py</code>, <code>rate_limits.py</code></td><td>Lease Redis theo slug; giới hạn tốc độ đổi token.</td></tr>
+  <tr><td><code>auth*.py</code>, <code>security.py</code>, <code>browser_security.py</code></td><td>Đăng nhập trình duyệt, RBAC, băm key, ký token, kiểm tra Origin.</td></tr>
+  <tr><td><code>control_routes.py</code>, <code>management_routes.py</code>, <code>key_management_routes.py</code>, <code>runtime_routes.py</code></td><td>REST cho dashboard và endpoint đổi token.</td></tr>
+</table>
+</div>
+
+<h3>Hợp đồng có phiên bản</h3>
+<p>REST nằm dưới <code>/api/v1</code>, mô tả bởi <code>packages/protocol/openapi.yaml</code>. Thông điệp realtime mô tả bởi <code>packages/protocol/asyncapi.yaml</code>. Đổi hợp đồng phải đổi schema và test tương ứng cùng lúc.</p>
+
+<h2 id="du-lieu">Mô hình dữ liệu</h2>
+<div class="diagram">
+  <div class="chain">
+    <div class="node">Organization<small>tenant</small></div>
+    <div class="link right">1 — n</div>
+    <div class="node">PartnerApp<small>agent_slug · scopes · allowed_destinations</small></div>
+    <div class="link right">1 — n</div>
+    <div class="node">ApiKey<small>prefix · secret_hash · scopes · expires/revoked</small></div>
+  </div>
+  <div class="chain">
+    <div class="node">User<small>email · password_hash (Argon2id)</small></div>
+    <div class="link right">qua</div>
+    <div class="node">Membership<small>role: owner / admin / developer</small></div>
+    <div class="link right">thuộc</div>
+    <div class="node">Organization</div>
+    <div class="link right">ghi</div>
+    <div class="node">AuditEvent<small>actor · action · target</small></div>
+  </div>
+</div>
+<div class="table-wrap">
+<table>
+  <tr><th>Bảng</th><th>Điểm đáng chú ý</th></tr>
+  <tr><td><code>organizations</code></td><td>Ranh giới tenant. Mọi tài nguyên quản trị đều lọc theo tổ chức.</td></tr>
+  <tr><td><code>partner_apps</code></td><td><code>agent_slug</code> duy nhất <strong>toàn cục</strong>, không chỉ trong tổ chức. Mặc định scope <code>calls:read,media:stream</code>. Có cờ <code>enabled</code>.</td></tr>
+  <tr><td><code>api_keys</code></td><td>Chỉ lưu <code>prefix</code> và HMAC hash của bí mật. Scope của key phải là tập con scope của app.</td></tr>
+  <tr><td><code>memberships</code></td><td>Một người dùng một vai trò trong mỗi tổ chức.</td></tr>
+  <tr><td><code>audit_events</code></td><td>Giữ lại cả khi key đã bị xóa vĩnh viễn (<code>api_key.deleted</code>).</td></tr>
+</table>
+</div>
+<p>Trạng thái realtime (kết nối, cuộc gọi đang hoạt động) chỉ ở trong bộ nhớ tiến trình và Redis, không ghi PostgreSQL.</p>
+
+<h2 id="tin-cay">Ranh giới tin cậy</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>Ranh giới</th><th>Bảo vệ bằng</th></tr>
+  <tr><td><strong>Asterisk ⟷ Gateway</strong></td><td>Mạng riêng hoặc VPN. Tài khoản ARI quyền tối thiểu, chỉ gateway giữ.</td></tr>
+  <tr><td><strong>Gateway ⟷ Đối tác</strong></td><td>API key → token 5 phút → phiên WSS có scope. Allowlist đích. Giới hạn tốc độ.</td></tr>
+  <tr><td><strong>Trình duyệt ⟷ Control API</strong></td><td>Cookie phiên ký, HttpOnly, SameSite; kiểm tra Origin cho thao tác ghi; RBAC theo tổ chức.</td></tr>
+</table>
+</div>
+
+<h3>Đối tác không bao giờ nhận được</h3>
+<p>Thông tin ARI, SIP, endpoint AudioSocket, dải RTP, quyền Docker, quyền host, quyền cơ sở dữ liệu, và <strong>channel ID của Asterisk</strong>. Đối tác chỉ đối chiếu theo <code>call_id</code> của gateway. Nếu một vấn đề của đối tác không giải được qua hai bề mặt công khai thì đó là thiếu sót của gateway cần sửa, không phải lý do để trao thông tin đăng nhập.</p>
+
+<h2 id="bao-mat">Các kiểm soát đang được thực thi</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>Kiểm soát</th><th>Chi tiết</th></tr>
+  <tr><td>API key</td><td>Dạng <code>agw_live_&lt;prefix&gt;_&lt;secret&gt;</code>. Plaintext hiện đúng một lần lúc tạo; lưu HMAC hash (có pepper) và prefix. Có hết hạn, thu hồi, xoay vòng nguyên tử.</td></tr>
+  <tr><td>Token realtime</td><td>Ký, sống 5 phút, chỉ dùng cho bắt tay WSS. Lúc bắt tay kiểm tra lại key còn sống hay đã thu hồi/hết hạn.</td></tr>
+  <tr><td>Giới hạn tốc độ</td><td>Đổi token: mặc định 60 yêu cầu/phút, tính riêng theo key, theo tổ chức và theo IP nguồn.</td></tr>
+  <tr><td>Mật khẩu trình duyệt</td><td>Argon2id. Phiên mặc định 8 giờ.</td></tr>
+  <tr><td>RBAC</td><td><code>owner</code>, <code>admin</code>, <code>developer</code> được tạo/sửa app và key; chỉ <code>owner</code>, <code>admin</code> được xóa partner app.</td></tr>
+  <tr><td>Hàng đợi âm thanh</td><td>Tối đa 100 khung về phía đối tác; đầy thì bỏ khung cũ nhất và tăng metric, để âm thanh luôn "sống".</td></tr>
+  <tr><td>Idempotency</td><td>Nhớ 256 kết quả chấp nhận gần nhất theo <code>request_id</code> trên mỗi kết nối.</td></tr>
+</table>
+</div>
+
+<h3>Scope</h3>
+<p>Mỗi lệnh cần đúng một scope. Lệnh không rõ, thiếu scope, sai cuộc gọi hoặc đích ngoài allowlist đều bị từ chối <em>trước khi</em> gọi ARI.</p>
+<div class="table-wrap">
+<table>
+  <tr><th>Scope</th><th>Lệnh</th></tr>
+  <tr><td><code>calls:read</code>, <code>media:stream</code></td><td>Mặc định: nhận sự kiện và trao đổi âm thanh</td></tr>
+  <tr><td><code>media:control</code></td><td><code>audio.clear</code></td></tr>
+  <tr><td><code>calls:dtmf</code></td><td><code>dtmf.send</code></td></tr>
+  <tr><td><code>calls:hold</code></td><td><code>call.hold</code>, <code>call.resume</code></td></tr>
+  <tr><td><code>calls:mute</code></td><td><code>call.mute</code>, <code>call.unmute</code></td></tr>
+  <tr><td><code>calls:hangup</code></td><td><code>call.hangup</code></td></tr>
+  <tr><td><code>calls:transfer</code></td><td><code>transfer.blind</code>, <code>transfer.attended</code>, <code>transfer.cancel</code></td></tr>
+  <tr><td><code>calls:route</code></td><td><code>route.queue</code>, <code>route.ring_group</code>, <code>route.voicemail</code></td></tr>
+  <tr><td><code>calls:dialplan</code></td><td><code>dialplan.continue</code></td></tr>
+  <tr><td><code>media:playback</code></td><td><code>playback.start</code>, <code>playback.stop</code></td></tr>
+  <tr><td><code>channel:variables</code></td><td><code>channel.set_var</code></td></tr>
+  <tr><td><code>calls:originate</code></td><td><code>outbound.originate</code>, <code>outbound.cancel</code></td></tr>
+</table>
+</div>
+<p><code>calls:originate</code> và <code>calls:transfer</code> là hai scope cần cân nhắc kỹ khi cấp.</p>
+
+<h3>Allowlist đích</h3>
+<ul>
+  <li>Mỗi mục là một cặp <code>context:extension</code> chính xác.</li>
+  <li>Extension kết thúc bằng <code>*</code> là quy tắc tiền tố: <code>from-internal:84*</code> cho phép mọi số dài hơn bắt đầu bằng <code>84</code> trong context đó.</li>
+  <li>Chỉ dấu <code>*</code> ở cuối là ký tự đại diện, nên mã tính năng như <code>*43</code> vẫn là khớp chính xác.</li>
+  <li>Tiền tố cần ít nhất hai ký tự thật; quy tắc không khớp chính tiền tố trần và không vượt sang context khác.</li>
+</ul>
+
+<h3>Lệnh vươn ra ngoài điều khiển cuộc gọi</h3>
+<p>Ba lệnh truyền chuỗi do đối tác chọn vào Asterisk, nên được kiểm tra trong <code>media_policy.py</code> trước khi gọi ARI:</p>
+<div class="table-wrap">
+<table>
+  <tr><th>Lệnh</th><th>Ràng buộc</th><th>Lý do</th></tr>
+  <tr><td><code>playback.start</code></td><td>Chỉ <code>sound:</code> và <code>recording:</code>; tên chỉ gồm <code>A-Za-z0-9/_-</code>, không có <code>..</code>. Tối đa 8 playback đồng thời mỗi cuộc gọi.</td><td><code>file:</code> và <code>http:</code> sẽ khiến ARI đọc tệp host hoặc tải âm thanh do kẻ tấn công kiểm soát.</td></tr>
+  <tr><td><code>channel.set_var</code></td><td>Tên khớp <code>AI_[A-Z0-9_]{1,60}</code>; giá trị tối đa 512 ký tự, không ký tự điều khiển.</td><td>Tiền tố giữ đối tác trong không gian tên riêng; cấm <code>(</code> chặn hàm dialplan như <code>SHELL()</code>, <code>FILE()</code>, <code>CDR()</code>.</td></tr>
+  <tr><td><code>dialplan.continue</code></td><td>Dùng lại allowlist đích của chuyển máy.</td><td>Trả cuộc gọi về dialplan cũng là một dạng định tuyến.</td></tr>
+</table>
+</div>
+<p>ID playback do gateway sinh và theo dõi theo cuộc gọi, nên đối tác chỉ dừng được playback do chính cuộc gọi của mình bắt đầu.</p>
+
+<div class="callout danger">
+  <strong>Còn thiếu trước khi mở công khai</strong>
+  <p>Kết thúc TLS phía trước dashboard và API, kết nối ARI riêng tư, chính sách MFA/SSO, SLO lưu lượng được duyệt, và quyết định về lưu giữ dữ liệu cá nhân người gọi. Bind dashboard công khai qua HTTP thuần sẽ đưa cookie <code>gateway_session</code> lên đường truyền dạng rõ.</p>
+</div>
+
+<h2 id="dashboard">Dashboard quản trị</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>Trang</th><th>Dùng để</th></tr>
+  <tr><td>Dashboard</td><td>Tổng quan sức khỏe và số liệu runtime.</td></tr>
+  <tr><td>Partner Apps</td><td>Tạo/sửa/xóa app, đặt slug, scope, allowlist đích, bật/tắt.</td></tr>
+  <tr><td>API Keys</td><td>Cấp key (hiện plaintext một lần), xoay vòng, thu hồi, xóa vĩnh viễn key đã thu hồi; chọn nhiều để thao tác hàng loạt.</td></tr>
+  <tr><td>Connections</td><td>Kết nối WSS đang sống của tenant.</td></tr>
+  <tr><td>Calls</td><td>Cuộc gọi đang hoạt động của tenant.</td></tr>
+  <tr><td>Asterisk</td><td>Trạng thái kết nối ARI và ứng dụng Stasis.</td></tr>
+  <tr><td>Members</td><td>Thành viên và vai trò trong tổ chức.</td></tr>
+  <tr><td>Audit</td><td>Nhật ký thao tác quản trị.</td></tr>
+</table>
+</div>
+
+<h2 id="quyet-dinh">Quyết định kiến trúc đã ghi nhận</h2>
+<div class="cards">
+  <div class="card">
+    <h4>0001 — AudioSocket là transport chính</h4>
+    <p>Dùng AudioSocket với âm thanh signed-linear làm adapter chính; ExternalMedia RTP chỉ là phương án dự phòng sau cùng một ranh giới transport nội bộ. Đổi lại, gateway phải xác nhận AudioSocket khả dụng khi cài đặt.</p>
+  </div>
+  <div class="card">
+    <h4>0002 — WebSocket đi ra từ đối tác</h4>
+    <p>SDK đối tác mở kết nối WSS đi ra sau khi đổi key lấy phiên ngắn hạn. Lựa chọn bị loại: webhook do đối tác host, và ARI/SIP trực tiếp. Đổi lại, gia hạn phiên, kết nối lại và cô lập tenant là trách nhiệm của gateway.</p>
+  </div>
+</div>
+<div class="pager"><a href="ava-luong-hoat-dong.html">← Luồng hoạt động</a><a href="gateway-luong-hoat-dong.html">Luồng hoạt động →</a></div>
+<footer>Bộ tài liệu tổng hợp từ mã nguồn và tài liệu của hai repository, cập nhật 2026-10-13.</footer>
+</div>
+</main>
+</body>
+</html>

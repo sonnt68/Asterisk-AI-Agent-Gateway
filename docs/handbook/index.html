@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bộ tài liệu hệ thống Asterisk AI — Asterisk AI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<aside class="sidebar">
+<div class="brand">Asterisk AI — Bộ tài liệu hệ thống</div>
+<div class="brand-sub">AVA Voice Agent &amp; AI Agent Gateway</div>
+<nav class="nav">
+<div class="nav-group">Tổng quan</div>
+<a class="active" href="index.html">Giới thiệu & ý tưởng</a>
+<div class="toc">
+<a href="#y-tuong">Ý tưởng cốt lõi</a>
+<a href="#buc-tranh">Bức tranh tổng thể</a>
+<a href="#ban-do">Bản đồ tài liệu</a>
+<a href="#chon">Nên dùng cái nào?</a>
+<a href="#trang-thai">Trạng thái hiện tại</a>
+</div>
+<div class="nav-group">AVA — AI Voice Agent</div>
+<a href="ava-he-thong.html">Hệ thống & thành phần</a>
+<a href="ava-luong-hoat-dong.html">Luồng hoạt động</a>
+<div class="nav-group">Asterisk AI Agent Gateway</div>
+<a href="gateway-he-thong.html">Hệ thống & bảo mật</a>
+<a href="gateway-luong-hoat-dong.html">Luồng hoạt động</a>
+<a href="gateway-giao-thuc.html">Giao thức & API</a>
+<div class="nav-group">Kết hợp & vận hành</div>
+<a href="tich-hop.html">AVA chạy qua Gateway</a>
+<a href="van-hanh.html">Triển khai & vận hành</a>
+<a href="thuat-ngu.html">Thuật ngữ</a>
+</nav>
+</aside>
+<main>
+<div class="content">
+<span class="eyebrow">Tổng quan</span>
+<h1>Bộ tài liệu hệ thống Asterisk AI</h1>
+<p class="lede">Hai dự án, một mục tiêu: để một cuộc gọi điện thoại thật trên tổng đài Asterisk/FreePBX được trả lời bởi AI. <strong>AVA</strong> là bộ não hội thoại; <strong>AI Agent Gateway</strong> là lớp cổng cho phép nhiều bên thứ ba cắm AI của họ vào tổng đài mà không cần chạm tới tổng đài.</p>
+
+<div class="cards">
+  <div class="card ava">
+    <span class="badge ava">Dự án 1</span>
+    <h3>AVA — AI Voice Agent for Asterisk</h3>
+    <p>Nền tảng voice agent tự host. Engine Python nối âm thanh Asterisk tới các nhà cung cấp AI (cloud hoặc local), xử lý ngắt lời, gọi công cụ, lịch sử cuộc gọi, và có Admin UI để vận hành.</p>
+    <p><code>AVA-AI-Voice-Agent-for-Asterisk</code> · v7.5.5 · nhánh <code>feat/English_center</code> (fork từ upstream <code>hkjarral</code>)</p>
+  </div>
+  <div class="card gw">
+    <span class="badge gw">Dự án 2</span>
+    <h3>Asterisk AI Agent Gateway</h3>
+    <p>Cổng SaaS đa tenant đứng giữa <em>một</em> Asterisk và các AI agent của đối tác. Gateway giữ toàn bộ ARI, bridge và media; đối tác chỉ cần một API key và một kết nối WebSocket đi ra.</p>
+    <p><code>Asterisk-AI-Agent-Gateway</code> · MVP hoàn tất, đã chạy trên tổng đài pilot · SDK 0.3.2</p>
+  </div>
+</div>
+
+<h2 id="y-tuong">Ý tưởng cốt lõi</h2>
+
+<h3>Bài toán</h3>
+<p>Một tổng đài Asterisk chỉ biết chuyển cuộc gọi và phát/thu âm thanh. Để AI trả lời cuộc gọi, cần ba việc cùng lúc và đều theo thời gian thực:</p>
+<ul>
+  <li><strong>Điều khiển cuộc gọi</strong> — trả lời, tạo bridge, chuyển máy, cúp máy. Asterisk cung cấp qua <abbr title="Asterisk REST Interface">ARI</abbr>.</li>
+  <li><strong>Lấy và trả âm thanh</strong> — luồng PCM hai chiều, độ trễ thấp. Asterisk cung cấp qua AudioSocket (TCP) hoặc ExternalMedia (RTP/UDP).</li>
+  <li><strong>Trí tuệ</strong> — nhận dạng giọng nói (STT), mô hình ngôn ngữ (LLM), tổng hợp giọng nói (TTS), cùng khả năng gọi công cụ.</li>
+</ul>
+
+<h3>Hai câu trả lời cho hai tình huống</h3>
+<div class="table-wrap">
+<table>
+  <tr><th></th><th>AVA</th><th>AI Agent Gateway</th></tr>
+  <tr><td><strong>Câu hỏi nó trả lời</strong></td><td>"Làm sao để tổng đài của <em>tôi</em> có một trợ lý AI?"</td><td>"Làm sao để <em>nhiều bên khác</em> đưa AI của họ vào tổng đài của tôi một cách an toàn?"</td></tr>
+  <tr><td><strong>Ai vận hành</strong></td><td>Chính chủ tổng đài, tự host cạnh Asterisk</td><td>Nhà vận hành gateway; đối tác chỉ là khách</td></tr>
+  <tr><td><strong>Chứa AI không</strong></td><td>Có — STT/LLM/TTS, prompt, tool, lịch sử</td><td>Không. Cố ý không có nhà cung cấp AI nào</td></tr>
+  <tr><td><strong>Quyền với Asterisk</strong></td><td>Giữ thông tin ARI, toàn quyền trên channel</td><td>Chỉ gateway giữ ARI; đối tác không bao giờ thấy</td></tr>
+  <tr><td><strong>Mô hình người dùng</strong></td><td>Một quản trị viên (single-admin)</td><td>Đa tổ chức, RBAC, API key, audit log</td></tr>
+  <tr><td><strong>Lưu trữ</strong></td><td>YAML + SQLite (<code>agents.db</code>, <code>call_history.db</code>)</td><td>PostgreSQL + Redis</td></tr>
+  <tr><td><strong>Bề mặt tích hợp</strong></td><td>Dialplan <code>Stasis(asterisk-ai-voice-agent)</code></td><td>1 REST endpoint + 1 WebSocket + SDK Python/Node</td></tr>
+</table>
+</div>
+
+<div class="callout">
+  <strong>Quan hệ giữa hai dự án</strong>
+  <p>Gateway dùng AVA làm nguồn tham khảo cho cách làm việc với ARI, AudioSocket, độ tin cậy của transport và một số mẫu UX dashboard, nhưng là repository độc lập và không chứa engine AI của AVA. Ngược lại, bản fork AVA này đã thêm <em>chế độ gateway</em>: thay vì nói chuyện trực tiếp với Asterisk, AVA có thể đóng vai một đối tác bình thường của Gateway. Xem <a href="tich-hop.html">AVA chạy qua Gateway</a>.</p>
+</div>
+
+<h2 id="buc-tranh">Bức tranh tổng thể</h2>
+<p>Có hai cách để một cuộc gọi đến được AI. Cả hai cùng tồn tại; chọn theo việc ai sở hữu tổng đài và ai sở hữu AI.</p>
+
+<div class="diagram">
+  <p class="diagram-title">Chế độ A — AVA nối trực tiếp tổng đài</p>
+  <div class="chain">
+    <div class="node ext">Người gọi<small>PSTN / SIP</small></div>
+    <div class="link">SIP · RTP</div>
+    <div class="node pbx">Asterisk / FreePBX<small>dialplan → Stasis</small></div>
+    <div class="link">ARI (8088)<br>AudioSocket (8090)<br>hoặc RTP (18080)</div>
+    <div class="node ava">AVA ai_engine<small>điều phối cuộc gọi, tool, lịch sử</small></div>
+    <div class="link">WebSocket / HTTPS</div>
+    <div class="node ext">Nhà cung cấp AI<small>OpenAI, Deepgram, Google, ElevenLabs, local…</small></div>
+  </div>
+</div>
+
+<div class="diagram">
+  <p class="diagram-title">Chế độ B — Đối tác nối qua Gateway</p>
+  <div class="chain">
+    <div class="node ext">Người gọi<small>PSTN / SIP</small></div>
+    <div class="link">SIP · RTP</div>
+    <div class="node pbx">Asterisk / FreePBX<small>Stasis(asterisk-ai-gateway)</small></div>
+    <div class="link">ARI · AudioSocket<br><em>mạng riêng</em></div>
+    <div class="node gw">AI Agent Gateway<small>bridge, media, scope, allowlist</small></div>
+    <div class="link">WSS đi ra từ đối tác<br>JSON + PCM</div>
+    <div class="node ext">AI agent của đối tác<small>SDK Python/Node — có thể chính là AVA</small></div>
+  </div>
+</div>
+
+<h3>Ranh giới tin cậy</h3>
+<p>Điểm khác biệt quan trọng nhất giữa hai chế độ là <strong>ai được cầm chìa khóa tổng đài</strong>.</p>
+<ul>
+  <li><strong>Chế độ A:</strong> AVA và Asterisk cùng một chủ, cùng mạng. AVA cầm tài khoản ARI và làm được mọi thứ ARI cho phép.</li>
+  <li><strong>Chế độ B:</strong> đường Asterisk ⟷ Gateway là mạng riêng/VPN; đường Gateway ⟷ đối tác là internet, được bảo vệ bằng API key, token 5 phút, scope và allowlist đích. Đối tác không nhận ARI, SIP, AudioSocket, RTP, Docker hay quyền host — kể cả channel ID của Asterisk.</li>
+</ul>
+
+<h2 id="ban-do">Bản đồ tài liệu</h2>
+<div class="cards">
+  <a class="card ava" href="ava-he-thong.html"><h4>AVA · Hệ thống &amp; thành phần</h4><p>Container, engine, provider và pipeline, Agent, tool, cấu hình ba tệp, Admin UI.</p><span class="more">Đọc →</span></a>
+  <a class="card ava" href="ava-luong-hoat-dong.html"><h4>AVA · Luồng hoạt động</h4><p>Cuộc gọi vào, một lượt hội thoại, ngắt lời, gọi công cụ, im lặng, chiến dịch gọi ra.</p><span class="more">Đọc →</span></a>
+  <a class="card gw" href="gateway-he-thong.html"><h4>Gateway · Hệ thống &amp; bảo mật</h4><p>Thành phần, mô hình dữ liệu, ranh giới tin cậy, scope, chính sách đích.</p><span class="more">Đọc →</span></a>
+  <a class="card gw" href="gateway-luong-hoat-dong.html"><h4>Gateway · Luồng hoạt động</h4><p>Xác thực, đăng ký, cuộc gọi vào/ra, điều khiển, chuyển máy, tranh slug, dọn dẹp.</p><span class="more">Đọc →</span></a>
+  <a class="card gw" href="gateway-giao-thuc.html"><h4>Gateway · Giao thức &amp; API</h4><p>REST, khung WebSocket, sự kiện, lệnh, mã lỗi, SDK.</p><span class="more">Đọc →</span></a>
+  <a class="card" href="tich-hop.html"><h4>AVA chạy qua Gateway</h4><p>Ánh xạ khái niệm, những gì mất đi, cách bật chế độ gateway.</p><span class="more">Đọc →</span></a>
+  <a class="card" href="van-hanh.html"><h4>Triển khai &amp; vận hành</h4><p>Cổng mạng, biến môi trường, dialplan, giám sát, sự cố thường gặp.</p><span class="more">Đọc →</span></a>
+  <a class="card" href="thuat-ngu.html"><h4>Thuật ngữ</h4><p>ARI, Stasis, AudioSocket, barge-in, scope, lease… giải thích ngắn gọn.</p><span class="more">Đọc →</span></a>
+</div>
+
+<h2 id="chon">Nên dùng cái nào?</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>Tình huống</th><th>Lựa chọn</th><th>Lý do</th></tr>
+  <tr><td>Doanh nghiệp muốn trợ lý AI cho tổng đài của chính mình</td><td><span class="badge ava">AVA trực tiếp</span></td><td>Đầy đủ tính năng nhất: phát tệp, biến channel, ghi âm, chiến dịch gọi ra, AMD.</td></tr>
+  <tr><td>Cần dữ liệu âm thanh không rời khỏi hạ tầng</td><td><span class="badge ava">AVA + local_ai_server</span></td><td>STT/TTS/LLM chạy tại chỗ; chế độ local hybrid chỉ gửi văn bản lên cloud.</td></tr>
+  <tr><td>Cho một công ty AI bên ngoài phục vụ cuộc gọi trên tổng đài của mình</td><td><span class="badge gw">Gateway</span></td><td>Không phải trao tài khoản ARI; giới hạn được lệnh và số được gọi.</td></tr>
+  <tr><td>Nhiều đối tác, mỗi bên một AI agent, cần tách bạch và kiểm toán</td><td><span class="badge gw">Gateway</span></td><td>Tổ chức, partner app, API key, scope, audit log theo từng tenant.</td></tr>
+  <tr><td>Chạy AVA ở nơi không với tới ARI (máy khác mạng, máy dev macOS)</td><td><span class="badge gw">Gateway</span> + <span class="badge ava">AVA chế độ gateway</span></td><td>AVA chỉ cần một WebSocket đi ra; chấp nhận mất một số năng lực phụ thuộc ARI.</td></tr>
+</table>
+</div>
+
+<h2 id="trang-thai">Trạng thái hiện tại</h2>
+<div class="cards">
+  <div class="card ava">
+    <h4>AVA</h4>
+    <ul>
+      <li>Phiên bản 7.5.5, giấy phép MIT, Python 3.11+, Asterisk 18+.</li>
+      <li>7 cấu hình "golden baseline" đã kiểm chứng trên cuộc gọi thật.</li>
+      <li>Bản fork bổ sung: chế độ kết nối qua gateway, demo gọi ra tư vấn khóa tiếng Anh THC (story US-2601, đang thực hiện).</li>
+    </ul>
+  </div>
+  <div class="card gw">
+    <h4>Gateway</h4>
+    <ul>
+      <li>6/6 giai đoạn kỹ thuật MVP hoàn tất; đã triển khai với tổng đài pilot.</li>
+      <li>Đã qua thử nghiệm: 5 cuộc gọi đồng thời, cả hai transport, chuyển máy có tư vấn, khôi phục khi mất Redis/PostgreSQL/ARI, không còn channel mồ côi.</li>
+      <li>Còn chờ để GA: hostname + chứng chỉ TLS công khai, SLO lưu lượng, chính sách lưu giữ PII, và một pilot với đối tác thật.</li>
+    </ul>
+  </div>
+</div>
+<div class="pager"><span></span><a href="ava-he-thong.html">Hệ thống & thành phần →</a></div>
+<footer>Bộ tài liệu tổng hợp từ mã nguồn và tài liệu của hai repository, cập nhật 2026-10-13.</footer>
+</div>
+</main>
+</body>
+</html>

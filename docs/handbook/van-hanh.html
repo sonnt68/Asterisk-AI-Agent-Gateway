@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Triển khai và vận hành — Asterisk AI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<aside class="sidebar">
+<div class="brand">Asterisk AI — Bộ tài liệu hệ thống</div>
+<div class="brand-sub">AVA Voice Agent &amp; AI Agent Gateway</div>
+<nav class="nav">
+<div class="nav-group">Tổng quan</div>
+<a href="index.html">Giới thiệu & ý tưởng</a>
+<div class="nav-group">AVA — AI Voice Agent</div>
+<a href="ava-he-thong.html">Hệ thống & thành phần</a>
+<a href="ava-luong-hoat-dong.html">Luồng hoạt động</a>
+<div class="nav-group">Asterisk AI Agent Gateway</div>
+<a href="gateway-he-thong.html">Hệ thống & bảo mật</a>
+<a href="gateway-luong-hoat-dong.html">Luồng hoạt động</a>
+<a href="gateway-giao-thuc.html">Giao thức & API</a>
+<div class="nav-group">Kết hợp & vận hành</div>
+<a href="tich-hop.html">AVA chạy qua Gateway</a>
+<a class="active" href="van-hanh.html">Triển khai & vận hành</a>
+<div class="toc">
+<a href="#cong">Cổng mạng</a>
+<a href="#ava">Dựng AVA</a>
+<a href="#gateway">Dựng Gateway</a>
+<a href="#kiem-chung">Kiểm chứng cuộc gọi đầu tiên</a>
+<a href="#giam-sat">Giám sát</a>
+<a href="#su-co">Sự cố thường gặp</a>
+<a href="#du-phong">Sao lưu, khôi phục và sự cố</a>
+<a href="#kiem-thu">Kiểm thử</a>
+</div>
+<a href="thuat-ngu.html">Thuật ngữ</a>
+</nav>
+</aside>
+<main>
+<div class="content">
+<span class="eyebrow">Kết hợp &amp; vận hành</span>
+<h1>Triển khai và vận hành</h1>
+<p class="lede">Những gì cần biết để dựng, nối với tổng đài, theo dõi và xử lý sự cố cho cả hai hệ thống.</p>
+
+<h2 id="cong">Cổng mạng</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>Hệ thống</th><th>Cổng</th><th>Giao thức</th><th>Chiều</th><th>Ghi chú</th></tr>
+  <tr><td><span class="badge pbx">Asterisk</span></td><td>8088</td><td>HTTP/WS (ARI)</td><td>AVA hoặc Gateway → Asterisk</td><td>Chỉ trong mạng riêng</td></tr>
+  <tr><td><span class="badge ava">AVA</span></td><td>8090</td><td>TCP AudioSocket</td><td>Asterisk → engine</td><td></td></tr>
+  <tr><td><span class="badge ava">AVA</span></td><td>18080</td><td>UDP RTP</td><td>Asterisk ⟷ engine</td><td>Transport ExternalMedia</td></tr>
+  <tr><td><span class="badge ava">AVA</span></td><td>15000</td><td>HTTP</td><td>nội bộ</td><td><code>/health</code>, <code>/metrics</code>, <code>/gateway/originate</code></td></tr>
+  <tr><td><span class="badge ava">AVA</span></td><td>3003</td><td>HTTP</td><td>trình duyệt → admin_ui</td><td>Giới hạn bằng firewall/VPN</td></tr>
+  <tr><td><span class="badge ava">AVA</span></td><td>8765</td><td>WebSocket</td><td>engine → local_ai_server</td><td>Tùy chọn</td></tr>
+  <tr><td><span class="badge gw">Gateway</span></td><td>8080</td><td>HTTP/WS</td><td>nội bộ → api</td><td>Bind loopback trên host</td></tr>
+  <tr><td><span class="badge gw">Gateway</span></td><td>8090</td><td>TCP AudioSocket</td><td>Asterisk → api</td><td>Chỉ qua mạng Docker riêng với Asterisk</td></tr>
+  <tr><td><span class="badge gw">Gateway</span></td><td>5173 (pilot: 15173)</td><td>HTTP</td><td>trình duyệt và đối tác → admin-ui</td><td>Dashboard + proxy <code>/api/</code>, <code>/v1/realtime</code></td></tr>
+</table>
+</div>
+<div class="callout warn">
+  <strong>Trùng cổng 8090</strong>
+  <p>Cả AVA và Gateway đều mặc định nghe AudioSocket ở 8090. Nếu chạy cả hai trên cùng host ở chế độ trực tiếp, hãy đổi một bên. AVA ở chế độ gateway không mở cổng này.</p>
+</div>
+
+<h2 id="ava">Dựng AVA</h2>
+<pre><code>git clone &lt;repo&gt; &amp;&amp; cd AVA-AI-Voice-Agent-for-Asterisk
+sudo ./preflight.sh --apply-fixes          # tạo .env, sinh JWT_SECRET, căn quyền thư mục
+docker compose -p asterisk-ai-voice-agent up -d --build --force-recreate admin_ui
+docker compose -p asterisk-ai-voice-agent logs admin_ui | grep -i password   # mật khẩu một lần
+# mở http://&lt;host&gt;:3003 và đi theo Setup Wizard
+docker compose -p asterisk-ai-voice-agent up -d --build ai_engine
+curl http://localhost:15000/health</code></pre>
+<p>Engine và local_ai_server mặc định dùng host networking để với tới Asterisk ở <code>127.0.0.1</code> và có độ trễ thấp. Có máy GPU thì dùng thêm lớp phủ <code>docker-compose.gpu.yml</code>.</p>
+
+<h3>Dialplan cho AVA</h3>
+<pre><code>[from-ai-agent]
+exten =&gt; s,1,NoOp(Asterisk AI Voice Agent)
+ same =&gt; n,Set(AI_AGENT=sales-agent)
+ same =&gt; n,Stasis(asterisk-ai-voice-agent)
+ same =&gt; n,Hangup()</code></pre>
+<p>Sinh đoạn hiện hành bằng <code>agent dialplan --agent &lt;slug&gt;</code>.</p>
+
+<h3>CLI vận hành</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>Lệnh</th><th>Dùng để</th></tr>
+  <tr><td><code>agent setup</code></td><td>Wizard cài đặt tương tác</td></tr>
+  <tr><td><code>agent check</code> (<code>--local</code>, <code>--remote &lt;ip&gt;</code>)</td><td>Báo cáo chẩn đoán; kiểm tra local AI server</td></tr>
+  <tr><td><code>agent rca --call &lt;id&gt; --no-llm</code></td><td>Phân tích nguyên nhân sau cuộc gọi</td></tr>
+  <tr><td><code>agent config validate</code></td><td>Kiểm tra cấu hình provider, pipeline, transport, âm thanh</td></tr>
+  <tr><td><code>agent update</code></td><td>Kéo mã mới, build lại, khởi động lại</td></tr>
+</table>
+</div>
+
+<h2 id="gateway">Dựng Gateway</h2>
+<p>Yêu cầu: Asterisk 18+ có ARI, Stasis, <code>chan_audiosocket</code> và <code>app_audiosocket</code>; Python 3.12+ và Node.js 22+ để phát triển.</p>
+<pre><code>cp .env.example .env        # thay mọi giá trị giữ chỗ
+docker compose build api admin-ui
+docker compose up -d
+docker compose ps
+curl -fsS http://127.0.0.1:8080/api/v1/system/health
+docker compose exec api alembic current</code></pre>
+
+<h3>Biến môi trường chính</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>Biến</th><th>Mặc định</th><th>Ý nghĩa</th></tr>
+  <tr><td><code>ASTERISK_ARI_BASE_URL</code>, <code>_USERNAME</code>, <code>_PASSWORD</code></td><td>—</td><td>Tài khoản ARI quyền tối thiểu, chỉ gateway giữ</td></tr>
+  <tr><td><code>ASTERISK_DOCKER_NETWORK</code></td><td>bắt buộc</td><td>Mạng Docker ngoài dùng chung với Asterisk</td></tr>
+  <tr><td><code>AUDIOSOCKET_ADVERTISE_HOST</code></td><td><code>api</code></td><td>Địa chỉ Asterisk dùng để gọi về; phải phân giải được từ mạng Asterisk</td></tr>
+  <tr><td><code>GATEWAY_MEDIA_TRANSPORT</code></td><td><code>audiosocket</code></td><td>Hoặc <code>externalmedia</code> (RTP/PCMU 8 kHz)</td></tr>
+  <tr><td><code>GATEWAY_MEDIA_SAMPLE_RATE</code></td><td><code>8000</code></td><td>Tần số của chân AudioSocket và cũng là tần số công bố cho đối tác</td></tr>
+  <tr><td><code>GATEWAY_SESSION_SECRET</code></td><td>bắt buộc</td><td>Ký cookie phiên và token realtime</td></tr>
+  <tr><td><code>GATEWAY_API_KEY_PEPPER</code></td><td>bắt buộc</td><td>Pepper cho HMAC của API key; bí mật riêng</td></tr>
+  <tr><td><code>GATEWAY_BOOTSTRAP_EMAIL</code>, <code>_PASSWORD</code></td><td>—</td><td>Tạo tổ chức mặc định và người dùng owner lần đầu</td></tr>
+  <tr><td><code>GATEWAY_WEB_ORIGIN</code></td><td><code>http://localhost:5173</code></td><td>Phải trùng URL trình duyệt dùng; origin khác bị từ chối</td></tr>
+  <tr><td><code>GATEWAY_ADMIN_BIND</code>, <code>GATEWAY_ADMIN_PORT</code></td><td><code>127.0.0.1</code>, <code>5173</code></td><td>Giao diện và cổng dashboard</td></tr>
+  <tr><td><code>GATEWAY_COOKIE_SECURE</code></td><td><code>false</code></td><td>Đặt <code>true</code> khi đã có TLS</td></tr>
+  <tr><td><code>GATEWAY_TOKEN_RATE_LIMIT_PER_MINUTE</code></td><td><code>60</code></td><td>Giới hạn đổi token</td></tr>
+  <tr><td><code>GATEWAY_BROWSER_SESSION_MAX_AGE</code></td><td><code>28800</code></td><td>Thời hạn phiên trình duyệt, giây</td></tr>
+</table>
+</div>
+<div class="callout">
+  <strong>Vì sao giữ 8000 Hz</strong>
+  <p>Trunk điện thoại là 8 kHz từ đầu đến cuối. Tăng tần số chỉ có lợi khi cả đầu cuối lẫn đối tác thật sự là băng rộng; nếu không, nó chỉ thêm một lần lấy mẫu lại ở mỗi ranh giới. Định dạng channel và tần số công bố được suy ra từ cùng một giá trị để không bao giờ lệch nhau.</p>
+</div>
+
+<h3>Dialplan cho Gateway</h3>
+<pre><code>[from-asterisk-ai-gateway]
+exten =&gt; s,1,NoOp(Asterisk AI Gateway)
+ same =&gt; n,Set(AI_GATEWAY_AGENT=support-agent)
+ same =&gt; n,Stasis(asterisk-ai-gateway)
+ same =&gt; n,Hangup()
+
+[from-internal-custom]
+exten =&gt; 9898,1,Goto(from-asterisk-ai-gateway,s,1)</code></pre>
+<p>Gateway tự tạo bridge và chân AudioSocket qua ARI. Không đặt URL đối tác, API key hay lệnh AudioSocket trong dialplan.</p>
+
+<h3>Truy cập dashboard</h3>
+<ul>
+  <li>Mặc định bind loopback; truy cập qua đường hầm SSH: <code>ssh -L 15173:127.0.0.1:15173 root@&lt;gateway-host&gt;</code>.</li>
+  <li>Host pilot bind công khai ở cổng 15173 vì cổng 80/443 thuộc FreePBX.</li>
+  <li>Bind công khai qua HTTP thuần đưa cookie phiên lên đường truyền dạng rõ. Kết thúc TLS phía trước rồi bật <code>GATEWAY_COOKIE_SECURE=true</code> trước khi có lưu lượng tenant thật.</li>
+</ul>
+
+<h2 id="kiem-chung">Kiểm chứng cuộc gọi đầu tiên</h2>
+<div class="cards">
+  <div class="card ava">
+    <h4>AVA</h4>
+    <ol>
+      <li><code>agent check</code> báo xanh.</li>
+      <li>Gọi máy lẻ thử: lời chào → hai lượt hội thoại → tạm biệt.</li>
+      <li>Xem Call History trong Admin UI.</li>
+    </ol>
+  </div>
+  <div class="card gw">
+    <h4>Gateway</h4>
+    <ol>
+      <li><code>ari show apps</code> trên PBX liệt kê <code>asterisk-ai-gateway</code>.</li>
+      <li>Chạy echo agent của SDK; nhận <code>session.ready</code>.</li>
+      <li>Gọi máy lẻ thử: <code>call.started</code> → nghe lại giọng mình → <code>call.ended</code>.</li>
+      <li>Gauge cuộc gọi và media đang hoạt động về 0 sau khi cúp.</li>
+    </ol>
+  </div>
+</div>
+
+<h3>Danh sách bàn giao cho đối tác</h3>
+<p>Thực hiện với đối tác trên một cuộc gọi thật:</p>
+<ul>
+  <li>Đổi token và đăng ký thành công.</li>
+  <li>Đối tác ghi log khối <code>media</code> nhận được và khớp với cấu hình triển khai.</li>
+  <li>Âm thanh hai chiều, người gọi xác nhận nghe rõ.</li>
+  <li>Mỗi lệnh được cấp chạy một lần; lệnh không được cấp trả <code>command-denied</code> và đối tác xử lý được.</li>
+  <li>Mọi đích sẽ dùng đều được allowlist chấp nhận.</li>
+  <li>Đối tác khởi động lại worker giữa cuộc gọi và thấy cuộc gọi kết thúc — để biết trước hành vi.</li>
+</ul>
+
+<h2 id="giam-sat">Giám sát</h2>
+<h3>Gateway</h3>
+<p>Scrape <code>/api/v1/system/metrics</code> từ mạng giám sát riêng. Nhập <code>observability/dashboards/gateway-overview.json</code> vào Grafana và nạp <code>observability/alerts/gateway-rules.yaml</code>. Metrics chỉ dùng nhãn ít giá trị; định danh nằm trong log có cấu trúc.</p>
+<div class="table-wrap">
+<table>
+  <tr><th>Metric</th><th>Ý nghĩa</th></tr>
+  <tr><td><code>gateway_ari_connected</code></td><td>Kết nối sự kiện ARI còn sống hay không</td></tr>
+  <tr><td><code>gateway_active_calls</code>, <code>gateway_active_audiosocket_connections</code></td><td>Phải về 0 khi không có cuộc gọi</td></tr>
+  <tr><td><code>gateway_active_partner_connections</code></td><td>Số phiên WSS đối tác</td></tr>
+  <tr><td><code>gateway_calls_total{outcome}</code></td><td><code>started</code>, <code>failed</code>, <code>ended</code></td></tr>
+  <tr><td><code>gateway_call_setup_seconds</code></td><td>Từ Stasis tới <code>call.started</code></td></tr>
+  <tr><td><code>gateway_partner_audio_queue_depth</code>, <code>gateway_partner_audio_drops_total</code></td><td>Đối tác tiêu thụ chậm</td></tr>
+  <tr><td><code>gateway_call_commands_total{outcome}</code></td><td><code>accepted</code>, <code>denied</code>, <code>failed</code></td></tr>
+  <tr><td><code>gateway_rate_limit_rejections_total</code></td><td>Bị giới hạn tốc độ</td></tr>
+</table>
+</div>
+<div class="table-wrap">
+<table>
+  <tr><th>Cảnh báo</th><th>Điều kiện</th><th>Mức</th></tr>
+  <tr><td>GatewayAriDisconnected</td><td>Mất ARI 2 phút</td><td>critical</td></tr>
+  <tr><td>GatewayCallFailureSpike</td><td>Hơn 3 lần thiết lập lỗi trong 5 phút</td><td>critical</td></tr>
+  <tr><td>GatewayPartnerAudioDrops</td><td>Có khung bị bỏ trong 5 phút</td><td>warning</td></tr>
+  <tr><td>GatewayPartnerQueueHigh</td><td>Hàng đợi trên 75 khung trong 30 giây</td><td>warning</td></tr>
+  <tr><td>GatewayTokenRateLimitSpike</td><td>Hơn 20 lần từ chối trong 5 phút</td><td>warning</td></tr>
+</table>
+</div>
+<h3>AVA</h3>
+<p>Metrics Prometheus tại <code>:15000/metrics</code>. Gỡ lỗi theo cuộc gọi qua Admin UI → Call History; trạng thái trực tiếp được đẩy lên Dashboard.</p>
+
+<h2 id="su-co">Sự cố thường gặp</h2>
+<h3>Gateway</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>Triệu chứng</th><th>Nguyên nhân có khả năng</th><th>Xử lý</th></tr>
+  <tr><td>WSS đóng <code>4401</code></td><td>Token hết hạn; key bị thu hồi hoặc hết hạn</td><td>Đổi token mới; kiểm tra key trên dashboard</td></tr>
+  <tr><td>Gọi máy lẻ thử bị ngắt ngay</td><td>Không có kết nối nào giữ slug; hoặc Stasis app chưa đăng ký</td><td>Kiểm tra trang Connections; <code>ari show apps</code></td></tr>
+  <tr><td>Worker bị đóng <code>4409</code>, cuộc gọi rớt</td><td>Tiến trình khác đăng ký cùng slug</td><td>Tách slug staging/production; xả cuộc gọi trước khi triển khai</td></tr>
+  <tr><td>Âm thanh ù, xa, không có lỗi</td><td>Đối tác gửi sai tần số</td><td>Hỏi đối tác gửi tần số nào trước mọi thứ khác</td></tr>
+  <tr><td>Mất khung âm thanh</td><td>Đối tác tiêu thụ chậm, hàng đợi 100 khung bỏ khung cũ</td><td>Đối tác xử lý nhanh hơn; thêm bộ đệm chỉ dời vấn đề</td></tr>
+  <tr><td>Gọi ra được chấp nhận rồi rớt</td><td>Context trong allowlist không có route ra trunk</td><td>Thử tay: <code>asterisk -rx 'channel originate Local/84…@from-internal application Echo'</code></td></tr>
+  <tr><td>Gọi ra kết nối nhưng không có âm thanh</td><td>Tối ưu hóa Local channel</td><td>Đã xử lý bằng hậu tố <code>/n</code> trong mã</td></tr>
+  <tr><td><code>429</code> ở endpoint token</td><td>Vòng lặp thử lại dồn dập</td><td>Chờ cửa sổ kế tiếp; dùng luồng kết nối của SDK</td></tr>
+</table>
+</div>
+<h3>AVA</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>Triệu chứng</th><th>Nguyên nhân có khả năng</th><th>Xử lý</th></tr>
+  <tr><td>Chỉ nghe lời chào, sau đó im</td><td>Gating sai; STT của pipeline không nhận âm thanh</td><td>Xem log gating; dùng tổ hợp transport đã kiểm chứng</td></tr>
+  <tr><td>Agent tự ngắt lời chính mình</td><td>VAD coi tiếng vọng là giọng nói</td><td><code>vad.webrtc_aggressiveness: 1</code></td></tr>
+  <tr><td>"File does not exist" khi phát</td><td>ExternalMedia + phát tệp, Asterisk ở máy khác không thấy thư mục âm thanh</td><td>Mount chung, chạy cùng máy, hoặc chuyển AudioSocket</td></tr>
+  <tr><td>Công cụ không chạy</td><td>Sai định dạng schema theo nhà cung cấp</td><td>Đối chiếu tài liệu schema và adapter</td></tr>
+  <tr><td>Lỗi quyền tệp media</td><td>UID/GID không khớp với user asterisk</td><td>Chạy lại <code>preflight.sh</code></td></tr>
+</table>
+</div>
+
+<h2 id="du-phong">Sao lưu, khôi phục và sự cố</h2>
+<ul>
+  <li><strong>Gateway:</strong> <code>pg_dump</code> trước mỗi lần migration, đặt quyền <code>600</code>. Khôi phục trong cửa sổ bảo trì sau khi dừng tiến trình ghi; quay lui bằng bản sao lưu và image cũ tương ứng, không chạy downgrade khi đang có ghi. Redis chỉ chứa lease tạm.</li>
+  <li><strong>AVA:</strong> sao lưu thư mục <code>data/</code> (hai tệp SQLite), <code>config/ai-agent.local.yaml</code> và <code>.env</code>.</li>
+  <li><strong>Nghi lộ key:</strong> thu hồi key trên dashboard, cấp key thay thế, rà soát các lần đổi token.</li>
+  <li><strong>Mất ARI:</strong> khôi phục kết nối riêng, rồi kiểm tra <code>ari show apps</code> và trạng thái sẵn sàng. Không khắc phục bằng cách mở ARI ra công khai hay chia sẻ thông tin PBX cho đối tác.</li>
+</ul>
+
+<h3>Diễn tập hỏng phụ thuộc (Gateway)</h3>
+<pre><code>bash tests/chaos/run-dependency-recovery.sh /opt/asterisk-ai-agent-gateway</code></pre>
+<div class="table-wrap">
+<table>
+  <tr><th>Phụ thuộc hỏng</th><th>Hành vi mong đợi</th></tr>
+  <tr><td>API khởi động lại</td><td>Một listener ARI kết nối lại, trạng thái sẵn sàng trở về 1</td></tr>
+  <tr><td>Redis gián đoạn</td><td>Không cấp lease mới và không kiểm tra giới hạn tốc độ tin cậy được; media đang chạy không bị gán sang worker khác</td></tr>
+  <tr><td>PostgreSQL gián đoạn</td><td>Health và media realtime vẫn chạy; thao tác quản trị lỗi đến khi phục hồi</td></tr>
+</table>
+</div>
+<p>Sau mỗi lần diễn tập: không còn channel mồ côi, số cuộc gọi về 0, chạy lại probe PBX thật (<code>tests/e2e/asterisk/live-pbx-probe.py</code>, nhận <code>--calls N</code> để đo đồng thời).</p>
+
+<h2 id="kiem-thu">Kiểm thử</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>Hệ thống</th><th>Lệnh</th><th>Phạm vi</th></tr>
+  <tr><td><span class="badge gw">Gateway</span></td><td><code>bash scripts/validate.sh</code></td><td>Mọi cổng kiểm tra không phụ thuộc nhà cung cấp: ruff, pytest, phân tích cú pháp OpenAPI/AsyncAPI/luật cảnh báo, build dashboard và SDK Node</td></tr>
+  <tr><td><span class="badge gw">Gateway</span></td><td><code>.venv/bin/pytest</code></td><td>Hợp đồng giao thức, ranh giới tenant và key, chính sách đích/media, AudioSocket, RTP, SDK</td></tr>
+  <tr><td><span class="badge ava">AVA</span></td><td><code>pytest</code>, Vitest</td><td>Engine, backend Admin UI, frontend; CI có sàn độ phủ</td></tr>
+</table>
+</div>
+<div class="pager"><a href="tich-hop.html">← AVA chạy qua Gateway</a><a href="thuat-ngu.html">Thuật ngữ →</a></div>
+<footer>Bộ tài liệu tổng hợp từ mã nguồn và tài liệu của hai repository, cập nhật 2026-10-13.</footer>
+</div>
+</main>
+</body>
+</html>

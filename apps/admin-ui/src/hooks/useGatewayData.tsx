@@ -46,6 +46,8 @@ interface GatewayData {
     rotateKey: (keyId: string) => Promise<void>;
     revokeKey: (keyId: string) => Promise<void>;
     deleteRevokedKey: (keyId: string) => Promise<void>;
+    revokeKeys: (keyIds: string[]) => Promise<{ failedKeyIds: string[] }>;
+    deleteRevokedKeys: (keyIds: string[]) => Promise<{ failedKeyIds: string[] }>;
 }
 
 const GatewayDataContext = createContext<GatewayData | null>(null);
@@ -132,6 +134,42 @@ export const GatewayDataProvider: React.FC<{ children: React.ReactNode }> = ({ c
         [refresh],
     );
 
+    const runKeyBatch = useCallback(
+        async (
+            keyIds: string[],
+            action: (keyId: string) => Promise<unknown>,
+            verb: 'revoked' | 'deleted',
+        ): Promise<{ failedKeyIds: string[] }> => {
+            if (keyIds.length === 0) return { failedKeyIds: [] };
+
+            const results = await Promise.allSettled(keyIds.map(action));
+            await refresh();
+
+            const failedKeyIds: string[] = [];
+            const failureReasons: unknown[] = [];
+            results.forEach((result, index) => {
+                if (result.status !== 'rejected') return;
+                const keyId = keyIds[index];
+                if (keyId !== undefined) failedKeyIds.push(keyId);
+                failureReasons.push(result.reason);
+            });
+
+            if (failureReasons.length) {
+                const succeededCount = keyIds.length - failureReasons.length;
+                toast.error(
+                    `${failureReasons.length} API key${failureReasons.length === 1 ? '' : 's'} could not be ${verb}.`,
+                    {
+                        description: `${succeededCount} succeeded. ${apiErrorMessage(failureReasons[0])}`,
+                    },
+                );
+            } else {
+                toast.success(`${keyIds.length} API key${keyIds.length === 1 ? '' : 's'} ${verb}.`);
+            }
+            return { failedKeyIds };
+        },
+        [refresh],
+    );
+
     const createApp: GatewayData['createApp'] = useCallback(
         (input) =>
             run(async () => {
@@ -192,6 +230,16 @@ export const GatewayDataProvider: React.FC<{ children: React.ReactNode }> = ({ c
         [run],
     );
 
+    const revokeKeys: GatewayData['revokeKeys'] = useCallback(
+        (keyIds) => runKeyBatch(keyIds, (keyId) => api.delete(`/api-keys/${keyId}`), 'revoked'),
+        [runKeyBatch],
+    );
+
+    const deleteRevokedKeys: GatewayData['deleteRevokedKeys'] = useCallback(
+        (keyIds) => runKeyBatch(keyIds, (keyId) => api.delete(`/api-keys/${keyId}/purge`), 'deleted'),
+        [runKeyBatch],
+    );
+
     const dismissRevealedKey = useCallback(() => setRevealedKey(null), []);
 
     return (
@@ -217,6 +265,8 @@ export const GatewayDataProvider: React.FC<{ children: React.ReactNode }> = ({ c
                 rotateKey,
                 revokeKey,
                 deleteRevokedKey,
+                revokeKeys,
+                deleteRevokedKeys,
             }}
         >
             {children}

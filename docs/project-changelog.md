@@ -32,6 +32,8 @@
   and Python task cancellation.
 - Added API-key creation from the API Keys page and permanent deletion of
   revoked keys with tenant checks and audit retention.
+- Added multi-select and select-all controls for bulk revocation and deletion
+  of revoked API keys.
 
 ## 2026-08-18
 

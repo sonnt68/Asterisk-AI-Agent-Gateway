@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gateway: giao thức và API — Asterisk AI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<aside class="sidebar">
+<div class="brand">Asterisk AI — Bộ tài liệu hệ thống</div>
+<div class="brand-sub">AVA Voice Agent &amp; AI Agent Gateway</div>
+<nav class="nav">
+<div class="nav-group">Tổng quan</div>
+<a href="index.html">Giới thiệu & ý tưởng</a>
+<div class="nav-group">AVA — AI Voice Agent</div>
+<a href="ava-he-thong.html">Hệ thống & thành phần</a>
+<a href="ava-luong-hoat-dong.html">Luồng hoạt động</a>
+<div class="nav-group">Asterisk AI Agent Gateway</div>
+<a href="gateway-he-thong.html">Hệ thống & bảo mật</a>
+<a href="gateway-luong-hoat-dong.html">Luồng hoạt động</a>
+<a class="active" href="gateway-giao-thuc.html">Giao thức & API</a>
+<div class="toc">
+<a href="#rest">REST API</a>
+<a href="#ws">WebSocket realtime v1</a>
+<a href="#thong-diep">Thông điệp</a>
+<a href="#loi">Mã lỗi và mã đóng</a>
+<a href="#sdk">SDK</a>
+<a href="#checklist">Trước khi đưa vào sản xuất</a>
+</div>
+<div class="nav-group">Kết hợp & vận hành</div>
+<a href="tich-hop.html">AVA chạy qua Gateway</a>
+<a href="van-hanh.html">Triển khai & vận hành</a>
+<a href="thuat-ngu.html">Thuật ngữ</a>
+</nav>
+</aside>
+<main>
+<div class="content">
+<span class="eyebrow">Asterisk AI Agent Gateway</span>
+<h1>Gateway: giao thức và API</h1>
+<p class="lede">Tham chiếu cho người tích hợp: REST, khung WebSocket realtime phiên bản 1, sự kiện, lệnh, mã lỗi và hai SDK chính thức.</p>
+
+<h2 id="rest">REST API</h2>
+<p>Tất cả nằm dưới <code>/api/v1</code>. Tài liệu OpenAPI tương tác tại <code>/api/v1/docs</code>.</p>
+
+<h3>Dành cho đối tác</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>Phương thức</th><th>Đường dẫn</th><th>Mô tả</th></tr>
+  <tr><td>POST</td><td><code>/realtime/tokens</code></td><td>Đổi API key lấy token realtime. Header <code>Authorization: Bearer agw_live_…</code>. Trả <code>{"token": "…", "expires_in": "300"}</code>.</td></tr>
+</table>
+</div>
+<div class="table-wrap">
+<table>
+  <tr><th>Mã HTTP</th><th>Ý nghĩa</th></tr>
+  <tr><td>401</td><td>Thiếu, sai định dạng, sai, đã thu hồi hoặc hết hạn</td></tr>
+  <tr><td>403</td><td>Partner app bị tắt</td></tr>
+  <tr><td>429</td><td>Vượt giới hạn tốc độ; chờ cửa sổ kế tiếp, không thử lại dồn dập</td></tr>
+</table>
+</div>
+
+<h3>Dành cho dashboard (cookie phiên)</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>Phương thức</th><th>Đường dẫn</th><th>Mô tả</th></tr>
+  <tr><td>POST</td><td><code>/auth/login</code></td><td>Đăng nhập, đặt cookie <code>gateway_session</code></td></tr>
+  <tr><td>POST</td><td><code>/auth/logout</code></td><td>Đăng xuất</td></tr>
+  <tr><td>GET</td><td><code>/auth/session</code></td><td>Phiên hiện tại</td></tr>
+  <tr><td>GET · POST</td><td><code>/organizations/{id}/partner-apps</code></td><td>Liệt kê · tạo partner app</td></tr>
+  <tr><td>PATCH · DELETE</td><td><code>/partner-apps/{id}</code></td><td>Sửa · xóa (xóa chỉ owner/admin)</td></tr>
+  <tr><td>GET · POST</td><td><code>/partner-apps/{id}/api-keys</code></td><td>Liệt kê · cấp key</td></tr>
+  <tr><td>DELETE</td><td><code>/api-keys/{id}</code></td><td>Thu hồi key</td></tr>
+  <tr><td>POST</td><td><code>/api-keys/{id}/rotate</code></td><td>Xoay vòng; trả plaintext mới một lần</td></tr>
+  <tr><td>DELETE</td><td><code>/api-keys/{id}/purge</code></td><td>Xóa vĩnh viễn key đã thu hồi</td></tr>
+  <tr><td>GET</td><td><code>/asterisk</code>, <code>/runtime</code>, <code>/connections</code>, <code>/calls</code></td><td>Trạng thái Asterisk và runtime theo tenant</td></tr>
+  <tr><td>GET</td><td><code>/organization/members</code>, <code>/audit-events</code></td><td>Thành viên · nhật ký audit</td></tr>
+</table>
+</div>
+
+<h3>Hệ thống</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>Phương thức</th><th>Đường dẫn</th><th>Mô tả</th></tr>
+  <tr><td>GET</td><td><code>/system/health</code></td><td>Kiểm tra sức khỏe</td></tr>
+  <tr><td>GET</td><td><code>/system/metrics</code></td><td>Metrics định dạng Prometheus; chỉ scrape từ mạng giám sát riêng</td></tr>
+</table>
+</div>
+
+<h2 id="ws">WebSocket realtime v1</h2>
+<pre><code>wss://&lt;gateway&gt;/v1/realtime?token=&lt;token&gt;</code></pre>
+<ul>
+  <li>Khung <strong>văn bản</strong> là JSON, luôn có trường <code>type</code>.</li>
+  <li>Khung <strong>nhị phân</strong> là âm thanh.</li>
+  <li>Khung đầu tiên phải là <code>session.register</code>.</li>
+  <li>Heartbeat mỗi 10 giây; lease hết hạn sau 30 giây không gia hạn.</li>
+</ul>
+
+<h3>Khung âm thanh</h3>
+<pre><code>byte 0..15   UUID cuộc gọi của gateway (RFC 4122, dạng nhị phân)
+byte 16..N   PCM signed 16-bit little-endian, mono</code></pre>
+<p>Cùng một dạng khung cho cả hai chiều. SDK tự thêm và bóc lớp vỏ UUID.</p>
+
+<div class="callout warn">
+  <strong>Tần số lấy mẫu không nằm trong khung</strong>
+  <p>Gateway công bố định dạng theo từng cuộc gọi trong khối <code>media</code> của <code>call.started</code>. Hãy đọc nó, đừng giả định.</p>
+  <ul>
+    <li>Transport AudioSocket: <code>{"encoding":"pcm_s16le","sample_rate":8000,"channels":1}</code>, tần số theo <code>GATEWAY_MEDIA_SAMPLE_RATE</code>.</li>
+    <li>Transport ExternalMedia: <code>{"encoding":"pcm_mulaw","sample_rate":8000,"channels":1}</code>.</li>
+  </ul>
+  <p>Giả định sai gây lấy mẫu lại ở cả hai đầu. Tỉ lệ không nguyên (24 kHz về 16 kHz) khiến nhiều bộ lọc chống răng cưa âm thầm lùi về nội suy tuyến tính: không có lỗi nào, chỉ là giọng nghe ù và xa.</p>
+</div>
+
+<h2 id="thong-diep">Thông điệp</h2>
+
+<h3>Đối tác → Gateway</h3>
+<div class="table-wrap">
+<table>
+  <tr><th><code>type</code></th><th>Trường</th><th>Ghi chú</th></tr>
+  <tr><td><code>session.register</code></td><td><code>agent_slug</code>, <code>protocol_version: "1"</code></td><td>Bắt buộc là khung đầu tiên</td></tr>
+  <tr><td><code>heartbeat</code></td><td>—</td><td>Mỗi 10 giây</td></tr>
+  <tr><td><code>call.control</code></td><td><code>call_id</code>, <code>command</code>, <code>payload</code>, <code>request_id</code></td><td>Xem bảng lệnh</td></tr>
+  <tr><td><code>outbound.originate</code></td><td><code>payload: {context, extension, timeout}</code>, <code>request_id</code></td><td>Timeout 1–120 giây, mặc định 30</td></tr>
+  <tr><td><code>outbound.cancel</code></td><td><code>call_id</code></td><td>Hủy cuộc gọi ra</td></tr>
+  <tr><td><em>nhị phân</em></td><td>UUID + PCM</td><td>Âm thanh về phía người gọi</td></tr>
+</table>
+</div>
+
+<h3>Gateway → Đối tác</h3>
+<div class="table-wrap">
+<table>
+  <tr><th><code>type</code></th><th>Trường</th><th>Khi nào</th></tr>
+  <tr><td><code>session.ready</code></td><td><code>connection_id</code></td><td>Đăng ký thành công</td></tr>
+  <tr><td><code>heartbeat.ack</code></td><td>—</td><td>Lease đã gia hạn</td></tr>
+  <tr><td><code>call.started</code></td><td><code>call_id</code>, <code>sequence</code>, <code>agent_slug</code>, <code>media</code>, <code>caller</code></td><td>Cuộc gọi đã trả lời, bridge và media sẵn sàng</td></tr>
+  <tr><td><code>call.ended</code></td><td><code>call_id</code></td><td>Cuộc gọi kết thúc; giải phóng trạng thái</td></tr>
+  <tr><td><code>dtmf.received</code></td><td><code>call_id</code>, <code>digit</code></td><td>Người gọi bấm phím</td></tr>
+  <tr><td><code>call.control.accepted</code></td><td><code>call_id</code>, <code>result?</code>, <code>request_id?</code></td><td>Lệnh đã thực thi</td></tr>
+  <tr><td><code>audio.cleared</code></td><td><code>call_id</code></td><td>Sau <code>audio.clear</code></td></tr>
+  <tr><td><code>outbound.accepted</code></td><td><code>call_id</code>, <code>request_id?</code></td><td>Asterisk đã nhận yêu cầu originate</td></tr>
+  <tr><td><code>transfer.consulting</code></td><td><code>call_id</code></td><td>Chân tư vấn đã vào bridge</td></tr>
+  <tr><td><code>transfer.ended</code></td><td><code>call_id</code></td><td>Chân tư vấn đã rời</td></tr>
+  <tr><td><code>error</code></td><td><code>code</code>, <code>message</code></td><td>Xem bảng mã lỗi</td></tr>
+  <tr><td><em>nhị phân</em></td><td>UUID + PCM</td><td>Âm thanh từ người gọi</td></tr>
+</table>
+</div>
+
+<h3>Lệnh <code>call.control</code> và payload</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>Lệnh</th><th>Payload</th><th>Scope</th></tr>
+  <tr><td><code>audio.clear</code></td><td>—</td><td><code>media:control</code></td></tr>
+  <tr><td><code>dtmf.send</code></td><td><code>{"digits": "123#"}</code></td><td><code>calls:dtmf</code></td></tr>
+  <tr><td><code>call.hold</code>, <code>call.resume</code></td><td>—</td><td><code>calls:hold</code></td></tr>
+  <tr><td><code>call.mute</code>, <code>call.unmute</code></td><td>—</td><td><code>calls:mute</code></td></tr>
+  <tr><td><code>call.hangup</code></td><td>—</td><td><code>calls:hangup</code></td></tr>
+  <tr><td><code>transfer.blind</code>, <code>transfer.attended</code></td><td><code>{"context", "extension"}</code></td><td><code>calls:transfer</code></td></tr>
+  <tr><td><code>transfer.cancel</code></td><td>—</td><td><code>calls:transfer</code></td></tr>
+  <tr><td><code>route.queue</code>, <code>route.ring_group</code>, <code>route.voicemail</code></td><td><code>{"context", "extension"}</code></td><td><code>calls:route</code></td></tr>
+  <tr><td><code>dialplan.continue</code></td><td><code>{"context", "extension"}</code></td><td><code>calls:dialplan</code></td></tr>
+  <tr><td><code>playback.start</code></td><td><code>{"media": "sound:&lt;tên&gt;"}</code> hoặc <code>recording:&lt;tên&gt;</code></td><td><code>media:playback</code></td></tr>
+  <tr><td><code>playback.stop</code></td><td><code>{"playback_id": "…"}</code></td><td><code>media:playback</code></td></tr>
+  <tr><td><code>channel.set_var</code></td><td><code>{"variable": "AI_INTENT", "value": "…"}</code></td><td><code>channel:variables</code></td></tr>
+</table>
+</div>
+
+<h2 id="loi">Mã lỗi và mã đóng</h2>
+<div class="table-wrap">
+<table>
+  <tr><th><code>code</code></th><th>Nguyên nhân</th><th>Cách xử lý</th></tr>
+  <tr><td><code>protocol-invalid</code></td><td>Gửi khung trước khi đăng ký, hoặc loại thông điệp không hỗ trợ</td><td>Đăng ký trước; kiểm tra <code>type</code></td></tr>
+  <tr><td><code>registration-rejected</code></td><td>Sai slug hoặc phiên bản giao thức</td><td>Dùng đúng slug của app và <code>"1"</code></td></tr>
+  <tr><td><code>agent-in-use</code></td><td>Kết nối này đã đăng ký rồi</td><td>Chỉ đăng ký một lần mỗi kết nối</td></tr>
+  <tr><td><code>session-superseded</code></td><td>Tiến trình khác vừa đăng ký cùng slug</td><td>Không kết nối lại; kiểm tra triển khai trùng</td></tr>
+  <tr><td><code>presence-unavailable</code></td><td>Redis không khả dụng</td><td>Chờ và kết nối lại</td></tr>
+  <tr><td><code>audio-invalid</code></td><td>Khung nhị phân ≤ 16 byte</td><td>Kiểm tra lớp vỏ UUID</td></tr>
+  <tr><td><code>call-not-active</code></td><td>Âm thanh hoặc hủy cho cuộc gọi không thuộc kết nối</td><td>Không thử lại mù quáng; chờ <code>call.started</code></td></tr>
+  <tr><td><code>media-unavailable</code></td><td>Chân media phía Asterisk chưa sẵn sàng hoặc đã mất</td><td>Thường thoáng qua khi cuộc gọi kết thúc</td></tr>
+  <tr><td><code>command-denied</code></td><td>Thiếu scope, đích ngoài allowlist, payload vi phạm chính sách</td><td>Yêu cầu người vận hành cấp quyền; xử lý êm, đừng crash</td></tr>
+  <tr><td><code>command-failed</code></td><td>Cuộc gọi không tồn tại, channel chưa sẵn sàng, ARI từ chối</td><td>Kiểm tra trạng thái cuộc gọi</td></tr>
+  <tr><td><code>outbound-failed</code></td><td>Originate bị từ chối bởi chính sách hoặc ARI</td><td>Kiểm tra scope, allowlist, context</td></tr>
+</table>
+</div>
+<div class="table-wrap">
+<table>
+  <tr><th>Mã đóng WS</th><th>Ý nghĩa</th><th>SDK làm gì</th></tr>
+  <tr><td><code>4401</code></td><td>Token sai, hết hạn, hoặc key đã thu hồi</td><td>Lấy token mới và thử lại trong ngân sách xác thực</td></tr>
+  <tr><td><code>4409</code></td><td>Bị thay thế bởi đăng ký mới hơn</td><td>Dừng hẳn, báo <code>SessionSupersededError</code></td></tr>
+  <tr><td><code>1012</code></td><td>Lease đã hết hạn</td><td>Kết nối lại</td></tr>
+  <tr><td><code>1013</code></td><td>Kho lease không khả dụng</td><td>Kết nối lại sau backoff</td></tr>
+</table>
+</div>
+
+<h2 id="sdk">SDK</h2>
+<p>Gói <code>asterisk-ai-agent-gateway-sdk</code> trên PyPI và npm (phiên bản 0.3.2). Cả hai tự lo: đổi token, đăng ký, heartbeat 10 giây, kết nối lại với token mới, lớp vỏ âm thanh, và sinh <code>request_id</code> idempotent cho mỗi lệnh.</p>
+
+<div class="cards">
+  <div class="card">
+    <h3>Python</h3>
+<pre><code>pip install asterisk-ai-agent-gateway-sdk
+export GATEWAY_URL=https://gateway.example.com
+export GATEWAY_API_KEY=agw_live_…
+export AGENT_SLUG=support-agent
+python sdks/python/examples/echo_agent.py</code></pre>
+    <p><code>GatewayClient.run(on_event=…, on_audio=…)</code>; <code>on_audio</code> nhận <code>(call_id, pcm)</code>; gửi lại bằng <code>send_audio(call_id, pcm)</code>. Dùng <code>stream()</code> nếu muốn tự kéo sự kiện qua async iterator.</p>
+  </div>
+  <div class="card">
+    <h3>Node (≥ 18.17)</h3>
+<pre><code>import { GatewayClient } from "asterisk-ai-agent-gateway-sdk";
+
+const client = new GatewayClient({
+  gatewayUrl: process.env.GATEWAY_URL,
+  apiKey: process.env.GATEWAY_API_KEY,
+  agentSlug: "support-agent",
+});
+client.on("call.started", (e) =&gt; console.log(e.call_id, e.media));
+client.on("audio", ({ callId, pcm }) =&gt; client.sendAudio(callId, pcm));
+await client.start();</code></pre>
+    <p>Mỗi sự kiện JSON được phát hai lần: dưới <code>event</code> và dưới chính <code>type</code> của nó. Có khai báo TypeScript.</p>
+  </div>
+</div>
+
+<div class="table-wrap">
+<table>
+  <tr><th>Python</th><th>Node</th><th>Lệnh</th></tr>
+  <tr><td><code>hangup</code></td><td><code>hangup</code></td><td><code>call.hangup</code></td></tr>
+  <tr><td><code>hold</code>, <code>resume</code></td><td><code>hold</code>, <code>resume</code></td><td><code>call.hold</code>, <code>call.resume</code></td></tr>
+  <tr><td><code>mute</code>, <code>unmute</code></td><td><code>mute</code>, <code>unmute</code></td><td><code>call.mute</code>, <code>call.unmute</code></td></tr>
+  <tr><td><code>send_dtmf</code></td><td><code>sendDtmf</code></td><td><code>dtmf.send</code></td></tr>
+  <tr><td><code>clear_audio</code></td><td><code>clearAudio</code></td><td><code>audio.clear</code></td></tr>
+  <tr><td><code>transfer_blind</code>, <code>transfer_attended</code>, <code>transfer_cancel</code></td><td><code>transferBlind</code>, <code>transferAttended</code>, <code>transferCancel</code></td><td><code>transfer.*</code></td></tr>
+  <tr><td><code>route</code></td><td><code>route</code></td><td><code>route.*</code></td></tr>
+  <tr><td><code>originate</code>, <code>cancel_outbound</code></td><td><code>originate</code>, <code>cancelOutbound</code></td><td><code>outbound.*</code></td></tr>
+</table>
+</div>
+
+<h3>Bộ kỹ năng cho trợ lý lập trình AI</h3>
+<p><code>sdks/skill/connect-asterisk-ai-gateway/</code> là một gói hướng dẫn (SKILL.md, ví dụ, tài liệu tham chiếu về âm thanh, xác thực, điều khiển, giao thức, xử lý sự cố) để trợ lý AI của đối tác tự viết phần tích hợp. Đóng gói bằng <code>python3 scripts/build_partner_skill.py</code>, kết quả nằm trong <code>dist/</code>.</p>
+
+<h2 id="checklist">Trước khi đưa vào sản xuất</h2>
+<p>SDK lo phần kết nối. Phần còn lại là việc của đối tác:</p>
+<ul>
+  <li>Đọc <code>media</code> trong <code>call.started</code> và cấu hình mô hình theo tần số đó.</li>
+  <li>Tiêu thụ âm thanh đủ nhanh; hàng đợi 100 khung sẽ bỏ khung cũ nếu bị nghẽn.</li>
+  <li>Hàng đợi có giới hạn về phía mô hình, timeout cho cuộc gọi, lỗi có cấu trúc.</li>
+  <li>Xử lý <code>command-denied</code> mà không crash.</li>
+  <li>Giải phóng trạng thái theo cuộc gọi khi nhận <code>call.ended</code>.</li>
+  <li>Xả hết cuộc gọi đang chạy trước khi tiến trình mới đăng ký cùng slug.</li>
+  <li>Không ghi log API key, token hay âm thanh thô của người gọi.</li>
+  <li>Có đích dự phòng là người thật.</li>
+</ul>
+<div class="pager"><a href="gateway-luong-hoat-dong.html">← Luồng hoạt động</a><a href="tich-hop.html">AVA chạy qua Gateway →</a></div>
+<footer>Bộ tài liệu tổng hợp từ mã nguồn và tài liệu của hai repository, cập nhật 2026-10-13.</footer>
+</div>
+</main>
+</body>
+</html>

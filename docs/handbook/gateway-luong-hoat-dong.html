@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gateway: luồng hoạt động — Asterisk AI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<aside class="sidebar">
+<div class="brand">Asterisk AI — Bộ tài liệu hệ thống</div>
+<div class="brand-sub">AVA Voice Agent &amp; AI Agent Gateway</div>
+<nav class="nav">
+<div class="nav-group">Tổng quan</div>
+<a href="index.html">Giới thiệu & ý tưởng</a>
+<div class="nav-group">AVA — AI Voice Agent</div>
+<a href="ava-he-thong.html">Hệ thống & thành phần</a>
+<a href="ava-luong-hoat-dong.html">Luồng hoạt động</a>
+<div class="nav-group">Asterisk AI Agent Gateway</div>
+<a href="gateway-he-thong.html">Hệ thống & bảo mật</a>
+<a class="active" href="gateway-luong-hoat-dong.html">Luồng hoạt động</a>
+<div class="toc">
+<a href="#cap-quyen">1. Cấp quyền cho đối tác</a>
+<a href="#xac-thuc">2. Xác thực và đăng ký phiên</a>
+<a href="#goi-vao">3. Cuộc gọi vào</a>
+<a href="#goi-ra">4. Cuộc gọi ra do đối tác yêu cầu</a>
+<a href="#dieu-khien">5. Lệnh điều khiển cuộc gọi</a>
+<a href="#chuyen-may">6. Chuyển máy có tư vấn</a>
+<a href="#tranh-slug">7. Hai tiến trình tranh một slug</a>
+<a href="#don-dep">8. Kết thúc và dọn dẹp</a>
+</div>
+<a href="gateway-giao-thuc.html">Giao thức & API</a>
+<div class="nav-group">Kết hợp & vận hành</div>
+<a href="tich-hop.html">AVA chạy qua Gateway</a>
+<a href="van-hanh.html">Triển khai & vận hành</a>
+<a href="thuat-ngu.html">Thuật ngữ</a>
+</nav>
+</aside>
+<main>
+<div class="content">
+<span class="eyebrow">Asterisk AI Agent Gateway</span>
+<h1>Gateway: luồng hoạt động</h1>
+<p class="lede">Từng luồng từ đầu đến cuối: cấp quyền cho đối tác, kết nối, cuộc gọi vào và ra, điều khiển, chuyển máy, tranh chấp slug và dọn dẹp. Các bước bám theo mã trong <code>apps/control-api/app</code>.</p>
+
+<h2 id="cap-quyen">1. Cấp quyền cho đối tác</h2>
+<ol class="flow">
+  <li><span class="who">Người vận hành<span class="arrow">→</span><span class="a-gw">Dashboard</span></span><p>Đăng nhập, tạo <strong>Partner App</strong> với <code>agent_slug</code> duy nhất toàn cục, chọn scope và allowlist đích.</p></li>
+  <li><span class="who">Người vận hành<span class="arrow">→</span><span class="a-gw">Dashboard</span></span><p>Cấp <strong>API key</strong> cho app. Plaintext <code>agw_live_…</code> hiện đúng một lần; gateway chỉ lưu HMAC hash và prefix. Thao tác được ghi audit.</p></li>
+  <li><span class="who">Người vận hành<span class="arrow">→</span><span class="a-pbx">Asterisk</span></span><p>Thêm route trong dialplan đặt <code>AI_GATEWAY_AGENT=&lt;slug&gt;</code> rồi vào <code>Stasis(asterisk-ai-gateway)</code>.</p></li>
+  <li><span class="who">Người vận hành<span class="arrow">→</span><span class="a-ext">Đối tác</span></span><p>Gửi URL gateway, slug, scope, allowlist qua kênh thường; gửi key qua kênh bí mật có hạn.</p></li>
+</ol>
+<div class="callout warn">
+  <strong>Thống nhất trước khi tạo</strong>
+  <p>Mỗi slug chỉ có một kết nối sống. Staging và production cần <strong>hai slug</strong>, nếu không worker staging sẽ đẩy production ra. Đây là lỗi onboarding phổ biến nhất.</p>
+</div>
+
+<h2 id="xac-thuc">2. Xác thực và đăng ký phiên</h2>
+<div class="diagram">
+  <div class="chain">
+    <div class="node ext">SDK đối tác</div>
+    <div class="link right">① POST /api/v1/realtime/tokens<br>Bearer agw_live_…</div>
+    <div class="node gw">Control API<small>kiểm key · rate limit</small></div>
+    <div class="link left">② token 5 phút</div>
+    <div class="node ext">SDK đối tác</div>
+    <div class="link right">③ WSS /v1/realtime?token=…<br>④ session.register</div>
+    <div class="node gw">Realtime socket<small>lease Redis</small></div>
+  </div>
+</div>
+<ol class="flow">
+  <li><span class="who"><span class="a-ext">SDK</span><span class="arrow">→</span><span class="a-gw">Gateway</span></span><p><code>POST /api/v1/realtime/tokens</code> với header <code>Authorization: Bearer &lt;key&gt;</code>. Key không bao giờ nằm trong URL.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span></span><p>Tách prefix, tìm key, từ chối <code>401</code> nếu sai, đã thu hồi hoặc hết hạn; <code>403</code> nếu partner app bị tắt; <code>429</code> nếu vượt 60 yêu cầu/phút theo key, tổ chức hoặc IP. Cập nhật <code>last_used_at</code>.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span><span class="arrow">→</span><span class="a-ext">SDK</span></span><p>Trả token đã ký chứa <code>api_key_id</code>, <code>organization_id</code>, <code>partner_app_id</code>, <code>agent_slug</code>, <code>scopes</code>; hết hạn sau 300 giây.</p></li>
+  <li><span class="who"><span class="a-ext">SDK</span><span class="arrow">→</span><span class="a-gw">Gateway</span></span><p>Mở <code>wss://&lt;gateway&gt;/v1/realtime?token=…</code>. Gateway kiểm chữ ký token và hỏi lại cơ sở dữ liệu xem key còn sống không; sai thì đóng với mã <code>4401</code>.</p></li>
+  <li><span class="who"><span class="a-ext">SDK</span><span class="arrow">→</span><span class="a-gw">Gateway</span></span><p>Khung đầu tiên: <code>{"type":"session.register","agent_slug":"…","protocol_version":"1"}</code>. Slug phải trùng slug trong token, nếu không nhận <code>registration-rejected</code>.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span></span><p>Nếu slug đang có kết nối khác, kết nối đó bị thay thế (xem mục 7). Ghi kết nối vào registry, chiếm lease Redis <code>asterisk-ai-gateway:agent:&lt;slug&gt;</code> với TTL 30 giây.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span><span class="arrow">→</span><span class="a-ext">SDK</span></span><p><code>{"type":"session.ready","connection_id":"…"}</code>. Từ đây SDK gửi <code>heartbeat</code> mỗi 10 giây và nhận <code>heartbeat.ack</code>; mỗi heartbeat gia hạn lease.</p></li>
+</ol>
+
+<h3>Khi xác thực thất bại</h3>
+<p>SDK thử lại tối đa ba lần sau lần đầu (bốn lần tổng), mỗi lần lấy token mới sau 1, 2 rồi 4 giây. Một ngân sách chung cho HTTP <code>401/403</code> khi đổi token, <code>401/403</code> khi bắt tay WebSocket, và mã đóng <code>4401</code>. Ngân sách chỉ đặt lại khi nhận <code>session.ready</code>. Hết ngân sách thì ném <code>AuthenticationError</code>. Thử lại không cứu được key đã thu hồi.</p>
+
+<h2 id="goi-vao">3. Cuộc gọi vào</h2>
+<ol class="flow">
+  <li><span class="who"><span class="a-pbx">Asterisk</span><span class="arrow">→</span><span class="a-gw">Gateway</span></span><p>Dialplan đặt <code>AI_GATEWAY_AGENT</code> và vào Stasis. ARI phát <code>StasisStart</code> cho channel người gọi.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span></span><p>Đọc biến <code>AI_GATEWAY_AGENT</code> của channel, tìm kết nối đang giữ slug đó. <strong>Không có kết nối → xóa channel ngay</strong> (người gọi bị ngắt).</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span></span><p>Tạo <code>ActiveCall</code> với <code>call_id</code> là UUID do gateway sinh, gắn với kết nối đối tác.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span><span class="arrow">→</span><span class="a-pbx">Asterisk</span></span><p>Trả lời channel → tạo bridge kiểu <code>mixing</code> → thêm channel người gọi vào bridge.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span><span class="arrow">→</span><span class="a-pbx">Asterisk</span></span><p>Tạo chân media: channel <code>AudioSocket/&lt;host&gt;:8090/&lt;call_id&gt;/c(slin…)</code>. Asterisk mở TCP về máy chủ AudioSocket của gateway và gửi UUID; gateway ghép kết nối TCP đó với cuộc gọi rồi thêm channel vào bridge.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span><span class="arrow">→</span><span class="a-ext">Đối tác</span></span><p>Gửi <code>call.started</code> kèm <code>call_id</code>, <code>agent_slug</code>, thông tin <code>caller</code> và khối <code>media</code> cho biết định dạng âm thanh thực tế.</p></li>
+  <li><span class="who"><span class="a-pbx">Asterisk</span> ⟷ <span class="a-gw">Gateway</span> ⟷ <span class="a-ext">Đối tác</span></span><p>Âm thanh chạy hai chiều. Chiều tới đối tác đi qua hàng đợi 100 khung; chiều về Asterisk được kiểm tra đối tác có sở hữu cuộc gọi đó không trước khi ghi ra AudioSocket.</p></li>
+</ol>
+<p>Thời gian từ lúc xử lý Stasis đến <code>call.started</code> được đo bằng histogram <code>gateway_call_setup_seconds</code>. Nếu bất kỳ bước nào lỗi, cuộc gọi được dọn dẹp và đối tác không nhận thông báo.</p>
+
+<h3>Đường đi của âm thanh</h3>
+<div class="diagram">
+  <div class="chain">
+    <div class="node ext">Người gọi</div>
+    <div class="link">RTP</div>
+    <div class="node pbx">Bridge mixing<small>channel người gọi + channel AudioSocket</small></div>
+    <div class="link">TCP AudioSocket<br>PCM slin</div>
+    <div class="node gw">CallMedia<small>hàng đợi 100 khung, bỏ khung cũ nhất</small></div>
+    <div class="link">WSS nhị phân<br>16 byte UUID + PCM</div>
+    <div class="node ext">Đối tác</div>
+  </div>
+</div>
+
+<h2 id="goi-ra">4. Cuộc gọi ra do đối tác yêu cầu</h2>
+<ol class="flow">
+  <li><span class="who"><span class="a-ext">Đối tác</span><span class="arrow">→</span><span class="a-gw">Gateway</span></span><p><code>outbound.originate</code> với <code>payload: {context, extension, timeout}</code> và một <code>request_id</code> UUID.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span></span><p>Nếu <code>request_id</code> đã thấy, trả lại kết quả cũ. Ngược lại kiểm tra: scope <code>calls:originate</code>; cú pháp context/extension; đích có trong allowlist; timeout 1–120 giây.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span><span class="arrow">→</span><span class="a-pbx">Asterisk</span></span><p>Giữ chỗ một <code>call_id</code>, rồi originate <code>Local/&lt;extension&gt;@&lt;context&gt;/n</code> vào ứng dụng Stasis với tham số <code>outbound,&lt;call_id&gt;</code>.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span><span class="arrow">→</span><span class="a-ext">Đối tác</span></span><p><code>{"type":"outbound.accepted","call_id":"…"}</code>. Lúc này máy bên kia mới đang đổ chuông.</p></li>
+  <li><span class="who"><span class="a-pbx">Asterisk</span><span class="arrow">→</span><span class="a-gw">Gateway</span></span><p>Channel vào Stasis khi còn đổ chuông. Gateway <strong>chờ</strong> sự kiện <code>ChannelStateChange</code> với trạng thái <code>Up</code> — tức bên kia thật sự nhấc máy.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span></span><p>Kích hoạt cuộc gọi y như cuộc gọi vào: bridge, chân media, rồi <code>call.started</code>.</p></li>
+</ol>
+<div class="callout">
+  <strong>Hai chi tiết đã trả giá để học</strong>
+  <ul>
+    <li><strong>Hậu tố <code>/n</code></strong> tắt tối ưu hóa Local channel. Thiếu nó, Asterisk gộp Local channel khi hai chân đã lên và bridge mất đường media tới AudioSocket: cuộc gọi kết nối, đối tác được báo đã bắt đầu, nhưng không có khung âm thanh nào.</li>
+    <li><strong>Chờ trạng thái <code>Up</code></strong>: kích hoạt sớm sẽ khiến đối tác chào một chiếc điện thoại chưa ai nhấc.</li>
+  </ul>
+</div>
+<div class="callout warn">
+  <strong>Context phải gọi ra được</strong>
+  <p>Vì originate là <code>Local/&lt;extension&gt;@&lt;context&gt;</code>, context phải có route đưa số ra trunk — trên FreePBX là <code>from-internal</code>. Context trunk gọi vào như <code>from-trunk</code> chỉ khớp DID và không có route ra, nên thất bại ở dialplan dù đã có trong allowlist.</p>
+</div>
+<p>Hủy khi đang đổ chuông: <code>outbound.cancel</code> với <code>call_id</code>. Nếu channel bị hủy mà chưa từng trả lời, sự kiện <code>ChannelDestroyed</code> giải phóng chỗ đã giữ để số cuộc gọi đang hoạt động không bị lệch.</p>
+
+<h2 id="dieu-khien">5. Lệnh điều khiển cuộc gọi</h2>
+<pre><code>{
+  "type": "call.control",
+  "call_id": "3f0c…",
+  "command": "transfer.blind",
+  "payload": {"context": "from-internal", "extension": "1001"},
+  "request_id": "9b2e…"
+}</code></pre>
+<ol class="flow">
+  <li><span class="who"><span class="a-gw">Gateway</span></span><p><strong>Idempotency:</strong> <code>request_id</code> đã thấy trên kết nối này → gửi lại phản hồi đã nhớ, không gọi ARI lần nữa.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span></span><p><strong>Scope:</strong> lệnh không có trong bảng → lỗi; thiếu scope → <code>command-denied</code>.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span></span><p><strong>Quyền sở hữu:</strong> <code>call_id</code> phải thuộc đúng kết nối này, nếu không → <code>command-failed</code>.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span></span><p><strong>Chính sách:</strong> lệnh <code>transfer.*</code>, <code>route.*</code>, <code>dialplan.continue</code> phải có đích trong allowlist. <code>playback.*</code> và <code>channel.set_var</code> qua kiểm tra của <code>media_policy</code>.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span><span class="arrow">→</span><span class="a-pbx">Asterisk</span></span><p>Thực thi trên channel do gateway sở hữu qua ARI.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span><span class="arrow">→</span><span class="a-ext">Đối tác</span></span><p><code>call.control.accepted</code>, kèm <code>result</code> nếu có (ví dụ <code>playback_id</code>) và <code>request_id</code>. Kết quả được nhớ để phục vụ lần gửi lại.</p></li>
+</ol>
+<div class="table-wrap">
+<table>
+  <tr><th>Lệnh</th><th>Thao tác ARI tương ứng</th></tr>
+  <tr><td><code>call.hangup</code></td><td>Xóa channel</td></tr>
+  <tr><td><code>dtmf.send</code></td><td>Gửi DTMF vào channel (<code>payload.digits</code>)</td></tr>
+  <tr><td><code>call.hold</code> / <code>call.resume</code></td><td>Bật / tắt hold trên channel</td></tr>
+  <tr><td><code>call.mute</code> / <code>call.unmute</code></td><td>Bật / tắt mute cả hai chiều</td></tr>
+  <tr><td><code>transfer.blind</code>, <code>route.*</code></td><td>Chuyển hướng channel tới <code>context/extension</code>, priority 1</td></tr>
+  <tr><td><code>dialplan.continue</code></td><td>Cho channel tiếp tục trong dialplan tại đích</td></tr>
+  <tr><td><code>playback.start</code> / <code>playback.stop</code></td><td>Phát / dừng media trên channel với ID do gateway sinh</td></tr>
+  <tr><td><code>channel.set_var</code></td><td>Đặt biến channel</td></tr>
+  <tr><td><code>audio.clear</code></td><td>Không gọi ARI; gateway trả <code>audio.cleared</code></td></tr>
+</table>
+</div>
+
+<h2 id="chuyen-may">6. Chuyển máy có tư vấn</h2>
+<ol class="flow">
+  <li><span class="who"><span class="a-ext">Đối tác</span><span class="arrow">→</span><span class="a-gw">Gateway</span></span><p><code>transfer.attended</code> với đích trong allowlist. Mỗi cuộc gọi chỉ có một lần tư vấn tại một thời điểm.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span><span class="arrow">→</span><span class="a-pbx">Asterisk</span></span><p>Originate <code>Local/&lt;extension&gt;@&lt;context&gt;</code> vào Stasis với tham số <code>transfer-helper,&lt;call_id&gt;</code>, timeout 30 giây.</p></li>
+  <li><span class="who"><span class="a-pbx">Asterisk</span><span class="arrow">→</span><span class="a-gw">Gateway</span></span><p>Chân tư vấn vào Stasis. Gateway thêm nó vào bridge đang hoạt động (thử lại tối đa 25 lần, cách nhau 0,1 giây).</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span><span class="arrow">→</span><span class="a-ext">Đối tác</span></span><p><code>transfer.consulting</code>. Người gọi, AI và nhân viên cùng ở trong một bridge.</p></li>
+  <li><span class="who"><span class="a-ext">Đối tác</span></span><p>Sau khi tư vấn, dùng <code>transfer.blind</code> tới route đã duyệt để giao hẳn người gọi; hoặc <code>transfer.cancel</code> để gỡ chân tư vấn.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span><span class="arrow">→</span><span class="a-ext">Đối tác</span></span><p>Khi chân tư vấn rời Stasis, gửi <code>transfer.ended</code>. Cuộc gọi gốc vẫn tiếp tục.</p></li>
+</ol>
+
+<h2 id="tranh-slug">7. Hai tiến trình tranh một slug</h2>
+<p>Quy tắc: <strong>đăng ký mới nhất thắng</strong>.</p>
+<ol class="flow">
+  <li><span class="who"><span class="a-ext">Worker mới</span><span class="arrow">→</span><span class="a-gw">Gateway</span></span><p>Gửi <code>session.register</code> cho slug đang có worker cũ giữ.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span><span class="arrow">→</span><span class="a-ext">Worker cũ</span></span><p>Gửi lỗi <code>session-superseded</code>, cúp mọi cuộc gọi worker cũ đang giữ, rồi đóng socket với mã <code>4409</code>.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span></span><p>Ghi kết nối mới, chiếm lease Redis vô điều kiện, gửi <code>session.ready</code>.</p></li>
+  <li><span class="who"><span class="a-ext">Worker cũ</span></span><p>SDK nhận <code>4409</code> thì báo <code>SessionSupersededError</code> và <strong>không kết nối lại</strong>, để hai worker không giành qua giành lại.</p></li>
+</ol>
+<p>Khi chạy nhiều instance gateway: instance có lease bị chiếm sẽ nhận trạng thái <code>superseded</code> ở heartbeat kế tiếp và đóng kết nối của mình với <code>4409</code>. Lease hết hạn tự nhiên thì đóng với <code>1012</code>. Redis không khả dụng thì đóng với <code>1013</code>.</p>
+<div class="callout">
+  <strong>Thay đổi từ 2026-10</strong>
+  <p>Trước đây worker thứ hai bị từ chối với <code>agent-in-use</code>, khiến một tiến trình bị bỏ quên có thể giữ slug vô thời hạn. Một số tài liệu cũ trong repo vẫn mô tả hành vi cũ; mã nguồn và changelog là chuẩn.</p>
+</div>
+
+<h2 id="don-dep">8. Kết thúc và dọn dẹp</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>Tác nhân</th><th>Gateway làm gì</th></tr>
+  <tr><td>Người gọi cúp máy (<code>StasisEnd</code>)</td><td>Dọn dẹp cuộc gọi và gửi <code>call.ended</code>.</td></tr>
+  <tr><td>Đối tác gửi <code>call.hangup</code></td><td>Xóa channel; <code>StasisEnd</code> theo sau kích hoạt dọn dẹp.</td></tr>
+  <tr><td>Đối tác mất kết nối</td><td>Gỡ lease, gỡ kết nối khỏi registry, cúp mọi cuộc gọi nó sở hữu.</td></tr>
+  <tr><td>Channel gọi ra bị hủy trước khi trả lời</td><td><code>ChannelDestroyed</code> giải phóng chỗ đã giữ.</td></tr>
+  <tr><td>Thiết lập cuộc gọi lỗi giữa chừng</td><td>Dọn dẹp, không thông báo đối tác.</td></tr>
+</table>
+</div>
+<p>Dọn dẹp theo thứ tự cố định và chỉ chạy một lần cho mỗi cuộc gọi: đóng media → xóa channel tư vấn, channel media, channel người gọi → xóa bridge → gửi <code>call.ended</code>. Lỗi ở từng bước bị nuốt để các bước sau vẫn chạy. Tiêu chí kiểm chứng: sau khi cúp máy, gauge cuộc gọi và kết nối AudioSocket đang hoạt động trở về 0, không còn channel mồ côi.</p>
+
+<h3>Thu hồi key khi đang có cuộc gọi</h3>
+<p>Thu hồi chặn ngay việc đổi token mới và mở phiên WSS mới. Cuộc gọi đang diễn ra <strong>không</strong> bị cắt giữa chừng.</p>
+<ul>
+  <li><strong>Xoay vòng:</strong> tạo key thay thế → đối tác chuyển sang và xác nhận đăng ký → thu hồi key cũ.</li>
+  <li><strong>Ngừng hợp tác:</strong> thu hồi key trước, rồi tắt partner app.</li>
+</ul>
+<div class="pager"><a href="gateway-he-thong.html">← Hệ thống & bảo mật</a><a href="gateway-giao-thuc.html">Giao thức & API →</a></div>
+<footer>Bộ tài liệu tổng hợp từ mã nguồn và tài liệu của hai repository, cập nhật 2026-10-13.</footer>
+</div>
+</main>
+</body>
+</html>

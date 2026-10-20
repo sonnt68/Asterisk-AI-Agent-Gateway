@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AVA chạy qua Gateway — Asterisk AI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<aside class="sidebar">
+<div class="brand">Asterisk AI — Bộ tài liệu hệ thống</div>
+<div class="brand-sub">AVA Voice Agent &amp; AI Agent Gateway</div>
+<nav class="nav">
+<div class="nav-group">Tổng quan</div>
+<a href="index.html">Giới thiệu & ý tưởng</a>
+<div class="nav-group">AVA — AI Voice Agent</div>
+<a href="ava-he-thong.html">Hệ thống & thành phần</a>
+<a href="ava-luong-hoat-dong.html">Luồng hoạt động</a>
+<div class="nav-group">Asterisk AI Agent Gateway</div>
+<a href="gateway-he-thong.html">Hệ thống & bảo mật</a>
+<a href="gateway-luong-hoat-dong.html">Luồng hoạt động</a>
+<a href="gateway-giao-thuc.html">Giao thức & API</a>
+<div class="nav-group">Kết hợp & vận hành</div>
+<a class="active" href="tich-hop.html">AVA chạy qua Gateway</a>
+<div class="toc">
+<a href="#y-tuong">Ý tưởng</a>
+<a href="#cach-hoat-dong">Cách nó hoạt động</a>
+<a href="#gioi-han">Những gì thay đổi so với chế độ trực tiếp</a>
+<a href="#bat">Bật chế độ gateway</a>
+<a href="#goi-ra">Gọi ra qua Gateway</a>
+<a href="#viec-phia-gateway">Việc cần làm phía Gateway</a>
+<a href="#trang-thai">Trạng thái kiểm chứng</a>
+</div>
+<a href="van-hanh.html">Triển khai & vận hành</a>
+<a href="thuat-ngu.html">Thuật ngữ</a>
+</nav>
+</aside>
+<main>
+<div class="content">
+<span class="eyebrow">Kết hợp hai dự án</span>
+<h1>AVA chạy qua Gateway</h1>
+<p class="lede">Bản fork AVA có thêm chế độ kết nối thứ ba: thay vì giữ ARI và nói chuyện trực tiếp với Asterisk, AVA trở thành một đối tác bình thường của Gateway, cầm một API key và không có thông tin tổng đài nào.</p>
+
+<h2 id="y-tuong">Ý tưởng</h2>
+<div class="diagram">
+  <p class="diagram-title">Toàn tuyến khi kết hợp</p>
+  <div class="chain">
+    <div class="node ext">Người gọi</div>
+    <div class="link">SIP · RTP</div>
+    <div class="node pbx">Asterisk<small>AI_GATEWAY_AGENT=ava-voice-agent</small></div>
+    <div class="link">ARI · AudioSocket</div>
+    <div class="node gw">Gateway<small>bridge · scope · allowlist</small></div>
+    <div class="link">WSS<br>UUID + PCM</div>
+    <div class="node ava">AVA ai_engine<small>GatewayAudioTransport</small></div>
+    <div class="link">WS / HTTPS</div>
+    <div class="node ext">Nhà cung cấp AI</div>
+  </div>
+</div>
+<p>Mỗi bên làm đúng việc của mình: Gateway lo điện thoại và ranh giới an toàn; AVA lo hội thoại, công cụ và lịch sử.</p>
+
+<h3>Vì sao cần</h3>
+<ul>
+  <li><strong>Không cần quyền ARI.</strong> AVA có thể chạy ở mạng khác, thuộc tổ chức khác với tổng đài.</li>
+  <li><strong>Không cần host networking.</strong> Chế độ trực tiếp cần mở cổng AudioSocket và dải RTP; chế độ gateway chỉ có một WebSocket đi ra. Nhờ vậy engine chạy được với mạng bridge của Docker, kể cả trên Docker Desktop cho macOS.</li>
+  <li><strong>Kiểm chứng Gateway bằng một agent thật.</strong> AVA là "đối tác" đầy đủ tính năng để thử nghiệm ranh giới đối tác.</li>
+</ul>
+
+<h2 id="cach-hoat-dong">Cách nó hoạt động</h2>
+<p><code>GatewayAudioTransport</code> (<code>integrations/asterisk_ai_gateway/transport.py</code>) có cùng các phương thức với <code>AudioSocketServer</code>, và <code>send_audio</code> có chữ ký giống hệt. Vì đường âm thanh của engine không phụ thuộc transport, engine gán nó vào đúng chỗ của máy chủ AudioSocket.</p>
+
+<ol class="flow">
+  <li><span class="who"><span class="a-ava">Engine</span> khởi động</span><p>Thấy <code>audio_transport: gateway</code> → bỏ qua kết nối ARI, không mở máy chủ AudioSocket; tạo <code>GatewayAudioTransport</code> với URL, key và slug.</p></li>
+  <li><span class="who"><span class="a-ava">Transport</span><span class="arrow">→</span><span class="a-gw">Gateway</span></span><p>SDK đổi key lấy token, mở WSS, đăng ký slug. Key hỏng được phát hiện ngay lúc này thay vì ở cuộc gọi đầu tiên.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span><span class="arrow">→</span><span class="a-ava">Transport</span></span><p><code>call.started</code>. Transport ghi nhớ định dạng dây của cuộc gọi từ khối <code>media</code>.</p></li>
+  <li><span class="who"><span class="a-ava">Engine</span></span><p><code>_gateway_handle_call_started</code> tạo phiên mà chế độ trực tiếp lẽ ra dựng từ <code>StasisStart</code>. <code>call_id</code> của gateway đóng cả hai vai: khóa phiên và ID kết nối media.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span> ⟷ <span class="a-ava">Engine</span></span><p>Âm thanh vào được bọc thành khung AudioSocket nội bộ; âm thanh ra được chuyển về đúng định dạng dây, lấy mẫu lại ở rìa nếu cần. Âm thanh cho cuộc gọi không thuộc phiên này bị từ chối.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span><span class="arrow">→</span><span class="a-ava">Engine</span></span><p><code>dtmf.received</code> đi vào xử lý DTMF của engine; <code>call.ended</code> kích hoạt đường ngắt kết nối như khi AudioSocket đóng.</p></li>
+</ol>
+
+<h3>Ánh xạ khái niệm</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>AVA trực tiếp</th><th>Qua Gateway</th></tr>
+  <tr><td>ARI <code>StasisStart</code></td><td><code>call.started</code></td></tr>
+  <tr><td>Channel ID của Asterisk</td><td><code>call_id</code> của gateway — định danh duy nhất đối tác có</td></tr>
+  <tr><td>Khung AudioSocket</td><td>Khung nhị phân: 16 byte UUID + PCM</td></tr>
+  <tr><td><code>send_audio(conn_id, pcm)</code></td><td><code>client.send_audio(call_id, pcm)</code></td></tr>
+  <tr><td>Sự kiện DTMF của ARI</td><td><code>dtmf.received</code></td></tr>
+  <tr><td><code>hangup_channel</code></td><td><code>call.hangup</code> (scope <code>calls:hangup</code>)</td></tr>
+  <tr><td>Công cụ chuyển máy</td><td><code>transfer.blind</code> / <code>transfer.attended</code>, chỉ tới đích trong allowlist</td></tr>
+  <tr><td><code>originate_channel</code></td><td><code>outbound.originate</code>, chỉ tới đích trong allowlist</td></tr>
+</table>
+</div>
+
+<h2 id="gioi-han">Những gì thay đổi so với chế độ trực tiếp</h2>
+<p>Bề mặt đối tác cố ý hẹp hơn ARI. Đây là chuyển nền tảng, không phải thay thế tức thì. Bảng dưới lấy từ khảo sát cách engine dùng ARI; cột cuối phản ánh năng lực hiện có của Gateway.</p>
+<div class="table-wrap">
+<table>
+  <tr><th>Năng lực engine dùng</th><th>Số chỗ dùng</th><th>Qua Gateway</th></tr>
+  <tr><td>Đặt biến channel</td><td>17</td><td><span class="badge warn">Một phần</span> <code>channel.set_var</code>, chỉ tên dạng <code>AI_*</code>, cần scope <code>channel:variables</code></td></tr>
+  <tr><td>Thêm channel vào bridge, tạo bridge</td><td>14 + 3</td><td><span class="badge">Không</span> Gateway sở hữu bridge</td></tr>
+  <tr><td>Phát tệp / âm thanh phía máy chủ</td><td>10</td><td><span class="badge warn">Một phần</span> <code>playback.start</code> chỉ với <code>sound:</code> và <code>recording:</code>; còn lại phải truyền PCM</td></tr>
+  <tr><td>Tạo channel ExternalMedia</td><td>4</td><td><span class="badge">Không</span> Transport media thuộc Gateway</td></tr>
+  <tr><td>Dừng phát lại</td><td>3</td><td><span class="badge ok">Có</span> <code>playback.stop</code> hoặc <code>audio.clear</code></td></tr>
+  <tr><td>Tiếp tục trong dialplan</td><td>3</td><td><span class="badge warn">Một phần</span> <code>dialplan.continue</code> tới đích trong allowlist</td></tr>
+  <tr><td>Trả lời channel</td><td>2</td><td><span class="badge ok">Không cần</span> Gateway trả lời trước khi gửi <code>call.started</code></td></tr>
+  <tr><td>Ghi âm channel</td><td>1</td><td><span class="badge">Không</span> Chưa có API ghi âm</td></tr>
+  <tr><td>Kiểm tra đích có trong dialplan</td><td>1</td><td><span class="badge">Không</span> Không soi được dialplan</td></tr>
+</table>
+</div>
+
+<div class="callout warn">
+  <strong>Hệ quả thực tế</strong>
+  <ul>
+    <li><strong>Chiến dịch gọi ra có AMD</strong> dựa trên việc đưa channel sang dialplan rồi quay lại Stasis của AVA — không chạy được nguyên trạng qua Gateway.</li>
+    <li><strong>Pipeline phát theo tệp</strong> (<code>downstream_mode: file</code>) cần Announcer và tệp trên Asterisk, tức cần ARI. Vì vậy engine khai với bộ phát theo luồng rằng transport là "audiosocket": nếu khai "gateway" thì không nhánh nào khớp và nó âm thầm lùi về phát tệp qua ARI, thứ chế độ gateway không có quyền làm.</li>
+    <li><strong>Sổ sách theo channel</strong> của engine (tra channel người gọi, ánh xạ kết nối sang channel) không có nguồn sự thật ở phía đối tác và phải dựa vào <code>call_id</code>.</li>
+    <li><strong>Agent mặc định:</strong> phiên gateway được tạo với <code>default_provider</code>; không có biến channel <code>AI_AGENT</code> từ dialplan để chọn Agent như chế độ trực tiếp.</li>
+  </ul>
+</div>
+
+<h2 id="bat">Bật chế độ gateway</h2>
+<h3>Qua wizard</h3>
+<p>Bước Agent Configuration có hai chế độ kết nối. Chọn <strong>Through an AI Agent Gateway</strong>, nhập URL gateway, API key và slug. Wizard kiểm tra bằng cách đổi key lấy token realtime, rồi ghi:</p>
+<pre><code># .env
+AUDIO_TRANSPORT=gateway
+GATEWAY_URL=https://gateway.example.com
+GATEWAY_API_KEY=agw_live_…
+GATEWAY_AGENT_SLUG=ava-voice-agent
+
+# config/ai-agent.yaml
+audio_transport: "gateway"
+gateway:
+  url: "${GATEWAY_URL}"
+  # key được tham chiếu từ môi trường, không ghi vào tệp cấu hình</code></pre>
+<p>Trang Connection và nút chuyển nhanh ở header cho phép đổi qua lại giữa hai chế độ; các trường ARI được ẩn khi ở chế độ gateway. Chế độ trực tiếp vẫn là mặc định và không bị ảnh hưởng.</p>
+
+<h3>Khởi động engine</h3>
+<pre><code>docker compose -f docker-compose.yml -f docker-compose.gateway.yml up -d ai_engine</code></pre>
+<p>Lớp phủ <code>docker-compose.gateway.yml</code> chuyển engine sang mạng bridge, ánh xạ <code>127.0.0.1:15000</code> và bind health server ra <code>0.0.0.0</code> để admin_ui với tới được.</p>
+
+<h3>Kiểm tra nhanh</h3>
+<pre><code>pip install asterisk-ai-agent-gateway-sdk
+export GATEWAY_URL=… GATEWAY_API_KEY=agw_live_… AGENT_SLUG=ava-voice-agent
+python integrations/asterisk_ai_gateway/smoke_test.py</code></pre>
+<p>Mã thoát 0 nghĩa là ranh giới đối tác hoạt động: key → token → WSS → đăng ký → heartbeat. <code>listen.py</code> là bộ nghe dội âm để thử cuộc gọi thủ công.</p>
+
+<h2 id="goi-ra">Gọi ra qua Gateway</h2>
+<p>Gateway chỉ cho một kết nối mỗi slug và engine đang giữ kết nối đó, nên việc gọi ra phải đi qua engine. Engine mở một endpoint trên health server:</p>
+<pre><code>POST http://127.0.0.1:15000/gateway/originate
+{"context": "from-internal", "extension": "84901234567", "timeout": 30}</code></pre>
+<p>Engine chuyển thành <code>outbound.originate</code> trên kết nối đối tác. Endpoint chỉ nhận yêu cầu từ localhost hoặc có <code>HEALTH_API_TOKEN</code>. Nếu không ở chế độ gateway, nó trả <code>409</code> với lỗi <code>not_in_gateway_mode</code>. Trang English Demo dùng đường này để gọi ra cho kịch bản THC. Partner app phía Gateway cần scope <code>calls:originate</code> và allowlist chứa đích, ví dụ <code>from-internal:84*</code>.</p>
+
+<h2 id="viec-phia-gateway">Việc cần làm phía Gateway</h2>
+<ol>
+  <li>Tạo partner app, ví dụ slug <code>ava-voice-agent</code>.</li>
+  <li>Cấp scope theo công cụ AVA sẽ dùng: tối thiểu <code>calls:read</code>, <code>media:stream</code>, <code>calls:hangup</code>; thêm <code>calls:transfer</code>, <code>calls:originate</code>, <code>media:control</code> khi cần.</li>
+  <li>Khai báo allowlist cho mọi đích chuyển máy và gọi ra.</li>
+  <li>Cấp API key, chuyển cho phía AVA qua kênh bí mật.</li>
+  <li>Thêm route dialplan với <code>AI_GATEWAY_AGENT=ava-voice-agent</code>.</li>
+</ol>
+
+<h2 id="trang-thai">Trạng thái kiểm chứng</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>Hạng mục</th><th>Trạng thái</th></tr>
+  <tr><td>Smoke test với gateway thật từ máy ngoài mạng</td><td><span class="badge ok">Đã qua</span> <code>session.ready</code>, <code>heartbeat.ack</code> lặp lại</td></tr>
+  <tr><td>Tương đương giao diện với <code>AudioSocketServer</code></td><td><span class="badge ok">Đã qua</span> kiểm bằng <code>inspect.signature</code></td></tr>
+  <tr><td>Từ chối âm thanh cho cuộc gọi không sở hữu; dừng không rò task</td><td><span class="badge ok">Đã qua</span></td></tr>
+  <tr><td>Lấy tần số từ <code>call.started</code> thay vì giả định 16 kHz</td><td><span class="badge ok">Đã triển khai</span> trong transport</td></tr>
+  <tr><td>Engine chạy chế độ gateway không ARI, không host networking</td><td><span class="badge ok">Đã triển khai</span></td></tr>
+</table>
+</div>
+<div class="callout">
+  <strong>Tài liệu trong repo có chỗ chưa theo kịp mã</strong>
+  <p><code>integrations/asterisk_ai_gateway/README.md</code> vẫn ghi âm thanh cố định 16 kHz và chưa xác minh cuộc gọi thật; hằng số <code>GATEWAY_WIRE_SAMPLE_RATE = 16000</code> vẫn còn trong <code>src/engine.py</code>. Các commit sau đó đã cho transport đọc tần số gateway công bố và thêm đường gọi ra. Khi hai nguồn mâu thuẫn, hãy tin mã nguồn và xác nhận lại bằng một cuộc gọi thật.</p>
+</div>
+<div class="pager"><a href="gateway-giao-thuc.html">← Giao thức & API</a><a href="van-hanh.html">Triển khai & vận hành →</a></div>
+<footer>Bộ tài liệu tổng hợp từ mã nguồn và tài liệu của hai repository, cập nhật 2026-10-13.</footer>
+</div>
+</main>
+</body>
+</html>

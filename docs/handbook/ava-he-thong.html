@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AVA: hệ thống và thành phần — Asterisk AI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<aside class="sidebar">
+<div class="brand">Asterisk AI — Bộ tài liệu hệ thống</div>
+<div class="brand-sub">AVA Voice Agent &amp; AI Agent Gateway</div>
+<nav class="nav">
+<div class="nav-group">Tổng quan</div>
+<a href="index.html">Giới thiệu & ý tưởng</a>
+<div class="nav-group">AVA — AI Voice Agent</div>
+<a class="active" href="ava-he-thong.html">Hệ thống & thành phần</a>
+<div class="toc">
+<a href="#y-tuong">Ý tưởng thiết kế</a>
+<a href="#kien-truc">Kiến trúc tổng thể</a>
+<a href="#engine">Bên trong AI Engine</a>
+<a href="#transport">Transport âm thanh</a>
+<a href="#provider">Hai kiểu "bộ não"</a>
+<a href="#agent">Agent — đơn vị cấu hình hội thoại</a>
+<a href="#tool">Hệ thống công cụ (tool calling)</a>
+<a href="#cau-hinh">Cấu hình</a>
+<a href="#admin-ui">Admin UI</a>
+<a href="#fork">Phần bổ sung của bản fork</a>
+<a href="#nguyen-tac">Nguyên tắc kỹ thuật bắt buộc</a>
+<a href="#yeu-cau">Yêu cầu hệ thống</a>
+</div>
+<a href="ava-luong-hoat-dong.html">Luồng hoạt động</a>
+<div class="nav-group">Asterisk AI Agent Gateway</div>
+<a href="gateway-he-thong.html">Hệ thống & bảo mật</a>
+<a href="gateway-luong-hoat-dong.html">Luồng hoạt động</a>
+<a href="gateway-giao-thuc.html">Giao thức & API</a>
+<div class="nav-group">Kết hợp & vận hành</div>
+<a href="tich-hop.html">AVA chạy qua Gateway</a>
+<a href="van-hanh.html">Triển khai & vận hành</a>
+<a href="thuat-ngu.html">Thuật ngữ</a>
+</nav>
+</aside>
+<main>
+<div class="content">
+<span class="eyebrow">AVA — AI Voice Agent</span>
+<h1>AVA: hệ thống và thành phần</h1>
+<p class="lede">AVA là nền tảng voice agent mã nguồn mở, tự host, dành cho Asterisk/FreePBX. Người gọi nói chuyện với AI qua một cuộc gọi thật; engine nối âm thanh của Asterisk tới nhà cung cấp AI và thực hiện các hành động điện thoại thay cho AI.</p>
+
+<h2 id="y-tuong">Ý tưởng thiết kế</h2>
+<div class="cards">
+  <div class="card"><h4>Gắn liền với Asterisk</h4><p>Dùng chính tổng đài sẵn có qua ARI; không cần nhà cung cấp thoại bên ngoài.</p></div>
+  <div class="card"><h4>Mô-đun hóa AI</h4><p>STT, LLM, TTS là ba khối độc lập có thể trộn: cloud, local, hoặc lai.</p></div>
+  <div class="card"><h4>Riêng tư khi cần</h4><p>Chế độ local hybrid giữ âm thanh tại chỗ, chỉ gửi văn bản lên LLM; chế độ fully local không dùng cloud.</p></div>
+  <div class="card"><h4>Vận hành được</h4><p>Admin UI, CLI chẩn đoán, lịch sử từng cuộc gọi, và các cấu hình chuẩn đã kiểm chứng.</p></div>
+</div>
+
+<h2 id="kien-truc">Kiến trúc tổng thể</h2>
+<div class="diagram">
+  <p class="diagram-title">Các container và kết nối</p>
+  <div class="layers">
+    <div class="layer">
+      <div class="layer-name">Điện thoại</div>
+      <div class="layer-items">
+        <div class="node pbx">Asterisk / FreePBX<small>ARI :8088 · dialplan → <code>Stasis(asterisk-ai-voice-agent)</code></small></div>
+      </div>
+    </div>
+    <div class="layer">
+      <div class="layer-name">Lõi</div>
+      <div class="layer-items">
+        <div class="node ava">ai_engine<small>Python · AudioSocket :8090 · RTP :18080 · health/metrics :15000</small></div>
+        <div class="node ava">admin_ui<small>React + FastAPI · :3003</small></div>
+      </div>
+    </div>
+    <div class="layer">
+      <div class="layer-name">Tùy chọn</div>
+      <div class="layer-items">
+        <div class="node">local_ai_server<small>STT/TTS/LLM tại chỗ · WS :8765</small></div>
+        <div class="node">updater<small>cập nhật từ trang Updates</small></div>
+        <div class="node">agent CLI (Go)<small>setup · check · rca · update</small></div>
+      </div>
+    </div>
+    <div class="layer">
+      <div class="layer-name">Bên ngoài</div>
+      <div class="layer-items">
+        <div class="node ext">Nhà cung cấp AI cloud</div>
+        <div class="node ext">Email / Lịch / HTTP / MCP</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="table-wrap">
+<table>
+  <tr><th>Thành phần</th><th>Thư mục</th><th>Vai trò</th></tr>
+  <tr><td><strong>AI Engine</strong></td><td><code>src/</code></td><td>Điều phối cuộc gọi, tích hợp ARI, điều phối transport, provider/pipeline, gọi công cụ, lịch sử cuộc gọi, metrics/health.</td></tr>
+  <tr><td><strong>Local AI Server</strong></td><td><code>local_ai_server/</code></td><td>Backend STT/TTS/LLM tại chỗ: Vosk, Sherpa, Faster Whisper, Whisper.cpp, Piper, Kokoro, MeloTTS, llama.cpp.</td></tr>
+  <tr><td><strong>Admin UI</strong></td><td><code>admin_ui/frontend</code>, <code>admin_ui/backend</code></td><td>Vite/React/TypeScript + FastAPI: ghi cấu hình, kho Agent, thao tác container, wizard, cập nhật hệ thống.</td></tr>
+  <tr><td><strong>Agent CLI</strong></td><td><code>cli/</code></td><td>Go. <code>agent setup</code>, <code>agent check</code>, <code>agent rca</code>, <code>agent update</code>, <code>agent version</code>.</td></tr>
+  <tr><td><strong>Cấu hình &amp; baseline</strong></td><td><code>config/</code>, <code>docs/baselines/golden/</code></td><td>YAML đang chạy và các cấu hình chuẩn theo từng bản phát hành.</td></tr>
+  <tr><td><strong>Dữ liệu</strong></td><td><code>data/</code></td><td><code>call_history.db</code> và <code>agents.db</code> (SQLite), gắn vào <code>/app/data</code> trong container.</td></tr>
+</table>
+</div>
+
+<h2 id="engine">Bên trong AI Engine</h2>
+<p><code>src/engine.py</code> là bộ điều phối trung tâm. Nó nhận sự kiện ARI, định tuyến âm thanh tới provider hoặc pipeline, quản lý phát lại, chạy công cụ và giữ trạng thái phiên.</p>
+
+<div class="table-wrap">
+<table>
+  <tr><th>Khối</th><th>Tệp</th><th>Trách nhiệm</th></tr>
+  <tr><td>ARI client</td><td><code>src/ari_client.py</code></td><td>Kết nối WebSocket sự kiện và gọi REST tới Asterisk.</td></tr>
+  <tr><td>AudioSocket server</td><td><code>src/audio/audiosocket_server.py</code></td><td>Lắng nghe TCP; Asterisk gọi vào để trao luồng âm thanh.</td></tr>
+  <tr><td>RTP server</td><td><code>src/rtp_server.py</code></td><td>Nhận/gửi RTP cho transport ExternalMedia.</td></tr>
+  <tr><td>TransportOrchestrator</td><td><code>src/core/transport_orchestrator.py</code></td><td>Quyết định codec và tần số lấy mẫu theo audio profile. Logic này <em>không</em> được nằm trong provider.</td></tr>
+  <tr><td>SessionStore</td><td><code>src/core/session_store.py</code></td><td>Nguồn duy nhất về trạng thái cuộc gọi. Không dùng dict rời theo call ID.</td></tr>
+  <tr><td>AgentStore</td><td><code>src/core/agent_store.py</code></td><td>Tra Agent từ <code>agents.db</code> và dựng <code>ContextConfig</code> cho cuộc gọi.</td></tr>
+  <tr><td>PlaybackManager / StreamingPlaybackManager</td><td><code>src/core/</code></td><td>Trả âm thanh về người gọi: phát theo tệp hoặc phát theo luồng.</td></tr>
+  <tr><td>ConversationCoordinator, AudioGatingManager, VADManager</td><td><code>src/core/</code></td><td>Kiểm soát thu âm, chặn tiếng vọng, phát hiện và xử lý ngắt lời.</td></tr>
+  <tr><td>NoInputWatchdog</td><td><code>src/core/no_input_watchdog.py</code></td><td>Xử lý người gọi im lặng: hỏi lại, rồi kết thúc.</td></tr>
+  <tr><td>ToolRegistry + adapters</td><td><code>src/tools/</code></td><td>Đăng ký công cụ và chuyển schema cho từng nhà cung cấp.</td></tr>
+  <tr><td>Call history</td><td><code>src/core/call_history.py</code></td><td>Ghi cuộc gọi vào SQLite cho Admin UI.</td></tr>
+</table>
+</div>
+
+<h2 id="transport">Transport âm thanh</h2>
+<p>Đây là đường âm thanh giữa Asterisk và engine. Không giả định mặc định — luôn xem <code>config/ai-agent.yaml</code>.</p>
+<div class="table-wrap">
+<table>
+  <tr><th></th><th>AudioSocket</th><th>ExternalMedia RTP</th><th>Gateway <span class="badge">fork</span></th></tr>
+  <tr><td>Giao thức</td><td>TCP, cổng 8090</td><td>UDP, cổng 18080</td><td>Một WebSocket đi ra</td></tr>
+  <tr><td>Định dạng đã kiểm chứng</td><td><code>slin</code> 8 kHz; tùy chọn 16 kHz</td><td>μ-law / PCM16, 8 kHz</td><td>PCM16, tần số do gateway công bố mỗi cuộc gọi</td></tr>
+  <tr><td>Hợp với</td><td>Full-agent phát theo luồng; máy AI ở xa Asterisk</td><td>Pipeline phát theo tệp; cùng máy hoặc có ổ chia sẻ</td><td>Không có quyền ARI; AVA là đối tác của Gateway</td></tr>
+  <tr><td>Cần ARI</td><td>Có</td><td>Có</td><td>Không</td></tr>
+</table>
+</div>
+
+<h3>Chế độ trả âm thanh (<code>downstream_mode</code>)</h3>
+<ul>
+  <li><code>file</code> — tạo tệp âm thanh rồi để Asterisk phát qua kênh Announcer. Được kiểm chứng nhiều nhất cho pipeline. Cần Asterisk đọc được thư mục tệp.</li>
+  <li><code>stream</code> — đẩy âm thanh thẳng về transport; pipeline thử phát theo luồng trước, lỗi thì tự lùi về phát tệp.</li>
+</ul>
+
+<h2 id="provider">Hai kiểu "bộ não"</h2>
+<div class="cards">
+  <div class="card ava">
+    <h3>Full-agent (nguyên khối)</h3>
+    <p>Một phiên duy nhất với nhà cung cấp, họ tự lo STT + LLM + TTS và gọi công cụ.</p>
+    <p><code>src/providers/</code>: OpenAI Realtime, Deepgram Voice Agent, Google Live (gồm Vertex AI Live), ElevenLabs Agent, xAI Grok, Local full-agent.</p>
+    <p>Độ trễ thấp nhất (mục tiêu dưới 1 giây). Có thể chạy nhiều bản thể cùng một loại provider.</p>
+  </div>
+  <div class="card ava">
+    <h3>Pipeline mô-đun</h3>
+    <p>Ba adapter riêng cho STT, LLM, TTS do <code>PipelineOrchestrator</code> ghép lại.</p>
+    <p><code>src/pipelines/</code>: OpenAI, Deepgram (+ Flux), Google, Azure, ElevenLabs, Groq, Ollama, Telnyx, MiniMax, CambAI, Local.</p>
+    <p>Linh hoạt, cho phép chạy local; độ trễ cao hơn một chút (mục tiêu dưới 2 giây).</p>
+  </div>
+</div>
+
+<h3>Cấu hình chuẩn đã kiểm chứng</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>Baseline</th><th>Kiểu</th><th>Phù hợp</th></tr>
+  <tr><td>OpenAI Realtime</td><td>Full-agent</td><td>Khởi động nhanh, triển khai doanh nghiệp</td></tr>
+  <tr><td>Deepgram Voice Agent</td><td>Full-agent</td><td>Hệ sinh thái Deepgram; chỉ cần một API key</td></tr>
+  <tr><td>Google Live API</td><td>Full-agent</td><td>Gemini Live, hệ sinh thái Google</td></tr>
+  <tr><td>ElevenLabs Agent</td><td>Full-agent</td><td>Ưu tiên chất lượng giọng</td></tr>
+  <tr><td>xAI Grok Voice Agent</td><td>Full-agent</td><td>μ-law 8 kHz vào, giọng có sẵn hoặc giọng nhân bản</td></tr>
+  <tr><td>Local Hybrid</td><td>Pipeline</td><td>STT/TTS tại chỗ + LLM cloud; âm thanh không rời máy</td></tr>
+  <tr><td>Telnyx AI Inference</td><td>Pipeline</td><td>STT/TTS tại chỗ + nhiều mô hình LLM, tối ưu chi phí</td></tr>
+</table>
+</div>
+
+<h2 id="agent">Agent — đơn vị cấu hình hội thoại</h2>
+<p>Từ v7.4, <strong>Agent</strong> là mô hình duy nhất cho persona và định tuyến. Agent lưu trong <code>agents.db</code>, quản lý ở trang Agents của Admin UI.</p>
+<dl class="kv">
+  <dt>Mang theo</dt><dd>Prompt, lời chào, provider hoặc pipeline, giọng, audio profile, danh sách công cụ, cấu hình email riêng.</dd>
+  <dt>Chọn cho cuộc gọi</dt><dd>Biến channel <code>AI_AGENT=&lt;slug&gt;</code> trong dialplan. <code>AI_CONTEXT</code> là tên cũ, vẫn hoạt động.</dd>
+  <dt>Ghi đè theo cuộc gọi</dt><dd><code>AI_PROVIDER</code> và <code>AI_AUDIO_PROFILE</code>.</dd>
+  <dt>Lúc chạy</dt><dd>Engine tra Agent, dựng <code>ContextConfig</code> rồi truyền vào provider.</dd>
+</dl>
+<p><strong>Thứ tự chọn provider:</strong> <code>AI_PROVIDER</code> trên dialplan → provider của Agent → <code>default_provider</code> toàn cục.</p>
+<p><strong>Thứ tự chọn giọng:</strong> ghi đè theo cuộc gọi → giọng của Agent → mặc định của provider.</p>
+
+<h2 id="tool">Hệ thống công cụ (tool calling)</h2>
+<p>Công cụ là hành động AI được phép làm. Chúng đăng ký tại <code>src/tools/registry.py</code> và được chuyển schema theo từng nhà cung cấp trong <code>src/tools/adapters/</code>.</p>
+<div class="table-wrap">
+<table>
+  <tr><th>Nhóm</th><th>Ví dụ</th></tr>
+  <tr><td><strong>Điện thoại</strong> <code>telephony/</code></td><td>Chuyển máy hợp nhất (máy lẻ, hàng đợi, ring group), chuyển có tư vấn, hủy chuyển, chuyển cho nhân viên, cúp máy, thư thoại, kiểm tra trạng thái máy lẻ.</td></tr>
+  <tr><td><strong>Nghiệp vụ</strong> <code>business/</code></td><td>Email tóm tắt cuộc gọi, gửi bản ghi theo yêu cầu, Google Calendar, Microsoft Calendar, kiểm tra khung giờ hẹn, lấy ngày giờ, lưu lịch hẹn.</td></tr>
+  <tr><td><strong>HTTP</strong> <code>http/</code></td><td>Tra cứu chung, webhook, tra cứu trong cuộc gọi.</td></tr>
+  <tr><td><strong>MCP</strong></td><td>Công cụ từ máy chủ MCP bên ngoài qua <code>src/mcp/</code>.</td></tr>
+</table>
+</div>
+<h3>Ba pha thực thi</h3>
+<ul>
+  <li><strong>Trước cuộc gọi</strong> — ví dụ tra CRM theo số gọi đến; kết quả đưa vào prompt.</li>
+  <li><strong>Trong cuộc gọi</strong> — AI chủ động gọi khi hội thoại cần.</li>
+  <li><strong>Sau cuộc gọi</strong> — webhook, email tóm tắt.</li>
+</ul>
+<p>Trang Tools quản lý kho công cụ toàn cục; mỗi Agent có thể thu hẹp đích chuyển máy, lịch và hộp thư thoại được dùng. Mỗi cuộc gọi mới chụp lại một "thế hệ công cụ" bất biến, nên nhấn <em>Save &amp; Apply</em> không ảnh hưởng cuộc gọi đang diễn ra.</p>
+
+<h2 id="cau-hinh">Cấu hình</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>Tệp</th><th>Nội dung</th><th>Ai ghi</th></tr>
+  <tr><td><code>config/ai-agent.yaml</code></td><td>Cấu hình gốc, theo dõi bằng git</td><td>Upstream</td></tr>
+  <tr><td><code>config/ai-agent.local.yaml</code></td><td>Ghi đè của người vận hành, gộp sâu lên tệp gốc khi khởi động</td><td>Admin UI và CLI</td></tr>
+  <tr><td><code>.env</code></td><td>Bí mật và API key</td><td>Preflight, wizard</td></tr>
+</table>
+</div>
+<p>Persona và định tuyến không nằm trong YAML mà trong <code>agents.db</code>. Khối <code>contexts:</code> trong YAML chỉ được nhập một lần khi kho Agent còn trống.</p>
+
+<h2 id="admin-ui">Admin UI</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>Trang</th><th>Dùng để</th></tr>
+  <tr><td>Wizard</td><td>Cài đặt lần đầu: chọn chế độ kết nối, provider, sinh dialplan.</td></tr>
+  <tr><td>Dashboard</td><td>Trạng thái container, kết nối Asterisk, cuộc gọi đang diễn ra (đẩy theo thời gian thực).</td></tr>
+  <tr><td>Agents</td><td>Tạo/sửa Agent: prompt, giọng, provider, công cụ.</td></tr>
+  <tr><td>Providers · Pipelines · Profiles</td><td>Cấu hình nhà cung cấp, ghép pipeline, audio profile.</td></tr>
+  <tr><td>Tools · MCP</td><td>Kho công cụ và máy chủ MCP.</td></tr>
+  <tr><td>Call History</td><td>Gỡ lỗi theo từng cuộc gọi: bản ghi lời, công cụ đã chạy, giọng đã dùng.</td></tr>
+  <tr><td>Call Scheduling</td><td>Chiến dịch gọi ra.</td></tr>
+  <tr><td>Connection <span class="badge">fork</span></td><td>Chuyển giữa nối trực tiếp Asterisk và nối qua Gateway.</td></tr>
+  <tr><td>English Demo <span class="badge">fork</span></td><td>Mô phỏng chat kịch bản tư vấn khóa tiếng Anh THC.</td></tr>
+</table>
+</div>
+
+<h2 id="fork">Phần bổ sung của bản fork</h2>
+<div class="cards">
+  <div class="card">
+    <h4>Chế độ kết nối qua Gateway</h4>
+    <p><code>integrations/asterisk_ai_gateway/</code> chứa <code>GatewayAudioTransport</code> — có hình dạng giống hệt <code>AudioSocketServer</code> nhưng chạy trên SDK đối tác. Engine bỏ qua ARI khi <code>audio_transport: gateway</code>. Chi tiết ở <a href="tich-hop.html">AVA chạy qua Gateway</a>.</p>
+  </div>
+  <div class="card">
+    <h4>Demo gọi ra THC English (US-2601)</h4>
+    <p>Agent chào khách, giới thiệu khóa giao tiếp, hỏi đã học tiếng Anh ở đâu chưa, rồi rẽ nhánh: từ chối thì cảm ơn và kết thúc; quan tâm thì mời kiểm tra đầu vào miễn phí và lưu lịch hẹn.</p>
+    <p>Prompt: <code>src/agents/thc_english_prompt.py</code>. Bảng <code>english_center_appointments</code> trong <code>call_history.db</code>. Tool <code>save_appointment</code>. Trạng thái: đang thực hiện; cuộc gọi thật cần trunk SIP và API key.</p>
+  </div>
+</div>
+
+<h2 id="nguyen-tac">Nguyên tắc kỹ thuật bắt buộc</h2>
+<ol>
+  <li>Không chặn vòng lặp asyncio trên đường xử lý cuộc gọi.</li>
+  <li>Trạng thái cuộc gọi chỉ đi qua SessionStore.</li>
+  <li>Không làm hỏng golden baseline; đối chiếu khi sửa provider hoặc transport.</li>
+  <li>Mọi thay đổi phải có test và mục CHANGELOG.</li>
+  <li>Thêm provider hoặc đổi schema YAML phải cập nhật form Providers và wizard trong cùng thay đổi.</li>
+  <li>Logic transport/codec nằm ở TransportOrchestrator và YAML profile, không ở provider.</li>
+  <li>Không commit bí mật hoặc dữ liệu cá nhân của người gọi.</li>
+</ol>
+
+<h2 id="yeu-cau">Yêu cầu hệ thống</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>Kiểu triển khai</th><th>CPU</th><th>RAM</th><th>GPU</th><th>Đĩa</th></tr>
+  <tr><td>Cloud (OpenAI/Deepgram)</td><td>2+ nhân</td><td>4 GB</td><td>Không</td><td>1 GB</td></tr>
+  <tr><td>Local Hybrid</td><td>4+ nhân</td><td>8 GB+</td><td>Không</td><td>2 GB</td></tr>
+  <tr><td>Fully Local (CPU)</td><td>4+ nhân</td><td>8–16 GB</td><td>Không</td><td>5 GB</td></tr>
+  <tr><td>Fully Local (GPU)</td><td>4+ nhân</td><td>8–16 GB</td><td>RTX 3060+</td><td>10 GB</td></tr>
+</table>
+</div>
+<p>Linux x86_64 có systemd, Docker + Compose v2, Asterisk 18+ bật ARI. ARM64 chưa được hỗ trợ chính thức.</p>
+<div class="pager"><a href="index.html">← Giới thiệu & ý tưởng</a><a href="ava-luong-hoat-dong.html">Luồng hoạt động →</a></div>
+<footer>Bộ tài liệu tổng hợp từ mã nguồn và tài liệu của hai repository, cập nhật 2026-10-13.</footer>
+</div>
+</main>
+</body>
+</html>

@@ -1,0 +1,826 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Handbook — AVA Voice Agent &amp; Asterisk AI Agent Gateway</title>
+<style>
+:root {
+  --bg: #f7f8fa; --surface: #ffffff; --surface-2: #f0f2f6; --text: #1c2330; --muted: #5d6778;
+  --border: #dde1e8; --accent: #1f6feb; --accent-soft: #e7f0ff;
+  --ava: #7a3ff2; --ava-soft: #f1eaff; --gw: #0b8a6a; --gw-soft: #e3f6f0;
+  --pbx: #c2570c; --pbx-soft: #fdeede; --warn: #a15c00; --warn-soft: #fff4dc;
+  --radius: 10px; --sidebar: 290px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1218; --surface: #161c25; --surface-2: #1d2531; --text: #e4e9f1; --muted: #98a3b5;
+    --border: #2a3443; --accent: #6ea8ff; --accent-soft: #162a4a;
+    --ava: #b596ff; --ava-soft: #2a1f4a; --gw: #4fd1ae; --gw-soft: #123329;
+    --pbx: #f2a364; --pbx-soft: #3a2413; --warn: #f0c36a; --warn-soft: #3a2e12;
+  }
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 20px; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.sidebar { position: fixed; inset: 0 auto 0 0; width: var(--sidebar); overflow-y: auto;
+  padding: 22px 18px 40px; background: var(--surface); border-right: 1px solid var(--border); }
+.brand { font-weight: 700; font-size: 17px; line-height: 1.3; margin-bottom: 4px; }
+.brand-sub { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+.nav-group { margin: 18px 0 6px; color: var(--muted); font-size: 11.5px; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase; }
+.nav a { display: block; padding: 5px 10px; border-radius: 7px; color: var(--text); font-size: 14.5px; }
+.nav a:hover { background: var(--surface-2); text-decoration: none; }
+main { margin-left: var(--sidebar); padding: 40px 48px 80px; }
+.content { max-width: 940px; }
+@media (max-width: 900px) {
+  .sidebar { position: static; width: auto; border-right: 0; border-bottom: 1px solid var(--border); }
+  main { margin-left: 0; padding: 24px 18px 60px; }
+}
+
+h1 { font-size: 34px; line-height: 1.2; margin: 0 0 10px; letter-spacing: -.01em; }
+h2 { font-size: 26px; margin: 64px 0 14px; padding-top: 22px; border-top: 2px solid var(--border); }
+h3 { font-size: 19px; margin: 34px 0 10px; }
+h4 { font-size: 15.5px; margin: 0 0 8px; }
+p { margin: 0 0 14px; }
+ul, ol { margin: 0 0 14px; padding-left: 24px; }
+li { margin-bottom: 5px; }
+.lede { font-size: 18px; color: var(--muted); margin-bottom: 26px; }
+.part { display: inline-block; margin-bottom: 6px; font-size: 12px; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+h2 .part { display: block; }
+
+.table-wrap { overflow-x: auto; margin: 0 0 20px; border: 1px solid var(--border); border-radius: var(--radius); }
+table { width: 100%; border-collapse: collapse; background: var(--surface); font-size: 14.5px; }
+th, td { padding: 9px 13px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border); }
+th { background: var(--surface-2); font-size: 13px; }
+tr:last-child td { border-bottom: 0; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; margin: 0 0 22px; }
+.card { padding: 16px 18px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.card p:last-child, .card ul:last-child { margin-bottom: 0; }
+.card.ava { border-top: 3px solid var(--ava); }
+.card.gw { border-top: 3px solid var(--gw); }
+
+.callout { margin: 0 0 20px; padding: 13px 16px; border-left: 4px solid var(--accent);
+  border-radius: 0 var(--radius) var(--radius) 0; background: var(--accent-soft); }
+.callout.warn { border-color: var(--warn); background: var(--warn-soft); }
+.callout p:last-child, .callout ul:last-child { margin-bottom: 0; }
+.callout > strong:first-child { display: block; margin-bottom: 3px; }
+
+.badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  background: var(--surface-2); color: var(--muted); white-space: nowrap; }
+.badge.ava { background: var(--ava-soft); color: var(--ava); }
+.badge.gw { background: var(--gw-soft); color: var(--gw); }
+
+.diagram { margin: 0 0 22px; padding: 18px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); overflow-x: auto; }
+.diagram-title { margin: 0 0 12px; font-size: 13px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .06em; }
+.chain { display: flex; align-items: stretch; min-width: min-content; }
+.chain + .chain { margin-top: 14px; }
+.node { flex: 1 1 0; min-width: 92px; padding: 11px 12px; border: 1.5px solid var(--border); border-radius: 9px;
+  background: var(--surface-2); text-align: center; font-size: 14px; font-weight: 600;
+  display: flex; flex-direction: column; justify-content: center; }
+.node small { display: block; margin-top: 3px; font-weight: 400; font-size: 12px; color: var(--muted);
+  line-height: 1.35; overflow-wrap: anywhere; }
+.node.ava { border-color: var(--ava); background: var(--ava-soft); }
+.node.gw { border-color: var(--gw); background: var(--gw-soft); }
+.node.pbx { border-color: var(--pbx); background: var(--pbx-soft); }
+.node.ext { border-style: dashed; }
+.link { flex: 0 1 auto; min-width: 64px; max-width: 132px; padding: 0 6px; display: flex; flex-direction: column;
+  justify-content: center; align-items: center; font-size: 11.5px; line-height: 1.3; color: var(--muted); text-align: center; }
+.link::after { content: "⟷"; font-size: 20px; line-height: 1; color: var(--text); }
+.link.right::after { content: "⟶"; }
+.link.left::after { content: "⟵"; }
+.layers { display: grid; gap: 8px; }
+.layer { display: grid; grid-template-columns: 130px 1fr; gap: 10px; align-items: stretch; }
+.layer-name { display: flex; align-items: center; font-size: 12.5px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .05em; }
+.layer-items { display: flex; flex-wrap: wrap; gap: 8px; }
+.layer-items .node { flex: 1 1 130px; }
+@media (max-width: 700px) { .layer { grid-template-columns: 1fr; } }
+
+ol.flow { list-style: none; margin: 0 0 22px; padding: 0; counter-reset: step; }
+ol.flow > li { position: relative; margin: 0; padding: 0 0 16px 46px; counter-increment: step; }
+ol.flow > li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 28px; height: 28px;
+  border-radius: 50%; background: var(--accent); color: #fff; font-size: 13px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; }
+ol.flow > li::after { content: ""; position: absolute; left: 13px; top: 30px; bottom: 2px; width: 2px; background: var(--border); }
+ol.flow > li:last-child::after { display: none; }
+ol.flow .who { display: block; margin-bottom: 2px; font-size: 13px; font-weight: 700; }
+ol.flow .who .arrow { color: var(--muted); font-weight: 400; margin: 0 4px; }
+ol.flow p { margin: 0; }
+.a-pbx { color: var(--pbx); } .a-gw { color: var(--gw); } .a-ava { color: var(--ava); } .a-ext { color: var(--accent); }
+
+footer { margin-top: 60px; padding-top: 18px; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+@media print { .sidebar { display: none; } main { margin: 0; padding: 0; } h2 { break-before: page; } }
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="brand">Handbook hệ thống Asterisk AI</div>
+  <div class="brand-sub">AVA Voice Agent &amp; AI Agent Gateway</div>
+  <nav class="nav">
+    <div class="nav-group">Tổng quan</div>
+    <a href="#bai-toan">1. Bài toán và ý tưởng</a>
+    <a href="#mo-hinh-tong-the">2. Mô hình tổng thể</a>
+    <div class="nav-group">AVA — AI Voice Agent</div>
+    <a href="#ava-mo-hinh">3. Mô hình hệ thống</a>
+    <a href="#ava-luong">4. Luồng xử lý</a>
+    <a href="#thc">5. Mô hình trung tâm tiếng Anh</a>
+    <div class="nav-group">AI Agent Gateway</div>
+    <a href="#gw-mo-hinh">6. Mô hình hệ thống</a>
+    <a href="#gw-luong">7. Luồng xử lý</a>
+    <div class="nav-group">Kết hợp</div>
+    <a href="#ket-hop">8. AVA chạy qua Gateway</a>
+    <a href="#lua-chon">9. Chọn mô hình nào</a>
+    <a href="#thuat-ngu">10. Thuật ngữ</a>
+  </nav>
+</aside>
+
+<main>
+<div class="content">
+
+<span class="part">Handbook</span>
+<h1>Hệ thống Asterisk AI</h1>
+<p class="lede">Tài liệu mô tả ý tưởng, mô hình và luồng xử lý tổng thể của hai dự án: <strong>AVA</strong>, bộ não hội thoại cho tổng đài, và <strong>AI Agent Gateway</strong>, lớp cổng cho phép bên thứ ba đưa AI của họ vào tổng đài một cách an toàn.</p>
+
+<!-- ============================================================ -->
+<h2 id="bai-toan"><span class="part">Phần 1</span>Bài toán và ý tưởng</h2>
+
+<p>Một tổng đài Asterisk chỉ biết chuyển cuộc gọi và thu phát âm thanh. Để AI trả lời được một cuộc gọi thật, cần ba việc diễn ra đồng thời và theo thời gian thực:</p>
+<div class="cards">
+  <div class="card"><h4>Điều khiển cuộc gọi</h4><p>Trả lời, nối các bên với nhau, chuyển máy, cúp máy. Tổng đài cung cấp một giao diện điều khiển cho việc này.</p></div>
+  <div class="card"><h4>Âm thanh hai chiều</h4><p>Lấy giọng người gọi ra khỏi tổng đài và đưa giọng AI trở lại, với độ trễ đủ thấp để hội thoại tự nhiên.</p></div>
+  <div class="card"><h4>Trí tuệ</h4><p>Nghe hiểu giọng nói, suy luận, nói lại, và thực hiện hành động thay người dùng.</p></div>
+</div>
+
+<h3>Hai dự án, hai câu hỏi</h3>
+<div class="cards">
+  <div class="card ava">
+    <span class="badge ava">AVA</span>
+    <h4>"Làm sao để tổng đài của tôi có một trợ lý AI?"</h4>
+    <p>Nền tảng voice agent tự vận hành, đặt cạnh tổng đài. Nó làm cả ba việc trên: điều khiển cuộc gọi, xử lý âm thanh và kết nối tới AI. Chủ tổng đài là người cài đặt và toàn quyền kiểm soát.</p>
+  </div>
+  <div class="card gw">
+    <span class="badge gw">Gateway</span>
+    <h4>"Làm sao để nhiều bên khác đưa AI vào tổng đài của tôi mà vẫn an toàn?"</h4>
+    <p>Lớp trung gian nhiều khách thuê. Nó giữ hai việc đầu — điều khiển và âm thanh — và trao cho đối tác một giao diện hẹp, có kiểm soát. Phần trí tuệ hoàn toàn thuộc về đối tác.</p>
+  </div>
+</div>
+
+<div class="table-wrap">
+<table>
+  <tr><th></th><th>AVA</th><th>AI Agent Gateway</th></tr>
+  <tr><td><strong>Bản chất</strong></td><td>Sản phẩm hoàn chỉnh cho một tổng đài</td><td>Hạ tầng dùng chung cho nhiều đối tác</td></tr>
+  <tr><td><strong>Chứa AI</strong></td><td>Có: nghe, hiểu, nói, công cụ, lịch sử</td><td>Không, và cố ý như vậy</td></tr>
+  <tr><td><strong>Quyền với tổng đài</strong></td><td>Toàn quyền điều khiển</td><td>Chỉ gateway có quyền; đối tác không bao giờ có</td></tr>
+  <tr><td><strong>Người dùng</strong></td><td>Một quản trị viên</td><td>Nhiều tổ chức, phân vai trò, có nhật ký kiểm toán</td></tr>
+  <tr><td><strong>Điều được tối ưu</strong></td><td>Chất lượng hội thoại và độ linh hoạt của AI</td><td>Ranh giới an toàn và sự đơn giản khi tích hợp</td></tr>
+</table>
+</div>
+
+<div class="callout">
+  <strong>Quan hệ giữa hai dự án</strong>
+  <p>Gateway học từ AVA cách làm việc với tổng đài, nhưng là dự án độc lập và không mang theo phần AI. Ngược lại, AVA có thể đóng vai một đối tác của Gateway. Hai dự án vì thế vừa dùng riêng được, vừa ghép lại thành một tuyến hoàn chỉnh.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="mo-hinh-tong-the"><span class="part">Phần 2</span>Mô hình tổng thể</h2>
+
+<p>Có hai con đường để một cuộc gọi đến được AI. Điểm khác nhau cốt lõi là <strong>ai được cầm quyền điều khiển tổng đài</strong>.</p>
+
+<div class="diagram">
+  <p class="diagram-title">Mô hình A — AVA nối trực tiếp tổng đài</p>
+  <div class="chain">
+    <div class="node ext">Người gọi</div>
+    <div class="link">thoại</div>
+    <div class="node pbx">Tổng đài Asterisk</div>
+    <div class="link">điều khiển<br>+ âm thanh</div>
+    <div class="node ava">AVA<small>điều phối cuộc gọi và hội thoại</small></div>
+    <div class="link">âm thanh<br>hoặc văn bản</div>
+    <div class="node ext">Dịch vụ AI<small>đám mây hoặc tại chỗ</small></div>
+  </div>
+</div>
+
+<div class="diagram">
+  <p class="diagram-title">Mô hình B — Đối tác nối qua Gateway</p>
+  <div class="chain">
+    <div class="node ext">Người gọi</div>
+    <div class="link">thoại</div>
+    <div class="node pbx">Tổng đài Asterisk</div>
+    <div class="link">điều khiển<br>+ âm thanh<br><em>mạng riêng</em></div>
+    <div class="node gw">Gateway<small>sở hữu cuộc gọi, kiểm soát quyền</small></div>
+    <div class="link">một kết nối<br>do đối tác mở<br><em>internet</em></div>
+    <div class="node ext">AI agent của đối tác<small>bất kỳ, kể cả AVA</small></div>
+  </div>
+</div>
+
+<h3>Ranh giới tin cậy</h3>
+<div class="table-wrap">
+<table>
+  <tr><th></th><th>Mô hình A</th><th>Mô hình B</th></tr>
+  <tr><td><strong>Ai cùng phía với tổng đài</strong></td><td>AVA và tổng đài cùng một chủ, cùng mạng</td><td>Chỉ Gateway; đối tác ở bên ngoài</td></tr>
+  <tr><td><strong>Phía AI làm được gì</strong></td><td>Mọi thứ tổng đài cho phép</td><td>Chỉ những lệnh đã được cấp, tới những đích đã được duyệt</td></tr>
+  <tr><td><strong>Phía AI biết gì về tổng đài</strong></td><td>Tất cả</td><td>Không gì ngoài một mã cuộc gọi do Gateway cấp</td></tr>
+  <tr><td><strong>Đánh đổi</strong></td><td>Nhiều năng lực nhất, nhưng đòi hỏi tin tưởng hoàn toàn</td><td>An toàn và tách bạch, nhưng năng lực hẹp hơn</td></tr>
+</table>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="ava-mo-hinh"><span class="part">Phần 3 · AVA</span>Mô hình hệ thống</h2>
+
+<h3>Triết lý thiết kế</h3>
+<ul>
+  <li><strong>Gắn liền với tổng đài sẵn có</strong> — không cần nhà cung cấp thoại bên ngoài.</li>
+  <li><strong>AI là các khối lắp ghép</strong> — có thể trộn dịch vụ đám mây, mô hình chạy tại chỗ, hoặc lai cả hai.</li>
+  <li><strong>Riêng tư theo mức độ cần</strong> — có thể giữ toàn bộ âm thanh trong hạ tầng của mình.</li>
+  <li><strong>Vận hành được</strong> — giao diện quản trị, công cụ chẩn đoán, và lịch sử chi tiết từng cuộc gọi.</li>
+</ul>
+
+<h3>Các lớp của hệ thống</h3>
+<div class="diagram">
+  <div class="layers">
+    <div class="layer">
+      <div class="layer-name">Điện thoại</div>
+      <div class="layer-items"><div class="node pbx">Tổng đài Asterisk<small>trao cuộc gọi cho AVA</small></div></div>
+    </div>
+    <div class="layer">
+      <div class="layer-name">Lõi</div>
+      <div class="layer-items">
+        <div class="node ava">Engine<small>điều phối cuộc gọi, âm thanh, hội thoại, công cụ</small></div>
+        <div class="node ava">Giao diện quản trị<small>cấu hình, theo dõi, lịch sử</small></div>
+      </div>
+    </div>
+    <div class="layer">
+      <div class="layer-name">Tùy chọn</div>
+      <div class="layer-items">
+        <div class="node">Máy chủ AI tại chỗ<small>nghe, nói, suy luận không cần đám mây</small></div>
+        <div class="node">Công cụ dòng lệnh<small>cài đặt, kiểm tra, phân tích sự cố</small></div>
+      </div>
+    </div>
+    <div class="layer">
+      <div class="layer-name">Bên ngoài</div>
+      <div class="layer-items">
+        <div class="node ext">Dịch vụ AI đám mây</div>
+        <div class="node ext">Email, lịch, hệ thống nghiệp vụ</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3>Bên trong Engine</h3>
+<p>Engine là trung tâm. Có thể hình dung nó gồm sáu khối trách nhiệm:</p>
+<div class="table-wrap">
+<table>
+  <tr><th>Khối</th><th>Trách nhiệm</th></tr>
+  <tr><td><strong>Kết nối tổng đài</strong></td><td>Nhận sự kiện cuộc gọi và ra lệnh cho tổng đài.</td></tr>
+  <tr><td><strong>Vận chuyển âm thanh</strong></td><td>Nhận và trả luồng âm thanh; thống nhất định dạng giữa tổng đài và dịch vụ AI.</td></tr>
+  <tr><td><strong>Trạng thái phiên</strong></td><td>Một nơi duy nhất giữ mọi thông tin về cuộc gọi đang diễn ra.</td></tr>
+  <tr><td><strong>Điều phối hội thoại</strong></td><td>Quyết định khi nào nghe, khi nào nói, xử lý ngắt lời và im lặng.</td></tr>
+  <tr><td><strong>Bộ não</strong></td><td>Kết nối tới dịch vụ AI theo một trong hai kiểu bên dưới.</td></tr>
+  <tr><td><strong>Công cụ</strong></td><td>Thực hiện hành động mà AI yêu cầu, trong giới hạn được phép.</td></tr>
+</table>
+</div>
+
+<h3>Hai kiểu "bộ não"</h3>
+<div class="cards">
+  <div class="card ava">
+    <h4>Nguyên khối</h4>
+    <p>Một dịch vụ AI duy nhất nhận âm thanh và trả âm thanh; nó tự lo nghe, suy luận và nói.</p>
+    <p><strong>Ưu:</strong> độ trễ thấp nhất, hội thoại tự nhiên nhất.<br><strong>Nhược:</strong> phụ thuộc một nhà cung cấp, ít kiểm soát từng khâu.</p>
+  </div>
+  <div class="card ava">
+    <h4>Ghép khối</h4>
+    <p>Ba khâu riêng — nghe, suy luận, nói — mỗi khâu chọn một dịch vụ khác nhau.</p>
+    <p><strong>Ưu:</strong> linh hoạt, có thể chạy tại chỗ để giữ riêng tư và giảm chi phí.<br><strong>Nhược:</strong> độ trễ cao hơn do qua nhiều chặng.</p>
+  </div>
+</div>
+
+<h3>Agent — đơn vị cấu hình hội thoại</h3>
+<p>Mỗi <strong>Agent</strong> là một "nhân vật" trả lời cuộc gọi: lời nhắc định hướng, lời chào, bộ não được chọn, giọng nói, và bộ công cụ được phép dùng. Tổng đài chỉ định Agent nào nhận cuộc gọi nào, nên một hệ thống có thể phục vụ nhiều kịch bản cùng lúc — lễ tân, bán hàng, chăm sóc khách hàng — mỗi kịch bản một Agent.</p>
+
+<h3>Công cụ</h3>
+<p>Công cụ là thứ biến AI từ "biết nói" thành "làm được việc". Chúng thuộc bốn nhóm:</p>
+<div class="table-wrap">
+<table>
+  <tr><th>Nhóm</th><th>Ví dụ</th></tr>
+  <tr><td>Điện thoại</td><td>Chuyển máy cho người hoặc bộ phận, để lại thư thoại, cúp máy</td></tr>
+  <tr><td>Nghiệp vụ</td><td>Đặt lịch hẹn, gửi email tóm tắt cuộc gọi</td></tr>
+  <tr><td>Tra cứu</td><td>Hỏi hệ thống bên ngoài về khách hàng, đơn hàng</td></tr>
+  <tr><td>Mở rộng</td><td>Nối công cụ của bên thứ ba qua một chuẩn chung</td></tr>
+</table>
+</div>
+<p>Công cụ chạy ở ba thời điểm: <strong>trước cuộc gọi</strong> (chuẩn bị ngữ cảnh), <strong>trong cuộc gọi</strong> (AI chủ động gọi), và <strong>sau cuộc gọi</strong> (báo cáo, thông báo). Hệ thống quản lý kho công cụ chung; mỗi Agent chỉ được dùng phần đã cấp cho nó.</p>
+
+<!-- ============================================================ -->
+<h2 id="ava-luong"><span class="part">Phần 4 · AVA</span>Luồng xử lý</h2>
+
+<h3>4.1 Vòng đời một cuộc gọi vào</h3>
+<ol class="flow">
+  <li><span class="who"><span class="a-pbx">Tổng đài</span><span class="arrow">→</span><span class="a-ava">AVA</span></span><p>Cuộc gọi đến và được tổng đài trao cho AVA, kèm chỉ định Agent sẽ phục vụ.</p></li>
+  <li><span class="who"><span class="a-ava">AVA</span><span class="arrow">→</span><span class="a-pbx">Tổng đài</span></span><p>AVA trả lời cuộc gọi và dựng một "phòng" nối người gọi với một đường âm thanh riêng dẫn về AVA.</p></li>
+  <li><span class="who"><span class="a-ava">AVA</span></span><p>Nạp cấu hình của Agent, tạo phiên làm việc, chạy các công cụ chuẩn bị trước cuộc gọi.</p></li>
+  <li><span class="who"><span class="a-ava">AVA</span><span class="arrow">→</span><span class="a-ext">Dịch vụ AI</span></span><p>Mở phiên với bộ não đã chọn, trao lời nhắc, giọng nói và danh sách công cụ.</p></li>
+  <li><span class="who"><span class="a-ava">AVA</span><span class="arrow">→</span><span class="a-ext">Người gọi</span></span><p>Phát lời chào. Từ đây hội thoại lặp theo từng lượt cho đến khi kết thúc.</p></li>
+  <li><span class="who"><span class="a-ava">AVA</span></span><p>Khi cuộc gọi kết thúc: đóng phiên AI, thu dọn tài nguyên trên tổng đài, lưu lịch sử, chạy công cụ sau cuộc gọi.</p></li>
+</ol>
+
+<h3>4.2 Một lượt hội thoại</h3>
+<div class="diagram">
+  <p class="diagram-title">Kiểu ghép khối</p>
+  <div class="chain">
+    <div class="node ext">Người gọi nói</div>
+    <div class="link right">âm thanh</div>
+    <div class="node ava">Phát hiện hết câu</div>
+    <div class="link right">âm thanh</div>
+    <div class="node">Nghe<small>thành văn bản</small></div>
+    <div class="link right">văn bản</div>
+    <div class="node">Suy luận<small>trả lời hoặc gọi công cụ</small></div>
+    <div class="link right">văn bản</div>
+    <div class="node">Nói<small>thành âm thanh</small></div>
+  </div>
+</div>
+<div class="diagram">
+  <p class="diagram-title">Kiểu nguyên khối</p>
+  <div class="chain">
+    <div class="node ext">Người gọi</div>
+    <div class="link">âm thanh liên tục</div>
+    <div class="node ava">AVA<small>chuyển đổi định dạng, kiểm soát thu phát</small></div>
+    <div class="link">âm thanh liên tục</div>
+    <div class="node ext">Dịch vụ AI<small>nghe + suy luận + nói</small></div>
+  </div>
+</div>
+<p>Ở kiểu nguyên khối, AVA không còn điều khiển từng khâu nhưng vẫn giữ ba việc: chuyển đổi âm thanh, quyết định khi nào cho AI nghe, và thực thi công cụ.</p>
+
+<h3>4.3 Ngắt lời và tránh "tự nghe mình"</h3>
+<p>Khi AI đang nói, giọng của nó có thể dội lại đường thu và bị hiểu nhầm là người gọi. AVA giải quyết bằng một "cổng" trên đường thu:</p>
+<ol class="flow">
+  <li><span class="who"><span class="a-ava">AVA</span></span><p>AI bắt đầu nói → cổng đóng, âm thanh thu vào bị chặn.</p></li>
+  <li><span class="who"><span class="a-ext">Người gọi</span></span><p>Người gọi chen ngang. Bộ phát hiện giọng nói nhận ra đây là giọng thật chứ không phải tiếng vọng.</p></li>
+  <li><span class="who"><span class="a-ava">AVA</span></span><p>Dừng phát ngay, bỏ phần âm thanh còn chờ, mở cổng để AI nghe câu mới.</p></li>
+</ol>
+
+<h3>4.4 AI thực hiện một hành động</h3>
+<ol class="flow">
+  <li><span class="who"><span class="a-ext">Người gọi</span></span><p>"Chuyển tôi sang phòng kinh doanh."</p></li>
+  <li><span class="who"><span class="a-ext">Dịch vụ AI</span><span class="arrow">→</span><span class="a-ava">AVA</span></span><p>AI nhận ra ý định và gửi yêu cầu dùng công cụ chuyển máy, kèm đích đến.</p></li>
+  <li><span class="who"><span class="a-ava">AVA</span></span><p>Kiểm tra Agent có được phép dùng công cụ và đích đó không.</p></li>
+  <li><span class="who"><span class="a-ava">AVA</span><span class="arrow">→</span><span class="a-pbx">Tổng đài</span></span><p>Thực hiện hành động thật trên tổng đài.</p></li>
+  <li><span class="who"><span class="a-ava">AVA</span><span class="arrow">→</span><span class="a-ext">Dịch vụ AI</span></span><p>Trả kết quả để AI nói câu phù hợp với người gọi.</p></li>
+</ol>
+
+<h3>4.5 Người gọi im lặng</h3>
+<p>Một bộ canh duy nhất theo dõi sự im lặng: sau một khoảng thời gian, AI hỏi lại; nếu vẫn im, AI chào và kết thúc cuộc gọi một cách êm ái. Việc này do AVA quyết định, không giao cho dịch vụ AI, để hành vi nhất quán dù dùng bộ não nào.</p>
+
+<h3>4.6 Chiến dịch gọi ra</h3>
+<ol class="flow">
+  <li><span class="who">Người vận hành</span><p>Tạo chiến dịch: khung giờ được gọi, số cuộc đồng thời, danh sách khách hàng, Agent phụ trách.</p></li>
+  <li><span class="who"><span class="a-ava">Bộ lập lịch</span></span><p>Lần lượt lấy từng khách hàng, tôn trọng khung giờ và giới hạn đồng thời.</p></li>
+  <li><span class="who"><span class="a-ava">AVA</span><span class="arrow">→</span><span class="a-pbx">Tổng đài</span></span><p>Yêu cầu tổng đài gọi ra qua đường trung kế sẵn có.</p></li>
+  <li><span class="who"><span class="a-pbx">Tổng đài</span></span><p>Khi có tín hiệu nhấc máy, tổng đài đoán bên kia là người thật hay hộp thư thoại.</p></li>
+  <li><span class="who"><span class="a-ava">AVA</span></span><p><strong>Người thật:</strong> (tùy chọn) xin phép trước, rồi vào hội thoại AI như một cuộc gọi bình thường. <strong>Hộp thư thoại:</strong> phát lời nhắn ghi sẵn rồi kết thúc.</p></li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="thc"><span class="part">Phần 5 · Ứng dụng mẫu</span>Mô hình trung tâm tiếng Anh</h2>
+
+<p>Đây là kịch bản nghiệp vụ hoàn chỉnh đầu tiên xây trên AVA: một tư vấn viên AI <strong>gọi ra</strong> cho khách hàng tiềm năng của một trung tâm Anh ngữ, mời khóa tiếng Anh giao tiếp, và nếu khách quan tâm thì <strong>đặt lịch đến trung tâm</strong> làm bài kiểm tra đầu vào miễn phí kèm một buổi học thử với giáo viên bản xứ. Nó cho thấy cách ghép các khối của AVA — Agent, công cụ, lưu trữ — thành một quy trình bán hàng qua điện thoại.</p>
+
+<h3>5.1 Mục tiêu và kết quả của một cuộc gọi</h3>
+<p>Mỗi cuộc gọi phải kết thúc bằng đúng một trong ba kết quả, và kết quả đó được ghi lại:</p>
+<div class="table-wrap">
+<table>
+  <tr><th>Kết quả</th><th>Khi nào</th><th>Thông tin phải có</th></tr>
+  <tr><td><strong>Đã hẹn</strong></td><td>Khách đồng ý đến và đã xác nhận lịch</td><td>Tên, số điện thoại, thời gian hẹn cụ thể; nên có trình độ hoặc nhu cầu</td></tr>
+  <tr><td><strong>Gọi lại</strong></td><td>Khách bận, muốn suy nghĩ thêm, hoặc quan tâm nhưng chưa cho thông tin liên hệ</td><td>Cố gắng lấy thời điểm gọi lại và số điện thoại; không bắt buộc</td></tr>
+  <tr><td><strong>Từ chối</strong></td><td>Khách nói rõ không quan tâm, nhầm số, hoặc khó chịu</td><td>Lý do, nếu có</td></tr>
+</table>
+</div>
+
+<h3>5.2 Các khối tạo nên mô hình</h3>
+<div class="diagram">
+  <div class="layers">
+    <div class="layer">
+      <div class="layer-name">Kịch bản</div>
+      <div class="layer-items">
+        <div class="node ava">Agent tư vấn<small>lời chào, quy tắc hội thoại, thông tin trung tâm</small></div>
+        <div class="node">Quy trình chuẩn đã duyệt<small>các nhánh, tình huống phụ, cách xử lý phản đối</small></div>
+      </div>
+    </div>
+    <div class="layer">
+      <div class="layer-name">Công cụ</div>
+      <div class="layer-items">
+        <div class="node">Xem ngày giờ hiện tại<small>đổi "mai", "thứ Bảy này" ra ngày cụ thể</small></div>
+        <div class="node">Kiểm tra khung giờ hẹn<small>hợp lệ hay cần đề xuất giờ khác</small></div>
+        <div class="node">Lưu kết quả cuộc gọi<small>một lần, ở cuối</small></div>
+        <div class="node">Kết thúc cuộc gọi<small>đọc trọn lời chào rồi mới cúp</small></div>
+      </div>
+    </div>
+    <div class="layer">
+      <div class="layer-name">Dữ liệu</div>
+      <div class="layer-items">
+        <div class="node">Sổ lịch hẹn<small>khách, thời gian, nhu cầu, kết quả, toàn văn hội thoại</small></div>
+        <div class="node">Bản ghi âm cuộc gọi</div>
+      </div>
+    </div>
+    <div class="layer">
+      <div class="layer-name">Giao diện</div>
+      <div class="layer-items">
+        <div class="node ava">Trang demo<small>chat mô phỏng · gọi thử · gọi ra số thật · danh sách lịch hẹn · nghe lại</small></div>
+      </div>
+    </div>
+  </div>
+</div>
+<p>Kịch bản chỉ có <strong>một nguồn duy nhất</strong>: cùng một lời chào và bộ quy tắc được dùng cho cả bản mô phỏng bằng chat lẫn cuộc gọi thật. Sửa một chỗ, cả hai cùng đổi; đổi thông tin trung tâm là đổi được thương hiệu của toàn bộ demo.</p>
+
+<h3>5.3 Luồng hội thoại</h3>
+<div class="diagram">
+  <p class="diagram-title">Câu mở đầu và điểm rẽ nhánh</p>
+  <div class="chain">
+    <div class="node ava">Chào, nêu ưu đãi<small>ngắn, khoảng năm giây</small></div>
+    <div class="link right"></div>
+    <div class="node ava">Hỏi: "Anh/chị đã từng học tiếng Anh ở đâu chưa?"</div>
+    <div class="link right">khách trả lời</div>
+    <div class="node">Phân loại câu trả lời<small>năm nhánh bên dưới</small></div>
+  </div>
+</div>
+<div class="table-wrap">
+<table>
+  <tr><th>Khách trả lời</th><th>Agent hiểu là</th><th>Agent làm gì</th><th>Kết quả</th></tr>
+  <tr><td>Chưa học, mất gốc</td><td>Có nhu cầu</td><td>Mời đến kiểm tra đầu vào miễn phí và học thử, rồi thu thập lịch hẹn</td><td>Đã hẹn</td></tr>
+  <tr><td>Đã hoặc đang học nơi khác</td><td><strong>Không phải từ chối</strong> — cơ hội nâng cao</td><td>Khen đã có nền tảng, khơi nhu cầu phản xạ và phát âm với giáo viên bản xứ, mời kiểm tra đánh giá trình độ</td><td>Đã hẹn, hoặc Từ chối nếu vẫn không quan tâm</td></tr>
+  <tr><td>Mơ hồ ("ừ", "để xem")</td><td>Chưa rõ</td><td>Hỏi lại một câu để làm rõ mức quan tâm, rồi rẽ về nhánh phù hợp</td><td>—</td></tr>
+  <tr><td>Bận, muốn suy nghĩ thêm</td><td>Hẹn gọi lại</td><td>Xin thời điểm gọi lại và số điện thoại, hỏi tối đa một lần</td><td>Gọi lại</td></tr>
+  <tr><td>Không quan tâm, nhầm số, gắt gỏng</td><td>Từ chối rõ ràng</td><td>Cảm ơn, chào, kết thúc ngay</td><td>Từ chối</td></tr>
+</table>
+</div>
+
+<h3>5.4 Thu thập lịch hẹn</h3>
+<p>Khi khách quan tâm, Agent đi qua sáu bước, mỗi bước một lượt và một câu hỏi:</p>
+<ol class="flow">
+  <li><span class="who"><span class="a-ava">Agent</span> hỏi thời gian muốn đến</span><p>Khách nói mốc tương đối thì Agent xem ngày giờ hiện tại để đổi ra ngày cụ thể và nhắc lại cho khách. Khách nói giờ thì Agent kiểm tra khung giờ nhận khách.</p></li>
+  <li><span class="who"><span class="a-ava">Agent</span> hỏi tên</span><p></p></li>
+  <li><span class="who"><span class="a-ava">Agent</span> hỏi số điện thoại</span><p>Đề nghị khách đọc chậm, rồi <strong>đọc lại từng chữ số</strong> để khách xác nhận. Sai hoặc thiếu chữ số thì xin đọc lại.</p></li>
+  <li><span class="who"><span class="a-ava">Agent</span> hỏi trình độ hoặc nhu cầu</span><p></p></li>
+  <li><span class="who"><span class="a-ava">Agent</span> đọc lại toàn bộ</span><p>Tên, số điện thoại, thời gian — và chờ khách nói "đúng". Không bao giờ lưu trước rồi mới hỏi xác nhận.</p></li>
+  <li><span class="who"><span class="a-ava">Agent</span><span class="arrow">→</span>Sổ lịch hẹn</span><p>Lưu kết quả "Đã hẹn", nhắc lại lịch, cảm ơn.</p></li>
+</ol>
+
+<h4>Quy tắc khung giờ</h4>
+<p>Trung tâm mở cửa từ 9 giờ sáng đến 9 giờ tối, nhưng chỉ nhận lịch hẹn từ <strong>9 giờ 30 đến 8 giờ tối</strong> — sớm nhất nửa tiếng sau khi mở, muộn nhất một tiếng trước khi đóng. Nếu khách chọn giờ ngoài khung, Agent không được chốt và cũng không được lờ đi: phải giải thích bằng lời thường, đề xuất giờ hợp lệ gần nhất, và chỉ chốt khi khách đồng ý.</p>
+
+<h3>5.5 Nguyên tắc hội thoại</h3>
+<div class="cards">
+  <div class="card"><h4>Mỗi lượt một câu hỏi</h4><p>Tối đa một đến hai câu, hỏi xong thì dừng chờ. Không gộp "cho em xin tên và số điện thoại".</p></div>
+  <div class="card"><h4>Trung thực về danh tính</h4><p>Khi được hỏi, Agent nhận mình là trợ lý ảo bằng AI của trung tâm. Không bao giờ tự nhận là người thật.</p></div>
+  <div class="card"><h4>Phân biệt thắc mắc và từ chối</h4><p>"Sao biết số tôi?", "Có lừa đảo không?", "Học phí bao nhiêu?" là lo lắng cần trấn an, không phải lời từ chối.</p></div>
+  <div class="card"><h4>Thuyết phục một lần</h4><p>Mỗi loại phản đối chỉ đáp một lần, đúng trọng tâm. Khách vẫn từ chối thì tôn trọng và kết thúc.</p></div>
+  <div class="card"><h4>Không bịa</h4><p>Chỉ dùng thông tin trung tâm đã cấu hình. Điều chưa có, như học phí, thì hẹn tư vấn kỹ khi khách đến.</p></div>
+  <div class="card"><h4>Luôn quay lại bước đang dở</h4><p>Khách lạc đề thì đáp rất ngắn rồi dẫn về câu hỏi còn thiếu; né nhiều lần thì đổi cách hỏi.</p></div>
+</div>
+
+<h4>Xử lý phản đối</h4>
+<div class="table-wrap">
+<table>
+  <tr><th>Khách nói</th><th>Hướng đáp</th></tr>
+  <tr><td>"Tôi giỏi rồi, không cần"</td><td>Khen, gợi ý duy trì phản xạ và nâng cao, mời kiểm tra đánh giá</td></tr>
+  <tr><td>"Đang học chỗ khác rồi"</td><td>Tôn trọng, mời thử một buổi miễn phí để so sánh, không ràng buộc</td></tr>
+  <tr><td>"Chắc học phí đắt"</td><td>Nhấn mạnh buổi học thử miễn phí, trải nghiệm trước rồi mới quyết định</td></tr>
+  <tr><td>"Tôi bận lắm"</td><td>Lịch linh hoạt cả tuần, bài kiểm tra rất ngắn</td></tr>
+  <tr><td>"Sợ lừa đảo"</td><td>Trấn an, mời đến trực tiếp tại địa chỉ trung tâm</td></tr>
+  <tr><td>"Học cho con, người nhà"</td><td>Hỏi độ tuổi và đối tượng, tư vấn phù hợp, vẫn mời đến kiểm tra</td></tr>
+</table>
+</div>
+
+<h3>5.6 Những điều chỉnh riêng cho kênh thoại</h3>
+<p>Một kịch bản chạy tốt trên chat chưa chắc chạy tốt qua điện thoại. Mô hình này có bốn điều chỉnh rút ra từ cuộc gọi thật:</p>
+<ul>
+  <li><strong>Lời chào ngắn.</strong> Lời chào dài sẽ bị cắt ngang ngay khi khách lên tiếng. Chi tiết về địa chỉ và khóa học để dành cho phần sau.</li>
+  <li><strong>Dùng công cụ trong im lặng.</strong> Agent không được đọc ra tên công cụ, tham số hay kết quả; chỉ nói tự nhiên như thể tự biết.</li>
+  <li><strong>Đọc lại để chống nghe nhầm.</strong> Số điện thoại đọc từng chữ số; toàn bộ lịch hẹn đọc lại trước khi lưu, kể cả khi khách khai đủ trong một lượt.</li>
+  <li><strong>Kết thúc không bị cụt.</strong> Sau khi chào tạm biệt, Agent chờ khách chào lại, rồi trao lời chào cuối cho hệ thống để đọc trọn câu trước khi cúp — tránh bị ngắt giữa chừng.</li>
+</ul>
+<p>Ngoài ra, ngày giờ hiện tại theo giờ Việt Nam được đưa vào ngữ cảnh ở đầu mỗi cuộc gọi, để Agent không tự đoán hôm nay là thứ mấy.</p>
+
+<h3>5.7 Lớp bảo vệ dữ liệu</h3>
+<p>Mô hình không tin hoàn toàn vào việc AI tuân thủ kịch bản; phía hệ thống có thêm các chốt chặn:</p>
+<div class="table-wrap">
+<table>
+  <tr><th>Rủi ro</th><th>Chốt chặn</th></tr>
+  <tr><td>AI lưu "Đã hẹn" khi còn thiếu tên, số điện thoại hoặc thời gian</td><td>Hệ thống từ chối lưu và yêu cầu hỏi tiếp</td></tr>
+  <tr><td>AI nói "em đã ghi nhận" nhưng không thực sự lưu</td><td>Khi cuộc hội thoại có dấu hiệu kết thúc mà chưa có bản ghi, hệ thống buộc thực hiện lưu</td></tr>
+  <tr><td>AI trả về kết quả không hợp lệ</td><td>Chuẩn hóa về một trong ba kết quả cho phép</td></tr>
+  <tr><td>AI để lộ tên công cụ trong câu trả lời</td><td>Câu trả lời được cắt tại chỗ rò rỉ trước khi tới khách</td></tr>
+  <tr><td>Lưu trùng nhiều lần</td><td>Quy tắc lưu đúng một lần ở cuối cuộc gọi</td></tr>
+</table>
+</div>
+<p>Sổ lịch hẹn được thêm vào bên cạnh lịch sử cuộc gọi sẵn có mà không sửa cấu trúc nào đang tồn tại. Mỗi bản ghi giữ toàn văn hội thoại, nên nhân viên trung tâm có thể đọc lại trước khi liên hệ khách.</p>
+
+<h3>5.8 Ba cách chạy</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>Cách chạy</th><th>Cần gì</th><th>Dùng để</th></tr>
+  <tr><td><strong>Chat mô phỏng — kịch bản cố định</strong></td><td>Không cần gì</td><td>Trình diễn luồng nghiệp vụ; một bộ máy trạng thái đi đúng kịch bản và vẫn lưu vào sổ lịch hẹn</td></tr>
+  <tr><td><strong>Chat mô phỏng — có AI</strong></td><td>Khóa của dịch vụ AI</td><td>Thử phản ứng của AI với câu trả lời bất ngờ, tinh chỉnh kịch bản mà không tốn cuộc gọi</td></tr>
+  <tr><td><strong>Cuộc gọi thật</strong></td><td>Tổng đài, đường trung kế, khóa dịch vụ AI</td><td>Gọi thử tới một máy nội bộ, hoặc gọi ra số điện thoại thật của khách</td></tr>
+</table>
+</div>
+
+<h4>Luồng một cuộc gọi thật</h4>
+<ol class="flow">
+  <li><span class="who">Người vận hành<span class="arrow">→</span><span class="a-ava">Trang demo</span></span><p>Nhập số điện thoại và bấm gọi. Số được chuẩn hóa về dạng quốc tế.</p></li>
+  <li><span class="who"><span class="a-ava">AVA</span><span class="arrow">→</span><span class="a-pbx">Tổng đài</span></span><p>Yêu cầu quay số. Ở mô hình trực tiếp, AVA ra lệnh thẳng cho tổng đài; ở mô hình qua Gateway, AVA gửi yêu cầu gọi ra qua kết nối đối tác và Gateway kiểm tra đích được phép trước khi quay số.</p></li>
+  <li><span class="who"><span class="a-pbx">Tổng đài</span><span class="arrow">→</span><span class="a-ava">Agent tư vấn</span></span><p>Khách nhấc máy; cuộc gọi được giao cho Agent tư vấn và bắt đầu được ghi âm.</p></li>
+  <li><span class="who"><span class="a-ava">Agent</span> ⟷ <span class="a-ext">Khách</span></span><p>Hội thoại theo kịch bản ở mục 5.3 và 5.4, dùng bộ não nguyên khối để có độ trễ thấp.</p></li>
+  <li><span class="who"><span class="a-ava">Agent</span><span class="arrow">→</span>Sổ lịch hẹn</span><p>Lưu kết quả kèm toàn văn hội thoại, chào và kết thúc.</p></li>
+  <li><span class="who">Nhân viên trung tâm<span class="arrow">→</span><span class="a-ava">Trang demo</span></span><p>Xem danh sách lịch hẹn theo kết quả, đọc hội thoại, nghe lại bản ghi âm — kể cả những cuộc gọi không thành lịch hẹn.</p></li>
+</ol>
+
+<div class="callout">
+  <strong>Trạng thái</strong>
+  <p>Quy trình chuẩn đã được duyệt và phản ánh vào kịch bản. Bản mô phỏng bằng chat chạy được cả hai chế độ; gọi thử và gọi ra số thật đã có, bao gồm đường gọi ra qua Gateway. Việc còn lại là nối Agent này vào chiến dịch gọi ra theo danh sách khách hàng, thay cho thao tác gọi từng số.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="gw-mo-hinh"><span class="part">Phần 6 · Gateway</span>Mô hình hệ thống</h2>
+
+<h3>Triết lý thiết kế</h3>
+<div class="cards">
+  <div class="card gw"><h4>Bề mặt tích hợp tối thiểu</h4><p>Đối tác chỉ có hai điểm chạm: một nơi đổi khóa lấy vé, và một kết nối thời gian thực.</p></div>
+  <div class="card gw"><h4>Đối tác chủ động kết nối</h4><p>Đối tác mở kết nối tới Gateway, nên không cần phơi bất kỳ dịch vụ nào ra internet.</p></div>
+  <div class="card gw"><h4>Che giấu tổng đài</h4><p>Một giao thức duy nhất, không lộ chi tiết kỹ thuật nào của tổng đài phía sau.</p></div>
+  <div class="card gw"><h4>Không chứa AI</h4><p>Gateway chỉ là đường ống có kiểm soát; trí tuệ thuộc về đối tác.</p></div>
+</div>
+
+<h3>Các thành phần</h3>
+<div class="diagram">
+  <div class="chain">
+    <div class="node pbx">Tổng đài</div>
+    <div class="link">điều khiển<br>+ âm thanh</div>
+    <div class="node gw">Lõi thời gian thực<small>vòng đời cuộc gọi, âm thanh, kiểm tra quyền</small></div>
+    <div class="link">sự kiện, lệnh,<br>âm thanh</div>
+    <div class="node ext">AI agent của đối tác</div>
+  </div>
+  <div class="chain">
+    <div class="node ext">Người vận hành</div>
+    <div class="link right">trình duyệt</div>
+    <div class="node gw">Bảng điều khiển<small>ứng dụng đối tác, khóa, quyền</small></div>
+    <div class="link">quản trị</div>
+    <div class="node gw">Lõi thời gian thực</div>
+    <div class="link">lưu trữ</div>
+    <div class="node">Kho bền vững<br>+ kho tạm<small>cấu hình · trạng thái kết nối</small></div>
+  </div>
+</div>
+<ul>
+  <li><strong>Lõi thời gian thực</strong> là nơi duy nhất nói chuyện với tổng đài và với đối tác.</li>
+  <li><strong>Bảng điều khiển</strong> dành cho người vận hành quản lý tổ chức, ứng dụng đối tác và khóa.</li>
+  <li><strong>Kho bền vững</strong> giữ mọi thứ cần tồn tại lâu dài; <strong>kho tạm</strong> giữ thông tin "ai đang kết nối" và bộ đếm giới hạn tần suất.</li>
+</ul>
+
+<h3>Mô hình quản trị</h3>
+<div class="diagram">
+  <div class="chain">
+    <div class="node">Tổ chức<small>một khách thuê</small></div>
+    <div class="link right">có nhiều</div>
+    <div class="node">Ứng dụng đối tác<small>tên định tuyến · nhóm quyền · đích được phép</small></div>
+    <div class="link right">có nhiều</div>
+    <div class="node">Khóa truy cập<small>quyền ≤ quyền của ứng dụng</small></div>
+  </div>
+  <div class="chain">
+    <div class="node">Người dùng</div>
+    <div class="link right">giữ vai trò trong</div>
+    <div class="node">Tổ chức</div>
+    <div class="link right">mọi thao tác ghi vào</div>
+    <div class="node">Nhật ký kiểm toán</div>
+  </div>
+</div>
+<p><strong>Tên định tuyến</strong> là mắt xích nối hai thế giới: tổng đài dùng nó để nói "cuộc gọi này dành cho ai", còn đối tác dùng nó để nói "tôi là ai". Mỗi tên chỉ có một kết nối sống tại một thời điểm.</p>
+
+<h3>Ba lớp bảo vệ</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>Lớp</th><th>Câu hỏi nó trả lời</th><th>Cơ chế</th></tr>
+  <tr><td><strong>Danh tính</strong></td><td>Bạn là ai?</td><td>Khóa dài hạn chỉ dùng để đổi lấy vé ngắn hạn; vé mới được dùng để mở kết nối. Khóa chỉ hiện một lần, hệ thống không lưu bản gốc, có thể thu hồi bất cứ lúc nào.</td></tr>
+  <tr><td><strong>Quyền hạn</strong></td><td>Bạn được làm gì?</td><td>Mỗi lệnh thuộc một nhóm quyền. Thiếu quyền thì lệnh bị từ chối trước khi chạm tới tổng đài.</td></tr>
+  <tr><td><strong>Phạm vi</strong></td><td>Bạn được làm điều đó tới đâu?</td><td>Danh sách đích được phép cho chuyển máy và gọi ra. Mọi chuỗi do đối tác cung cấp đều được kiểm tra chặt để không trở thành đường thực thi tùy ý trên tổng đài.</td></tr>
+</table>
+</div>
+<p>Cộng thêm: giới hạn tần suất đổi vé, cô lập hoàn toàn giữa các tổ chức, và nguyên tắc đối tác chỉ điều khiển được cuộc gọi của chính mình.</p>
+
+<div class="callout warn">
+  <strong>Điều đối tác không bao giờ nhận được</strong>
+  <p>Bất kỳ thông tin đăng nhập hay định danh nội bộ nào của tổng đài. Nếu một nhu cầu của đối tác không đáp ứng được qua giao diện công khai, đó là thiếu sót của Gateway cần bổ sung — không phải lý do để nới ranh giới.</p>
+</div>
+
+<h3>Năng lực trao cho đối tác</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>Nhóm</th><th>Đối tác làm được</th></tr>
+  <tr><td>Cơ bản</td><td>Nhận sự kiện cuộc gọi, trao đổi âm thanh hai chiều, nhận phím bấm</td></tr>
+  <tr><td>Điều khiển cuộc gọi</td><td>Giữ máy, tắt tiếng, gửi phím bấm, cúp máy</td></tr>
+  <tr><td>Định tuyến</td><td>Chuyển thẳng, chuyển có tư vấn trước, đưa vào hàng đợi, nhóm đổ chuông, thư thoại</td></tr>
+  <tr><td>Âm thanh phía tổng đài</td><td>Phát âm thanh có sẵn trên tổng đài, xóa âm thanh đang chờ</td></tr>
+  <tr><td>Gọi ra</td><td>Yêu cầu tổng đài gọi tới một đích được phép</td></tr>
+  <tr><td>Cố ý không có</td><td>Tự dựng kết nối giữa các bên, chạy lệnh tùy ý trên tổng đài, ghi âm</td></tr>
+</table>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="gw-luong"><span class="part">Phần 7 · Gateway</span>Luồng xử lý</h2>
+
+<h3>7.1 Đưa một đối tác vào hệ thống</h3>
+<ol class="flow">
+  <li><span class="who">Người vận hành<span class="arrow">→</span><span class="a-gw">Bảng điều khiển</span></span><p>Tạo ứng dụng đối tác: đặt tên định tuyến, chọn nhóm quyền, khai báo các đích được phép.</p></li>
+  <li><span class="who">Người vận hành<span class="arrow">→</span><span class="a-gw">Bảng điều khiển</span></span><p>Cấp khóa truy cập. Khóa chỉ hiển thị một lần.</p></li>
+  <li><span class="who">Người vận hành<span class="arrow">→</span><span class="a-pbx">Tổng đài</span></span><p>Khai báo trên tổng đài: số nào thì giao cho tên định tuyến nào.</p></li>
+  <li><span class="who">Người vận hành<span class="arrow">→</span><span class="a-ext">Đối tác</span></span><p>Gửi địa chỉ Gateway, tên định tuyến và quyền qua kênh thường; gửi khóa qua kênh bảo mật.</p></li>
+</ol>
+
+<h3>7.2 Đối tác kết nối</h3>
+<div class="diagram">
+  <div class="chain">
+    <div class="node ext">Đối tác</div>
+    <div class="link right">① trình khóa</div>
+    <div class="node gw">Gateway<small>kiểm khóa, kiểm tần suất</small></div>
+    <div class="link left">② vé ngắn hạn</div>
+    <div class="node ext">Đối tác</div>
+    <div class="link right">③ mở kết nối bằng vé<br>④ xưng tên định tuyến</div>
+    <div class="node gw">Gateway<small>ghi nhận "đang trực"</small></div>
+  </div>
+</div>
+<p>Sau khi được chấp nhận, đối tác gửi nhịp tim đều đặn để giữ trạng thái "đang trực". Mất nhịp tim quá lâu thì Gateway coi như đối tác đã rời. Bộ SDK lo toàn bộ phần này, kể cả tự xin vé mới và kết nối lại khi rớt mạng.</p>
+
+<h3>7.3 Cuộc gọi vào</h3>
+<ol class="flow">
+  <li><span class="who"><span class="a-pbx">Tổng đài</span><span class="arrow">→</span><span class="a-gw">Gateway</span></span><p>Cuộc gọi đến, kèm tên định tuyến của đối tác sẽ phục vụ.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span></span><p>Tìm đối tác đang trực với tên đó. Không có ai trực thì cuộc gọi bị ngắt ngay.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span><span class="arrow">→</span><span class="a-pbx">Tổng đài</span></span><p>Trả lời cuộc gọi, dựng "phòng" nối người gọi với một đường âm thanh dẫn về Gateway.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span><span class="arrow">→</span><span class="a-ext">Đối tác</span></span><p>Báo "cuộc gọi bắt đầu": mã cuộc gọi, thông tin người gọi, và định dạng âm thanh sẽ dùng.</p></li>
+  <li><span class="who"><span class="a-pbx">Tổng đài</span> ⟷ <span class="a-gw">Gateway</span> ⟷ <span class="a-ext">Đối tác</span></span><p>Âm thanh chạy hai chiều. Gateway chỉ chuyển tiếp, gắn mã cuộc gọi vào từng gói để đối tác phân biệt nhiều cuộc gọi trên cùng một kết nối.</p></li>
+</ol>
+<div class="callout">
+  <strong>Ưu tiên âm thanh "sống"</strong>
+  <p>Nếu đối tác xử lý chậm, Gateway bỏ phần âm thanh cũ nhất thay vì dồn ứ. Hội thoại thời gian thực thà mất một mẩu còn hơn trễ dần.</p>
+</div>
+
+<h3>7.4 Cuộc gọi ra</h3>
+<ol class="flow">
+  <li><span class="who"><span class="a-ext">Đối tác</span><span class="arrow">→</span><span class="a-gw">Gateway</span></span><p>Yêu cầu gọi tới một đích.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span></span><p>Kiểm tra quyền gọi ra và đích có nằm trong danh sách được phép.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span><span class="arrow">→</span><span class="a-pbx">Tổng đài</span></span><p>Yêu cầu tổng đài quay số; báo lại đối tác là yêu cầu đã được nhận.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span></span><p>Chờ đến khi bên kia <em>thật sự nhấc máy</em>. Chỉ khi đó mới dựng đường âm thanh.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span><span class="arrow">→</span><span class="a-ext">Đối tác</span></span><p>Báo "cuộc gọi bắt đầu" — từ đây giống hệt cuộc gọi vào.</p></li>
+</ol>
+
+<h3>7.5 Đối tác ra lệnh điều khiển</h3>
+<p>Mọi lệnh đi qua cùng một chuỗi kiểm tra. Hỏng ở bước nào thì dừng ở bước đó, tổng đài không bị chạm tới.</p>
+<div class="diagram">
+  <div class="chain">
+    <div class="node ext">Lệnh từ đối tác</div>
+    <div class="link right"></div>
+    <div class="node gw">Đã xử lý rồi?<small>trả lại kết quả cũ</small></div>
+    <div class="link right"></div>
+    <div class="node gw">Có quyền?</div>
+    <div class="link right"></div>
+    <div class="node gw">Đúng cuộc gọi của mình?</div>
+    <div class="link right"></div>
+    <div class="node gw">Đích và nội dung hợp lệ?</div>
+    <div class="link right"></div>
+    <div class="node pbx">Thực thi trên tổng đài</div>
+  </div>
+</div>
+<p>Bước đầu tiên bảo đảm việc gửi lại một lệnh do rớt mạng không khiến lệnh chạy hai lần.</p>
+
+<h3>7.6 Chuyển máy có tư vấn</h3>
+<ol class="flow">
+  <li><span class="who"><span class="a-ext">Đối tác</span><span class="arrow">→</span><span class="a-gw">Gateway</span></span><p>Yêu cầu gọi thêm một nhân viên vào cuộc.</p></li>
+  <li><span class="who"><span class="a-gw">Gateway</span><span class="arrow">→</span><span class="a-pbx">Tổng đài</span></span><p>Gọi nhân viên và đưa họ vào cùng "phòng" với người gọi và AI.</p></li>
+  <li><span class="who"><span class="a-ext">Đối tác</span></span><p>AI giới thiệu tình huống. Sau đó hoặc giao hẳn người gọi cho nhân viên, hoặc hủy và tiếp tục phục vụ.</p></li>
+</ol>
+
+<h3>7.7 Hai tiến trình tranh một tên định tuyến</h3>
+<p>Quy tắc: <strong>người đăng ký sau thắng</strong>. Tiến trình cũ được báo rõ là bị thay thế, các cuộc gọi của nó bị kết thúc, và nó được yêu cầu không kết nối lại — để hai bên không giành qua giành lại. Hệ quả vận hành: môi trường thử nghiệm và môi trường thật phải dùng hai tên khác nhau.</p>
+
+<h3>7.8 Kết thúc và dọn dẹp</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>Điều xảy ra</th><th>Gateway phản ứng</th></tr>
+  <tr><td>Người gọi cúp máy</td><td>Dọn dẹp, báo đối tác "cuộc gọi kết thúc"</td></tr>
+  <tr><td>Đối tác yêu cầu cúp máy</td><td>Ngắt cuộc gọi rồi dọn dẹp</td></tr>
+  <tr><td>Đối tác mất kết nối</td><td>Kết thúc mọi cuộc gọi đối tác đang giữ</td></tr>
+  <tr><td>Khóa bị thu hồi giữa cuộc gọi</td><td>Chặn kết nối mới ngay; cuộc gọi đang diễn ra được hoàn tất</td></tr>
+  <tr><td>Tổng đài hoặc kho lưu trữ gián đoạn</td><td>Giữ những gì đang chạy được, từ chối việc mới cho đến khi phục hồi</td></tr>
+</table>
+</div>
+<p>Nguyên tắc xuyên suốt: mỗi cuộc gọi được dọn dẹp đúng một lần và trọn vẹn, không để sót tài nguyên nào trên tổng đài.</p>
+
+<!-- ============================================================ -->
+<h2 id="ket-hop"><span class="part">Phần 8 · Kết hợp</span>AVA chạy qua Gateway</h2>
+
+<p>AVA có thêm một cách kết nối: thay vì tự điều khiển tổng đài, nó trở thành một đối tác bình thường của Gateway.</p>
+<div class="diagram">
+  <p class="diagram-title">Toàn tuyến khi ghép hai dự án</p>
+  <div class="chain">
+    <div class="node ext">Người gọi</div>
+    <div class="link">thoại</div>
+    <div class="node pbx">Tổng đài</div>
+    <div class="link">mạng riêng</div>
+    <div class="node gw">Gateway<small>cuộc gọi, quyền, an toàn</small></div>
+    <div class="link">một kết nối</div>
+    <div class="node ava">AVA<small>hội thoại, công cụ, lịch sử</small></div>
+    <div class="link"></div>
+    <div class="node ext">Dịch vụ AI</div>
+  </div>
+</div>
+
+<h3>Cách ghép</h3>
+<p>Bên trong AVA, đường âm thanh vốn độc lập với cách âm thanh đến. Chế độ gateway thay "đường nhận âm thanh trực tiếp từ tổng đài" bằng "đường nhận âm thanh từ Gateway", có cùng hình dạng. Phần còn lại của AVA — bộ não, điều phối hội thoại, công cụ — gần như không đổi.</p>
+<div class="table-wrap">
+<table>
+  <tr><th>Trong mô hình trực tiếp</th><th>Qua Gateway trở thành</th></tr>
+  <tr><td>Tổng đài báo có cuộc gọi</td><td>Gateway báo "cuộc gọi bắt đầu"</td></tr>
+  <tr><td>Định danh nội bộ của tổng đài</td><td>Mã cuộc gọi của Gateway</td></tr>
+  <tr><td>Âm thanh trực tiếp từ tổng đài</td><td>Âm thanh gắn mã cuộc gọi qua kết nối đối tác</td></tr>
+  <tr><td>AVA tự cúp máy, chuyển máy, gọi ra</td><td>AVA gửi lệnh; Gateway kiểm tra quyền rồi thực hiện</td></tr>
+</table>
+</div>
+
+<h3>Được và mất</h3>
+<div class="cards">
+  <div class="card">
+    <h4>Được</h4>
+    <ul>
+      <li>AVA không cần quyền điều khiển tổng đài.</li>
+      <li>AVA có thể chạy ở mạng khác, tổ chức khác.</li>
+      <li>Triển khai đơn giản hơn: chỉ một kết nối đi ra.</li>
+      <li>Mọi hành động của AI đều qua lớp kiểm soát của Gateway.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>Mất hoặc bị thu hẹp</h4>
+    <ul>
+      <li>Không tự dựng kết nối giữa các bên.</li>
+      <li>Không ghi âm, không soi được cấu hình tổng đài.</li>
+      <li>Phát âm thanh phía tổng đài và trả cuộc gọi về tổng đài chỉ trong giới hạn được duyệt.</li>
+      <li>Các tính năng dựa sâu vào tổng đài, như chiến dịch gọi ra có nhận diện hộp thư thoại, không chạy nguyên trạng.</li>
+    </ul>
+  </div>
+</div>
+<p>Đây là một lựa chọn kiến trúc chứ không phải bản thay thế tương đương: đổi năng lực lấy sự tách bạch và an toàn.</p>
+
+<!-- ============================================================ -->
+<h2 id="lua-chon"><span class="part">Phần 9</span>Chọn mô hình nào</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>Tình huống</th><th>Lựa chọn</th><th>Lý do</th></tr>
+  <tr><td>Doanh nghiệp muốn trợ lý AI cho tổng đài của chính mình</td><td><span class="badge ava">AVA trực tiếp</span></td><td>Đầy đủ năng lực nhất, một hệ thống duy nhất để vận hành</td></tr>
+  <tr><td>Âm thanh không được rời hạ tầng</td><td><span class="badge ava">AVA + AI tại chỗ</span></td><td>Toàn bộ xử lý giọng nói nằm trong mạng nội bộ</td></tr>
+  <tr><td>Cho một công ty AI bên ngoài phục vụ cuộc gọi</td><td><span class="badge gw">Gateway</span></td><td>Không phải trao quyền tổng đài; giới hạn được lệnh và đích</td></tr>
+  <tr><td>Nhiều đối tác cùng dùng một tổng đài</td><td><span class="badge gw">Gateway</span></td><td>Tách bạch theo tổ chức, có kiểm toán</td></tr>
+  <tr><td>Muốn dùng AVA nhưng không thể hoặc không muốn cấp quyền tổng đài</td><td><span class="badge gw">Gateway</span> + <span class="badge ava">AVA</span></td><td>Giữ trí tuệ của AVA, nhận ranh giới an toàn của Gateway</td></tr>
+</table>
+</div>
+
+<h3>Mức độ hoàn thiện</h3>
+<div class="cards">
+  <div class="card ava"><h4>AVA</h4><p>Sản phẩm trưởng thành, có nhiều cấu hình mẫu đã kiểm chứng trên cuộc gọi thật. Bản đang dùng bổ sung chế độ kết nối qua Gateway và <a href="#thc">mô hình trung tâm tiếng Anh</a>.</p></div>
+  <div class="card gw"><h4>Gateway</h4><p>Phần kỹ thuật của bản đầu tiên đã hoàn tất và chạy với tổng đài thử nghiệm, đã qua thử tải nhỏ và diễn tập sự cố. Để mở rộng công khai còn cần: mã hóa đường truyền công khai, cam kết chất lượng dịch vụ, chính sách dữ liệu cá nhân, và một đối tác thật chạy thử.</p></div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="thuat-ngu"><span class="part">Phần 10</span>Thuật ngữ</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>Thuật ngữ</th><th>Giải thích</th></tr>
+  <tr><td><strong>Tổng đài (Asterisk)</strong></td><td>Phần mềm nhận, định tuyến và nối các cuộc gọi.</td></tr>
+  <tr><td><strong>Trung kế</strong></td><td>Đường nối tổng đài với nhà mạng để gọi ra, gọi vào.</td></tr>
+  <tr><td><strong>"Phòng" (bridge)</strong></td><td>Nơi tổng đài nối nhiều bên để họ nghe thấy nhau.</td></tr>
+  <tr><td><strong>Agent</strong></td><td>Trong AVA: một nhân vật hội thoại với lời nhắc, giọng và công cụ riêng.</td></tr>
+  <tr><td><strong>Bộ não nguyên khối / ghép khối</strong></td><td>Một dịch vụ AI lo trọn nghe–hiểu–nói, hoặc ba dịch vụ riêng cho ba khâu.</td></tr>
+  <tr><td><strong>Ngắt lời</strong></td><td>Người gọi chen ngang khi AI đang nói.</td></tr>
+  <tr><td><strong>Cổng thu</strong></td><td>Cơ chế tạm chặn đường thu để AI không nghe chính giọng mình.</td></tr>
+  <tr><td><strong>Công cụ</strong></td><td>Hành động có cấu trúc mà AI được phép yêu cầu hệ thống thực hiện.</td></tr>
+  <tr><td><strong>Tổ chức</strong></td><td>Trong Gateway: một khách thuê, ranh giới cô lập dữ liệu.</td></tr>
+  <tr><td><strong>Ứng dụng đối tác</strong></td><td>Một tích hợp cụ thể của đối tác, gắn với tên định tuyến và quyền.</td></tr>
+  <tr><td><strong>Tên định tuyến</strong></td><td>Tên duy nhất nối cuộc gọi trên tổng đài với đối tác đang trực.</td></tr>
+  <tr><td><strong>Khóa và vé</strong></td><td>Khóa dài hạn dùng để đổi lấy vé ngắn hạn; vé dùng để mở kết nối.</td></tr>
+  <tr><td><strong>Nhóm quyền</strong></td><td>Tập các lệnh mà một khóa được phép gửi.</td></tr>
+  <tr><td><strong>Đích được phép</strong></td><td>Danh sách nơi đối tác được chuyển máy tới hoặc gọi ra.</td></tr>
+  <tr><td><strong>Mã cuộc gọi</strong></td><td>Định danh do Gateway cấp; thứ duy nhất đối tác biết về một cuộc gọi.</td></tr>
+  <tr><td><strong>Nhịp tim</strong></td><td>Tín hiệu định kỳ chứng tỏ đối tác còn kết nối.</td></tr>
+</table>
+</div>
+
+<footer>Handbook tổng hợp từ mã nguồn và tài liệu của hai dự án, cập nhật 2026-10-13. Chi tiết kỹ thuật (cấu hình, giao thức, vận hành) nằm trong bộ tài liệu nhiều trang cùng thư mục, bắt đầu từ <a href="index.html">index.html</a>.</footer>
+
+</div>
+</main>
+</body>
+</html>

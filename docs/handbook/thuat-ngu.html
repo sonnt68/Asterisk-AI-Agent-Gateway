@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thuật ngữ — Asterisk AI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<aside class="sidebar">
+<div class="brand">Asterisk AI — Bộ tài liệu hệ thống</div>
+<div class="brand-sub">AVA Voice Agent &amp; AI Agent Gateway</div>
+<nav class="nav">
+<div class="nav-group">Tổng quan</div>
+<a href="index.html">Giới thiệu & ý tưởng</a>
+<div class="nav-group">AVA — AI Voice Agent</div>
+<a href="ava-he-thong.html">Hệ thống & thành phần</a>
+<a href="ava-luong-hoat-dong.html">Luồng hoạt động</a>
+<div class="nav-group">Asterisk AI Agent Gateway</div>
+<a href="gateway-he-thong.html">Hệ thống & bảo mật</a>
+<a href="gateway-luong-hoat-dong.html">Luồng hoạt động</a>
+<a href="gateway-giao-thuc.html">Giao thức & API</a>
+<div class="nav-group">Kết hợp & vận hành</div>
+<a href="tich-hop.html">AVA chạy qua Gateway</a>
+<a href="van-hanh.html">Triển khai & vận hành</a>
+<a class="active" href="thuat-ngu.html">Thuật ngữ</a>
+<div class="toc">
+<a href="#dien-thoai">Điện thoại và Asterisk</a>
+<a href="#am-thanh">Âm thanh</a>
+<a href="#ai">AI hội thoại</a>
+<a href="#ava">Riêng của AVA</a>
+<a href="#gateway">Riêng của Gateway</a>
+<a href="#nguon">Nguồn tham chiếu trong repository</a>
+</div>
+</nav>
+</aside>
+<main>
+<div class="content">
+<span class="eyebrow">Kết hợp &amp; vận hành</span>
+<h1>Thuật ngữ</h1>
+<p class="lede">Giải thích ngắn các khái niệm xuất hiện trong bộ tài liệu, nhóm theo lĩnh vực.</p>
+
+<h2 id="dien-thoai">Điện thoại và Asterisk</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>Thuật ngữ</th><th>Giải thích</th></tr>
+  <tr><td><strong>Asterisk</strong></td><td>Phần mềm tổng đài mã nguồn mở. FreePBX là giao diện quản trị phổ biến xây trên nó.</td></tr>
+  <tr><td><strong>PSTN / SIP / trunk</strong></td><td>Mạng điện thoại công cộng; giao thức báo hiệu thoại IP; đường kết nối tổng đài với nhà mạng.</td></tr>
+  <tr><td><strong>Dialplan</strong></td><td>Bộ quy tắc của Asterisk quyết định cuộc gọi đi đâu. Gồm <em>context</em> (nhóm quy tắc) và <em>extension</em> (số hoặc mẫu số).</td></tr>
+  <tr><td><strong>Channel</strong></td><td>Một chân của cuộc gọi trong Asterisk. Mỗi channel có một ID.</td></tr>
+  <tr><td><strong>Bridge</strong></td><td>"Phòng" nối nhiều channel để chúng nghe thấy nhau. Kiểu <em>mixing</em> trộn âm thanh mọi thành viên.</td></tr>
+  <tr><td><strong>ARI</strong></td><td>Asterisk REST Interface: REST để ra lệnh, WebSocket để nhận sự kiện.</td></tr>
+  <tr><td><strong>Stasis</strong></td><td>Ứng dụng dialplan trao quyền điều khiển channel cho chương trình bên ngoài qua ARI. <code>StasisStart</code> và <code>StasisEnd</code> đánh dấu lúc channel vào và rời.</td></tr>
+  <tr><td><strong>AudioSocket</strong></td><td>Giao thức TCP đơn giản của Asterisk để trao luồng âm thanh thô hai chiều cho một máy chủ, định danh bằng UUID.</td></tr>
+  <tr><td><strong>ExternalMedia</strong></td><td>Channel ARI gửi/nhận âm thanh dạng RTP qua UDP tới một địa chỉ bên ngoài.</td></tr>
+  <tr><td><strong>Local channel</strong></td><td>Channel ảo gọi vào chính dialplan, dạng <code>Local/số@context</code>. Hậu tố <code>/n</code> tắt việc Asterisk tự tối ưu gộp nó.</td></tr>
+  <tr><td><strong>Originate</strong></td><td>Yêu cầu Asterisk chủ động tạo một cuộc gọi ra.</td></tr>
+  <tr><td><strong>DTMF</strong></td><td>Âm phím bấm trên điện thoại.</td></tr>
+  <tr><td><strong>DID</strong></td><td>Số điện thoại gọi vào được gán cho tổng đài.</td></tr>
+  <tr><td><strong>AMD</strong></td><td>Answering Machine Detection: đoán bên nhấc máy là người hay hộp thư thoại.</td></tr>
+  <tr><td><strong>Chuyển mù / chuyển có tư vấn</strong></td><td>Chuyển thẳng cuộc gọi đi; hoặc gọi người nhận trước để trao đổi rồi mới giao.</td></tr>
+  <tr><td><strong>Hàng đợi / ring group</strong></td><td>Người gọi xếp hàng chờ nhân viên rảnh; hoặc nhiều máy cùng đổ chuông.</td></tr>
+</table>
+</div>
+
+<h2 id="am-thanh">Âm thanh</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>Thuật ngữ</th><th>Giải thích</th></tr>
+  <tr><td><strong>PCM16 / slin</strong></td><td>Âm thanh thô 16-bit có dấu. Trong Asterisk, <code>slin</code> là 8 kHz, <code>slin16</code> là 16 kHz.</td></tr>
+  <tr><td><strong>μ-law (G.711)</strong></td><td>Codec điện thoại chuẩn 8 kHz, 8 bit mỗi mẫu.</td></tr>
+  <tr><td><strong>Tần số lấy mẫu</strong></td><td>Số mẫu mỗi giây. Điện thoại là 8 kHz (băng hẹp); 16 kHz trở lên là băng rộng.</td></tr>
+  <tr><td><strong>Lấy mẫu lại</strong></td><td>Đổi tần số lấy mẫu. Tỉ lệ nguyên thì sạch; tỉ lệ lẻ dễ sinh méo nếu bộ lọc kém.</td></tr>
+  <tr><td><strong>Khung (frame)</strong></td><td>Một gói âm thanh ngắn, thường 20 ms.</td></tr>
+  <tr><td><strong>Định dạng dây</strong></td><td>Định dạng âm thanh thực sự chạy trên kết nối giữa hai hệ thống.</td></tr>
+</table>
+</div>
+
+<h2 id="ai">AI hội thoại</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>Thuật ngữ</th><th>Giải thích</th></tr>
+  <tr><td><strong>STT / LLM / TTS</strong></td><td>Nhận dạng giọng nói thành văn bản; mô hình ngôn ngữ; tổng hợp văn bản thành giọng nói.</td></tr>
+  <tr><td><strong>Full-agent provider</strong></td><td>Nhà cung cấp lo cả ba khâu trong một phiên realtime.</td></tr>
+  <tr><td><strong>Pipeline</strong></td><td>Ba khâu STT, LLM, TTS ghép từ các adapter riêng.</td></tr>
+  <tr><td><strong>VAD</strong></td><td>Voice Activity Detection: phát hiện đang có giọng nói.</td></tr>
+  <tr><td><strong>Barge-in</strong></td><td>Người gọi ngắt lời khi agent đang nói.</td></tr>
+  <tr><td><strong>Gating</strong></td><td>Đóng/mở đường thu để agent không nghe chính giọng mình.</td></tr>
+  <tr><td><strong>Tool calling</strong></td><td>Mô hình yêu cầu hệ thống thực hiện một hành động có cấu trúc.</td></tr>
+  <tr><td><strong>MCP</strong></td><td>Model Context Protocol: chuẩn để nối công cụ bên ngoài vào mô hình.</td></tr>
+</table>
+</div>
+
+<h2 id="ava">Riêng của AVA</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>Thuật ngữ</th><th>Giải thích</th></tr>
+  <tr><td><strong>Agent</strong></td><td>Một persona hội thoại: prompt, lời chào, provider, giọng, công cụ. Lưu trong <code>agents.db</code>.</td></tr>
+  <tr><td><strong>ContextConfig</strong></td><td>Hợp đồng runtime giữa Agent và provider; tên còn lại từ mô hình "context" cũ.</td></tr>
+  <tr><td><strong>Audio profile</strong></td><td>Bộ thiết lập codec và tần số cho một Agent.</td></tr>
+  <tr><td><strong>Golden baseline</strong></td><td>Cấu hình đã kiểm chứng trên cuộc gọi thật, dùng làm mốc so sánh.</td></tr>
+  <tr><td><strong>SessionStore</strong></td><td>Nơi duy nhất giữ trạng thái cuộc gọi.</td></tr>
+  <tr><td><strong>Thế hệ công cụ</strong></td><td>Ảnh chụp bất biến bộ công cụ mà một cuộc gọi dùng suốt vòng đời.</td></tr>
+  <tr><td><strong><code>downstream_mode</code></strong></td><td>Cách trả âm thanh về người gọi: <code>file</code> hoặc <code>stream</code>.</td></tr>
+</table>
+</div>
+
+<h2 id="gateway">Riêng của Gateway</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>Thuật ngữ</th><th>Giải thích</th></tr>
+  <tr><td><strong>Organization</strong></td><td>Tenant. Ranh giới cô lập dữ liệu quản trị.</td></tr>
+  <tr><td><strong>Partner App</strong></td><td>Một tích hợp của đối tác: slug, scope, allowlist đích.</td></tr>
+  <tr><td><strong>Agent slug</strong></td><td>Tên định tuyến duy nhất toàn cục. Dialplan dùng nó để chọn đối tác; mỗi slug một kết nối sống.</td></tr>
+  <tr><td><strong>API key</strong></td><td>Bí mật dài hạn dạng <code>agw_live_…</code>, chỉ dùng để đổi token.</td></tr>
+  <tr><td><strong>Token realtime</strong></td><td>Chứng nhận ngắn hạn 5 phút, chỉ dùng để mở WSS.</td></tr>
+  <tr><td><strong>Scope</strong></td><td>Quyền theo nhóm lệnh, ví dụ <code>calls:transfer</code>.</td></tr>
+  <tr><td><strong>Allowlist đích</strong></td><td>Danh sách <code>context:extension</code> được phép chuyển máy hoặc gọi ra.</td></tr>
+  <tr><td><strong><code>call_id</code></strong></td><td>UUID do gateway sinh; định danh duy nhất về cuộc gọi mà đối tác thấy.</td></tr>
+  <tr><td><strong>Lease</strong></td><td>Khóa Redis TTL 30 giây chứng nhận kết nối nào đang giữ một slug.</td></tr>
+  <tr><td><strong>Supersede</strong></td><td>Đăng ký mới thay thế đăng ký cũ của cùng slug.</td></tr>
+  <tr><td><strong>Idempotency</strong></td><td>Gửi lại cùng <code>request_id</code> không làm lệnh chạy lần hai.</td></tr>
+  <tr><td><strong>Channel mồ côi</strong></td><td>Channel còn sót trong Asterisk sau khi cuộc gọi kết thúc; dấu hiệu dọn dẹp lỗi.</td></tr>
+</table>
+</div>
+
+<h2 id="nguon">Nguồn tham chiếu trong repository</h2>
+<div class="cards">
+  <div class="card gw">
+    <h4>Asterisk-AI-Agent-Gateway</h4>
+    <ul>
+      <li><code>README.md</code>, <code>docs/product/overview.md</code></li>
+      <li><code>docs/architecture.md</code>, <code>docs/security-model.md</code></li>
+      <li><code>docs/partner/</code> — xác thực, điều khiển, giao thức, SDK</li>
+      <li><code>docs/operations/</code> — kết nối Asterisk, triển khai, onboarding</li>
+      <li><code>docs/decisions/</code>, <code>docs/project-changelog.md</code></li>
+      <li><code>packages/protocol/</code> — OpenAPI và AsyncAPI</li>
+      <li><code>apps/control-api/app/</code> — mã nguồn là chuẩn cuối cùng</li>
+    </ul>
+  </div>
+  <div class="card ava">
+    <h4>AVA-AI-Voice-Agent-for-Asterisk</h4>
+    <ul>
+      <li><code>README.md</code>, <code>AVA.mdc</code></li>
+      <li><code>docs/contributing/architecture-quickstart.md</code> và <code>architecture-deep-dive.md</code></li>
+      <li><code>docs/Transport-Mode-Compatibility.md</code></li>
+      <li><code>docs/AGENTS.md</code>, <code>docs/TOOL_CALLING_GUIDE.md</code>, <code>docs/OUTBOUND_CALLING.md</code></li>
+      <li><code>integrations/asterisk_ai_gateway/README.md</code></li>
+      <li><code>docs/stories/US-2601-thc-english-outbound-demo.md</code></li>
+    </ul>
+  </div>
+</div>
+<div class="pager"><a href="van-hanh.html">← Triển khai & vận hành</a><span></span></div>
+<footer>Bộ tài liệu tổng hợp từ mã nguồn và tài liệu của hai repository, cập nhật 2026-10-13.</footer>
+</div>
+</main>
+</body>
+</html>

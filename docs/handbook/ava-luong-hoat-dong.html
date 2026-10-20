@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AVA: luồng hoạt động — Asterisk AI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<aside class="sidebar">
+<div class="brand">Asterisk AI — Bộ tài liệu hệ thống</div>
+<div class="brand-sub">AVA Voice Agent &amp; AI Agent Gateway</div>
+<nav class="nav">
+<div class="nav-group">Tổng quan</div>
+<a href="index.html">Giới thiệu & ý tưởng</a>
+<div class="nav-group">AVA — AI Voice Agent</div>
+<a href="ava-he-thong.html">Hệ thống & thành phần</a>
+<a class="active" href="ava-luong-hoat-dong.html">Luồng hoạt động</a>
+<div class="toc">
+<a href="#goi-vao">1. Cuộc gọi vào</a>
+<a href="#luot-pipeline">2. Một lượt hội thoại — pipeline mô-đun</a>
+<a href="#luot-full-agent">3. Một lượt hội thoại — full-agent</a>
+<a href="#barge-in">4. Ngắt lời (barge-in) và chặn tiếng vọng</a>
+<a href="#tool">5. Gọi công cụ</a>
+<a href="#im-lang">6. Người gọi im lặng</a>
+<a href="#ket-thuc">7. Kết thúc cuộc gọi</a>
+<a href="#goi-ra">8. Chiến dịch gọi ra</a>
+<a href="#chan-doan">9. Chẩn đoán một cuộc gọi</a>
+</div>
+<div class="nav-group">Asterisk AI Agent Gateway</div>
+<a href="gateway-he-thong.html">Hệ thống & bảo mật</a>
+<a href="gateway-luong-hoat-dong.html">Luồng hoạt động</a>
+<a href="gateway-giao-thuc.html">Giao thức & API</a>
+<div class="nav-group">Kết hợp & vận hành</div>
+<a href="tich-hop.html">AVA chạy qua Gateway</a>
+<a href="van-hanh.html">Triển khai & vận hành</a>
+<a href="thuat-ngu.html">Thuật ngữ</a>
+</nav>
+</aside>
+<main>
+<div class="content">
+<span class="eyebrow">AVA — AI Voice Agent</span>
+<h1>AVA: luồng hoạt động</h1>
+<p class="lede">Từ lúc điện thoại đổ chuông đến lúc cúp máy, đi qua từng bước: thiết lập cuộc gọi, một lượt hội thoại, ngắt lời, gọi công cụ, xử lý im lặng và chiến dịch gọi ra.</p>
+
+<h2 id="goi-vao">1. Cuộc gọi vào</h2>
+<p>Điểm vào là dialplan. Asterisk trao cuộc gọi cho ứng dụng Stasis của AVA:</p>
+<pre><code>[from-ai-agent]
+exten =&gt; s,1,NoOp(Asterisk AI Voice Agent)
+ same =&gt; n,Set(AI_AGENT=sales-agent)        ; chọn Agent theo slug
+ ; same =&gt; n,Set(AI_PROVIDER=google_live)   ; tùy chọn: ghi đè provider cho cuộc gọi này
+ same =&gt; n,Stasis(asterisk-ai-voice-agent)
+ same =&gt; n,Hangup()</code></pre>
+
+<ol class="flow">
+  <li><span class="who"><span class="a-pbx">Asterisk</span><span class="arrow">→</span><span class="a-ava">Engine</span></span><p>Cuộc gọi vào Stasis; Asterisk phát sự kiện <code>StasisStart</code> qua WebSocket ARI. Engine xử lý trong <code>_on_stasis_start()</code>.</p></li>
+  <li><span class="who"><span class="a-ava">Engine</span><span class="arrow">→</span><span class="a-pbx">Asterisk</span></span><p>Trả lời channel, tạo bridge và đưa channel người gọi vào bridge.</p></li>
+  <li><span class="who"><span class="a-ava">Engine</span></span><p>Đọc biến channel <code>AI_AGENT</code>, tra Agent trong <code>agents.db</code>, dựng <code>ContextConfig</code>. Tạo phiên trong SessionStore và chụp thế hệ công cụ hiện tại.</p></li>
+  <li><span class="who"><span class="a-ava">Engine</span><span class="arrow">→</span><span class="a-pbx">Asterisk</span></span><p>Tạo chân media theo transport đã cấu hình: channel AudioSocket (Asterisk gọi TCP về cổng 8090) hoặc channel ExternalMedia (RTP về cổng 18080), rồi thêm vào bridge. TransportOrchestrator chốt codec và tần số lấy mẫu theo audio profile.</p></li>
+  <li><span class="who"><span class="a-ava">Engine</span><span class="arrow">→</span><span class="a-ext">Nhà cung cấp AI</span></span><p>Chạy công cụ pha trước cuộc gọi (nếu có), rồi mở phiên provider hoặc khởi tạo pipeline với prompt, giọng và công cụ của Agent.</p></li>
+  <li><span class="who"><span class="a-ava">Engine</span><span class="arrow">→</span><span class="a-ext">Người gọi</span></span><p>Phát lời chào của Agent. Từ đây âm thanh chạy hai chiều liên tục.</p></li>
+</ol>
+
+<h2 id="luot-pipeline">2. Một lượt hội thoại — pipeline mô-đun</h2>
+<div class="diagram">
+  <p class="diagram-title">Người gọi nói "Xin chào"</p>
+  <div class="chain">
+    <div class="node pbx">Asterisk<small>slin 8 kHz</small></div>
+    <div class="link right">âm thanh</div>
+    <div class="node ava">VAD + gating<small>phát hiện hết câu</small></div>
+    <div class="link right">khung PCM</div>
+    <div class="node">STT<small>→ văn bản</small></div>
+    <div class="link right">văn bản + lịch sử</div>
+    <div class="node">LLM<small>→ câu trả lời hoặc tool call</small></div>
+    <div class="link right">văn bản</div>
+    <div class="node">TTS<small>→ PCM</small></div>
+  </div>
+</div>
+<ol class="flow">
+  <li><span class="who"><span class="a-pbx">Asterisk</span><span class="arrow">→</span><span class="a-ava">Engine</span></span><p>Khung âm thanh tới qua <code>_audiosocket_handle_audio()</code> hoặc <code>_on_rtp_audio()</code>. Nếu cổng âm thanh đang đóng (agent đang nói), khung bị chặn để AI không nghe chính mình.</p></li>
+  <li><span class="who"><span class="a-ava">Engine</span><span class="arrow">→</span>STT</span><p>Âm thanh được đưa vào adapter STT; nhận lại văn bản.</p></li>
+  <li><span class="who"><span class="a-ava">Engine</span><span class="arrow">→</span>LLM</span><p>Văn bản cùng lịch sử hội thoại và định nghĩa công cụ được gửi tới LLM.</p></li>
+  <li><span class="who"><span class="a-ava">Engine</span><span class="arrow">→</span>TTS</span><p>Câu trả lời được tổng hợp thành âm thanh PCM16.</p></li>
+  <li><span class="who"><span class="a-ava">Engine</span><span class="arrow">→</span><span class="a-pbx">Asterisk</span></span><p>Trả âm thanh: ghi tệp rồi phát qua kênh Announcer (<code>downstream_mode: file</code>), hoặc đẩy thẳng về transport (<code>stream</code>, tự lùi về tệp khi lỗi).</p></li>
+  <li><span class="who"><span class="a-ava">Engine</span></span><p>Lượt hội thoại được ghi vào SessionStore.</p></li>
+</ol>
+
+<h2 id="luot-full-agent">3. Một lượt hội thoại — full-agent</h2>
+<div class="diagram">
+  <div class="chain">
+    <div class="node pbx">Asterisk</div>
+    <div class="link">AudioSocket / RTP</div>
+    <div class="node ava">Engine<small>chuyển mã, gating, phát luồng</small></div>
+    <div class="link">một WebSocket<br>âm thanh liên tục</div>
+    <div class="node ext">Provider realtime<small>STT + LLM + TTS + tool</small></div>
+  </div>
+</div>
+<p>Engine đẩy âm thanh người gọi liên tục lên provider và nhận lại luồng âm thanh trả lời. Provider tự phát hiện hết câu và tự sinh giọng. Engine vẫn giữ ba việc: chuyển đổi định dạng âm thanh, kiểm soát cổng âm thanh, và thực thi công cụ khi provider yêu cầu. <code>StreamingPlaybackManager</code> điều nhịp luồng âm thanh trả về người gọi.</p>
+
+<h2 id="barge-in">4. Ngắt lời (barge-in) và chặn tiếng vọng</h2>
+<p><strong>Vấn đề:</strong> khi agent đang nói, âm thanh đó có thể dội lại đường thu và bị hiểu là người gọi nói.</p>
+<div class="table-wrap">
+<table>
+  <tr><th>Trạng thái cổng</th><th>Ý nghĩa</th><th>Điều khiển bởi</th></tr>
+  <tr><td>Mở</td><td>Âm thanh người gọi đi tới AI</td><td>Kết thúc phát TTS</td></tr>
+  <tr><td>Đóng</td><td>Âm thanh người gọi bị chặn</td><td>Sự kiện bắt đầu phát TTS, sự kiện âm thanh từ provider</td></tr>
+</table>
+</div>
+<ol class="flow">
+  <li><span class="who"><span class="a-ava">Engine</span></span><p>Agent bắt đầu nói → AudioGatingManager đóng cổng.</p></li>
+  <li><span class="who"><span class="a-ext">Người gọi</span></span><p>Người gọi chen vào. WebRTC VAD nhận ra đây là giọng nói thật chứ không phải tiếng vọng.</p></li>
+  <li><span class="who"><span class="a-ava">Engine</span></span><p>ConversationCoordinator dừng phát lại, xóa âm thanh còn trong hàng đợi, mở cổng để AI nghe câu mới.</p></li>
+</ol>
+<div class="callout warn">
+  <strong>Thiết lập dễ sai</strong>
+  <p>Với OpenAI Realtime, <code>vad.webrtc_aggressiveness: 0</code> coi tiếng vọng là giọng nói và gây tự ngắt. Dùng mức 1. Các tham số <code>barge_in.*</code> và <code>streaming.*</code> là nơi tinh chỉnh chính.</p>
+</div>
+
+<h2 id="tool">5. Gọi công cụ</h2>
+<p>Ví dụ người gọi nói "Chuyển tôi sang phòng kinh doanh".</p>
+<ol class="flow">
+  <li><span class="who">LLM / provider<span class="arrow">→</span><span class="a-ava">Engine</span></span><p>Mô hình nhận ra ý định và trả về <code>tool_call</code>, ví dụ <code>transfer</code> với đích <code>sales</code>.</p></li>
+  <li><span class="who"><span class="a-ava">Engine</span></span><p>Adapter của provider dịch lời gọi về dạng chung; ToolRegistry tìm công cụ trong thế hệ công cụ của cuộc gọi và kiểm tra Agent có được dùng đích đó không.</p></li>
+  <li><span class="who"><span class="a-ava">Engine</span><span class="arrow">→</span><span class="a-pbx">Asterisk</span></span><p>Công cụ thực thi qua ARI — với chuyển máy là điều hướng channel tới máy lẻ, hàng đợi hoặc ring group.</p></li>
+  <li><span class="who"><span class="a-ava">Engine</span><span class="arrow">→</span>LLM</span><p>Kết quả có cấu trúc (<code>status</code>, <code>message</code>) được trả lại để mô hình nói câu phù hợp, và được lưu vào phiên.</p></li>
+</ol>
+<div class="callout">
+  <strong>Định dạng schema khác nhau theo nhà cung cấp</strong>
+  <p>OpenAI Realtime dùng dạng phẳng <code>{type, name, description, parameters}</code>; OpenAI Chat dùng dạng lồng <code>{type, function: {…}}</code>; Deepgram dùng mảng. Đây là nguồn lỗi phổ biến nhất khi thêm công cụ.</p>
+</div>
+
+<h2 id="im-lang">6. Người gọi im lặng</h2>
+<p><code>NoInputWatchdog</code> là nơi duy nhất xử lý im lặng; provider không được tự cúp máy vì im lặng.</p>
+<ul>
+  <li>Cuộc gọi vào: bật mặc định, ngưỡng 30 giây. Cuộc gọi ra: phải bật riêng theo Agent.</li>
+  <li>Câu hỏi lại ("Bạn còn đó không?") dùng đúng giọng của provider/pipeline đang chạy.</li>
+  <li>Khi hết thời gian, việc cúp máy đi qua đường xả âm thanh chung để câu chào cuối phát xong trên cả AudioSocket lẫn RTP.</li>
+</ul>
+
+<h2 id="ket-thuc">7. Kết thúc cuộc gọi</h2>
+<ol class="flow">
+  <li><span class="who"><span class="a-ext">Người gọi</span> hoặc <span class="a-ava">công cụ hangup</span></span><p>Người gọi cúp máy (Asterisk phát <code>StasisEnd</code>), hoặc AI gọi công cụ cúp máy sau lời chào tạm biệt.</p></li>
+  <li><span class="who"><span class="a-ava">Engine</span></span><p>Đóng phiên provider, hủy channel media và bridge, chốt phiên trong SessionStore.</p></li>
+  <li><span class="who"><span class="a-ava">Engine</span></span><p>Ghi lịch sử cuộc gọi vào <code>call_history.db</code>: bản ghi lời, công cụ đã chạy, giọng và provider đã dùng.</p></li>
+  <li><span class="who"><span class="a-ava">Engine</span><span class="arrow">→</span><span class="a-ext">bên ngoài</span></span><p>Chạy công cụ pha sau cuộc gọi: webhook, email tóm tắt.</p></li>
+</ol>
+
+<h2 id="goi-ra">8. Chiến dịch gọi ra</h2>
+<p>Quản lý tại Admin UI → Call Scheduling. Thiết kế một node, trạng thái lưu SQLite cạnh lịch sử cuộc gọi. Trunk và outbound route phải có sẵn trên Asterisk/FreePBX.</p>
+<ol class="flow">
+  <li><span class="who">Người vận hành</span><p>Tạo chiến dịch (múi giờ, khung giờ hằng ngày, số cuộc đồng thời tối đa), nhập khách hàng từ CSV, Excel hoặc nhập tay, gán Agent theo slug.</p></li>
+  <li><span class="who"><span class="a-ava">Scheduler</span></span><p>Mỗi nhịp lấy tối đa một khách mới, tôn trọng <code>max_concurrent</code> và khoảng cách tối thiểu giữa các cuộc gọi. Múi giờ hoặc khung giờ sai thì không gọi.</p></li>
+  <li><span class="who"><span class="a-ava">Engine</span><span class="arrow">→</span><span class="a-pbx">Asterisk</span></span><p>Originate qua máy lẻ định danh gọi ra (mặc định <code>6789</code>) để quy tắc định tuyến và caller ID của FreePBX áp dụng. Đặt <code>AI_AGENT</code> cho cuộc gọi.</p></li>
+  <li><span class="who"><span class="a-pbx">Asterisk</span></span><p>Khi có người nhấc máy, engine đưa channel sang dialplan <code>aava-outbound-amd</code> để chạy <code>AMD()</code>, rồi quay lại Stasis kèm kết quả.</p></li>
+  <li><span class="who"><span class="a-ava">Engine</span></span><p><strong>HUMAN:</strong> (tùy chọn) phát lời xin phép và chờ DTMF <code>1</code> đồng ý / <code>2</code> từ chối, rồi gắn vào luồng phiên AI thông thường. <strong>MACHINE</strong> hoặc <strong>NOTSURE:</strong> phát tin nhắn thoại ghi sẵn rồi cúp máy.</p></li>
+  <li><span class="who"><span class="a-ava">Engine</span></span><p>Dữ liệu riêng của khách (<code>custom_vars</code>, tối đa 8.192 byte) được đưa vào prompt dưới khối <code>## Lead Context</code> chỉ đọc.</p></li>
+</ol>
+<p>Tổng đài VICIdial dùng tích hợp Remote Agent riêng, để VICIdial giữ quyền sở hữu chiến dịch.</p>
+
+<h2 id="chan-doan">9. Chẩn đoán một cuộc gọi</h2>
+<ol>
+  <li>Thu thập: người gọi nói gì, điều gì đã xảy ra, call ID, provider/pipeline, transport.</li>
+  <li>Chạy <code>agent rca --call &lt;call_id&gt;</code> và lưu bằng chứng thô trước khi diễn giải.</li>
+  <li>Đối chiếu với hướng dẫn xử lý sự cố, công thức tinh chỉnh và golden baseline: chất lượng âm thanh, hành vi transport, độ trễ provider, vết thực thi công cụ.</li>
+  <li>Đề xuất chỉnh YAML cụ thể và gọi lại để kiểm chứng.</li>
+</ol>
+<div class="pager"><a href="ava-he-thong.html">← Hệ thống & thành phần</a><a href="gateway-he-thong.html">Hệ thống & bảo mật →</a></div>
+<footer>Bộ tài liệu tổng hợp từ mã nguồn và tài liệu của hai repository, cập nhật 2026-10-13.</footer>
+</div>
+</main>
+</body>
+</html>
