@@ -20,6 +20,9 @@ const PartnerAppsPage = () => {
     const [name, setName] = useState('');
     const [slug, setSlug] = useState('');
     const [creating, setCreating] = useState(false);
+    const sortedApps = [...apps].sort(
+        (left, right) => Date.parse(right.created_at) - Date.parse(left.created_at) || left.id.localeCompare(right.id),
+    );
 
     const submit = async (event: FormEvent) => {
         event.preventDefault();
@@ -85,7 +88,7 @@ const PartnerAppsPage = () => {
                 />
             ) : (
                 <div className="grid gap-4 lg:grid-cols-2">
-                    {apps.map((app) => (
+                    {sortedApps.map((app) => (
                         <PartnerAppCard
                             key={app.id}
                             app={app}

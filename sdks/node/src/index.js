@@ -333,14 +333,17 @@ export class GatewayClient extends EventEmitter {
    * The call is live only once `call.started` arrives; `outbound.accepted`
    * merely means Asterisk took the request.
    */
-  originate(context, extension, { timeout = 30, requestId = randomUUID() } = {}) {
+  originate(context, extension, { timeout = 30, requestId = randomUUID(), callerNumber } = {}) {
     if (!Number.isInteger(timeout) || timeout < 1 || timeout > 120) {
       throw new RangeError("Outbound timeout must be an integer between 1 and 120 seconds");
+    }
+    if (callerNumber !== undefined && (typeof callerNumber !== "string" || !/^\+?[0-9]{1,32}$/.test(callerNumber))) {
+      throw new TypeError("Caller number must be an exact number with optional + and 1 to 32 digits");
     }
     this.#send({
       type: "outbound.originate",
       request_id: requestId,
-      payload: { context, extension, timeout },
+      payload: { context, extension, timeout, ...(callerNumber === undefined ? {} : { caller_number: callerNumber }) },
     });
     return requestId;
   }

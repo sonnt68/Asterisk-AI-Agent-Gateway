@@ -20,11 +20,13 @@ class LoopbackGateway:
         *,
         block_token: bool = False,
         block_handshake: bool = False,
+        capture_messages: bool = False,
     ) -> None:
         self.token_statuses = list(token_statuses)
         self.ws_actions = list(ws_actions)
         self.block_token = block_token
         self.block_handshake = block_handshake
+        self.capture_messages = capture_messages
         self.handshake_started = asyncio.Event()
         self.release_handshake = asyncio.Event()
         self.token_started = asyncio.Event()
@@ -37,6 +39,8 @@ class LoopbackGateway:
         self.tokens: list[str] = []
         self.ws_tokens: list[str] = []
         self.token_times: list[float] = []
+        self.messages: list[dict[str, object]] = []
+        self.message_received = asyncio.Event()
         self._sockets: list[web.WebSocketResponse] = []
         self._runner: web.AppRunner | None = None
         self.url = ""
@@ -112,6 +116,14 @@ class LoopbackGateway:
             await socket.close(code=4409)
         elif action in {"ready-close", "no-ready"}:
             await socket.close(code=1000)
+        elif self.capture_messages:
+            while True:
+                message = await socket.receive()
+                if message.type in {WSMsgType.CLOSE, WSMsgType.CLOSED, WSMsgType.ERROR}:
+                    return socket
+                if message.type is WSMsgType.TEXT:
+                    self.messages.append(json.loads(message.data))
+                    self.message_received.set()
         else:
             await self.hold.wait()
         return socket

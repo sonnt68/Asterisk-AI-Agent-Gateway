@@ -5,6 +5,7 @@ export type PartnerApp = {
     enabled: boolean;
     scopes: string[];
     allowed_destinations: string[];
+    created_at: string;
 };
 
 export type ApiKey = {

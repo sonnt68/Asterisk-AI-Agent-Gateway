@@ -5,12 +5,17 @@ import contextlib
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from gateway.audiosocket_server import AudioSocketServer
 from gateway.external_media_manager import ExternalMediaManager
 from sqlalchemy import select
+from starlette.requests import Request
+from starlette.responses import JSONResponse, Response
 
 from app.ari_listener import AriEventListener
+from app.asterisk_routes import router as asterisk_router
 from app.auth_routes import router as auth_router
 from app.browser_security import BrowserOriginMiddleware
 from app.call_history_routes import router as history_router
@@ -21,6 +26,7 @@ from app.database import SessionLocal
 from app.key_management_routes import router as key_management_router
 from app.management_routes import router as management_router
 from app.models import Membership, Organization, User
+from app.phone_number_routes import router as phone_number_router
 from app.presence import RedisPresence
 from app.realtime_registry import registry
 from app.realtime_socket import router as realtime_router
@@ -120,6 +126,23 @@ def create_app() -> FastAPI:
         docs_url="/api/v1/docs",
         lifespan=lifespan,
     )
+
+    async def validation_error_handler(
+        request: Request, exc: RequestValidationError
+    ) -> Response:
+        if request.url.path.startswith("/api/v1/asterisk"):
+            safe_errors: list[dict[str, object]] = []
+            for error in exc.errors():
+                item = {
+                    key: value
+                    for key, value in error.items()
+                    if key not in {"ctx", "input"}
+                }
+                safe_errors.append(item)
+            return JSONResponse(status_code=422, content={"detail": safe_errors})
+        return await request_validation_exception_handler(request, exc)
+
+    app.add_exception_handler(RequestValidationError, validation_error_handler)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[settings.web_origin],
@@ -132,6 +155,8 @@ def create_app() -> FastAPI:
     app.include_router(control_router, prefix="/api/v1")
     app.include_router(auth_router, prefix="/api/v1")
     app.include_router(management_router, prefix="/api/v1")
+    app.include_router(asterisk_router, prefix="/api/v1")
+    app.include_router(phone_number_router, prefix="/api/v1")
     app.include_router(key_management_router, prefix="/api/v1")
     app.include_router(runtime_router, prefix="/api/v1")
     app.include_router(history_router, prefix="/api/v1")

@@ -52,6 +52,41 @@ operator. It is a routing identifier, not a value to infer from an incoming
 call. The operator must confirm both the route and destination allowlist.
 An allowlist match alone does not establish that the destination is reachable.
 
+The optional `caller_number` payload field selects an exact outbound number
+that the operator assigned to the calling Partner App:
+
+```json
+{
+  "type": "outbound.originate",
+  "request_id": "<uuid>",
+  "payload": {
+    "context": "<operator-context>",
+    "extension": "<allowlisted-destination>",
+    "caller_number": "<enabled-assigned-number>"
+  }
+}
+```
+
+The value is an optional `+` followed by 1 to 32 digits. When omitted, an app
+with no outbound assignments keeps the legacy native default; an app with one
+eligible enabled number uses that number automatically. If more than one
+eligible number is assigned, `caller_number` is required. If assignments exist
+but none are eligible because the number or app is disabled, the request is
+rejected. The value must be assigned to the same Partner App and organization;
+the `calls:originate` scope and destination allowlist still apply.
+
+The current Python and Node SDK source exposes this field as
+`caller_number` and `callerNumber` respectively, mapping to the wire name
+`caller_number`. This is an additive source extension; it does not bump or
+republish SDK `0.4.0`, and a published `0.4.0` client continues to work when
+one eligible number is configured. The Gateway currently passes a selected
+number to ARI as caller-ID inputs (`callerId` and
+`__TRUNKCIDOVERRIDE`), but `outbound.accepted` only means Asterisk accepted
+the request. The [2026-10-21 operator probe](../operations/sip-trunks-and-phone-numbers.md#live-validation--2026-10-21)
+observed native FreePBX override consumption and bounded carrier
+signaling/caller-ID behavior; it did not verify external-handset delivery or
+reliable media on every PSTN route.
+
 Destination commands require `{ "context": "...", "extension": "..." }`
 and must match the partner app allowlist exactly. `transfer.attended` creates a
 consult leg in the active bridge and emits `transfer.consulting`;

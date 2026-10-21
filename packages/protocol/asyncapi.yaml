@@ -118,6 +118,11 @@ components:
               context: { type: string }
               extension: { type: string }
               timeout: { type: integer, minimum: 1, maximum: 120 }
+              caller_number:
+                type: string
+                pattern: '^\+?[0-9]{1,32}$'
+                maxLength: 33
+                description: Exact enabled outbound number assigned to this Partner App. Required when more than one number is eligible; one eligible number is selected automatically. Omit for native default behavior when the app has no assignments.
     OutboundAccepted:
       payload:
         type: object

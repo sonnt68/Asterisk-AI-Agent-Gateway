@@ -1,5 +1,116 @@
 # Project changelog
 
+## Admin selection and ordering — 2026-10-21
+
+- Partner Apps displays the newest apps first by creation time, including
+  after creating an app or refreshing the page.
+
+## Shared outbound caller-number routing — 2026-10-21
+
+- Added additive migration `0006_outbound_phone_apps` for many outbound
+  Partner App assignments per exact number while retaining one inbound Partner
+  App owner. The Call Routing UI is at `/call-routing`; `/phone-numbers`
+  remains a compatibility route. Phone-number responses expose
+  `outbound_partner_apps` and `outbound_partner_app_ids`; PATCH omission
+  preserves assignments and an empty list clears them.
+- Outbound selection now preserves native default behavior with no assignments,
+  selects one eligible enabled number automatically, requires exact
+  `caller_number` when multiple eligible numbers exist, and rejects
+  assignments with no eligible enabled number. Same-organization ownership,
+  `calls:originate`, and destination allowlists remain enforced. Assignment
+  changes are local for new calls and do not trigger a PBX reload.
+- Added source-level Python `caller_number` and Node `callerNumber` options for
+  the wire field `caller_number` without a package release or version bump.
+  Published SDK `0.4.0` clients continue to work automatically when one
+  eligible number is configured. Bounded native FreePBX, caller-ID and carrier
+  signaling evidence is recorded in the dated validation entry below; no SDK
+  package release was made.
+
+## Shared outbound live validation — 2026-10-21
+
+- The deployed API reached migration head `0006_outbound_phone_apps`. Focused
+  routing/migration/runtime/SDK validation passed (`61` tests), full repository
+  validation passed (`234` tests), Node SDK tests passed (`24`), and the Admin
+  UI production build passed. No network settings changed; the later native
+  repair deployment changed only `res_audiosocket.so` while keeping the
+  Asterisk `21.10.2` core unchanged.
+- Native FreePBX's deployed `macro-outbound-callerid` consumed
+  `__TRUNKCIDOVERRIDE` and preserved the selected caller ID through the local
+  macro path. Four internal DID probes reached the expected apps with PCM;
+  eight internal outbound probes (two apps on each of four numbers) selected
+  the assigned caller ID and delivered PCM to `*43`.
+- Before the native repair, four carrier-owned number loops all showed
+  signaling up, the expected inbound app, and exact inbound caller identity. In
+  the final four outbound loops,
+  two carried PCM and two ended with `CallRecord.answered=true` and
+  `reason=media_failed` within 0.1 seconds. The PBX logged
+  `res_audiosocket.c EAGAIN` (`Resource temporarily unavailable`) before
+  destroying AudioSocket on those failures. Passing calls used native PJSIP
+  transmit/receive with 50 frames and zero packet loss.
+- This pre-repair result is bounded caller-ID/signaling and internal media
+  evidence. It does not claim that all PSTN calls passed.
+
+## Native AudioSocket repair deployment — 2026-10-21
+
+- Deployed the matching-version header-read repair as derived image
+  `sha256:a3d9f8612a88d8bcc9f4469f06a5ea3c6cf8bc79cd7feaf53e7f5ff796874e23`.
+  Asterisk remains `21.10.2`; only `res_audiosocket.so` changed, with module
+  hash `sha256:bf41d5a079e28f9827527b29908080004ffa390532f9fad753ae477820946b0f`.
+  Compose changed only the `freepbx` service image, using the restricted backup
+  at `/opt/asterisk-ai-agent-gateway/backups/audiosocket-20261021T1100/`.
+- ABI, symbol and libc checks passed; all three AudioSocket modules loaded in
+  an isolated process; and baseline/patched C regressions passed on macOS and
+  Linux. No Asterisk core upgrade, network-setting change, or SDK release was
+  made.
+- Five four-number SIP batches (20 calls) then observed non-silent PCM in both
+  directions, with no AudioSocket errors after `11:14:24 UTC`. The final batch's
+  two-second, 100-frame check completed for all four calls: native legs sent
+  100 frames, received 100 except one 99, and all reported zero transmit and
+  receive packet loss. An earlier strict 50-frame receive threshold measured
+  49 despite PCM in both directions; this is a measurement-limit observation,
+  not a silence result or an all-20 strict-counter pass claim.
+- The full internal four-DID and eight shared-outbound set passed, and cleanup
+  left zero Gateway calls/connections and zero native channels while preserving
+  the four outbound grants and original inbound mappings. Final database proof
+  found 61 terminal records and zero `CallRecord` rows with `media_failed`.
+- A bounded external-handset listening check covered all four source calls:
+  all answered and delivered non-silent microphone audio. The initial
+  two-second tone began before handset listening; a delayed Gateway tone and
+  native prompt then confirmed audibility across all four calls, with one busy
+  first attempt retried. Handset-displayed Caller ID was not confirmed, and no
+  NAT or network setting changed. The bounded handset evidence is complete;
+  coverage of every network path and an end-to-end PSTN media SLO remain
+  unverified.
+
+## SIP trunks and exact phone-number routing — 2026-10-21
+
+- The Add phone number form now offers unassigned numeric Outbound Caller IDs
+  from SIP trunks, with exact-value selection and a prefilled label. Manual
+  entry remains available for other inbound DIDs; selecting a number does not
+  change FreePBX's global DID matching.
+- Added Owner/Admin-only SIP trunk and phone-number management for the
+  organization explicitly bound by `FREEPBX_OPERATOR_ORGANIZATION_ID`, backed
+  by the private, source-restricted FreePBX BMO bridge. The supported trunk
+  surface covers common PJSIP fields, preserves unspecified settings and
+  redacts SIP passwords.
+- Added additive migration `0005_phone_numbers` for globally unique exact DID
+  strings, local Partner App ownership, enabled state and PBX-apply state.
+  Managed inbound routing preserves nonempty `AI_GATEWAY_AGENT` precedence;
+  otherwise `AI_GATEWAY_DID` resolves an enabled, applied mapping and its owned
+  live connection. Inbound routing and existing SDK calls remain compatible;
+  shared outbound caller-number selection is recorded in the dated entry above.
+- Save and Apply are separate. The fixed native FreePBX reload is guarded by
+  zero active calls and exact DID/dialplan/Asterisk readback before a route is
+  marked applied. Mapping reassignment is local for new calls and needs no
+  reload; FreePBX-backed trunk/DID route changes remain pending until explicit
+  Apply.
+- Deployed and verified on the pilot: 214 tests, native bridge checks, isolated
+  migration, internal DID routing and reassignment, binary media, disabled-call
+  rejection, browser saves and Apply. Original trunk settings were preserved
+  and temporary trunk/DID fixtures removed. See the [completed rollout](plans/completed/20261021-sip-trunks-and-phone-number-routing.md)
+  and the shared outbound live-validation entry above for current runtime
+  boundaries.
+
 ## SDK 0.4.0 publication and call-signal guide — 2026-10-20
 
 - Updated the customer SDK guides and distributed integration skill to use the

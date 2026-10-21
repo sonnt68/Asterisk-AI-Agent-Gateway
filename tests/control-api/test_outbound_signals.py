@@ -387,6 +387,17 @@ class FakeDbSession:
     def get(self, model, app_id):
         return SimpleNamespace(allowed_destinations="from-internal:12*")
 
+    def scalar(self, statement):
+        return SimpleNamespace(
+            id="app-1",
+            organization_id="org-1",
+            enabled=True,
+            allowed_destinations="from-internal:12*",
+        )
+
+    def execute(self, statement):
+        return SimpleNamespace(all=lambda: [])
+
 
 def _originate_message() -> dict[str, object]:
     return {

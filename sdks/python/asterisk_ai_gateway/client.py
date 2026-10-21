@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import re
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, TypedDict
@@ -490,6 +491,7 @@ class GatewayClient:
         *,
         timeout: int = 30,
         request_id: str | None = None,
+        caller_number: str | None = None,
     ) -> str:
         """Place an outbound call. Requires ``calls:originate``.
 
@@ -498,12 +500,19 @@ class GatewayClient:
         """
         if not 1 <= timeout <= 120:
             raise ValueError("Outbound timeout must be between 1 and 120 seconds")
+        if caller_number is not None and (
+            not isinstance(caller_number, str) or not re.fullmatch(r"\+?[0-9]{1,32}", caller_number)
+        ):
+            raise ValueError("Caller number must be an exact number with optional + and 1 to 32 digits")
+        payload: dict[str, object] = {"context": context, "extension": extension, "timeout": timeout}
+        if caller_number is not None:
+            payload["caller_number"] = caller_number
         request_id = request_id or str(uuid4())
         await self._send_json(
             {
                 "type": "outbound.originate",
                 "request_id": request_id,
-                "payload": {"context": context, "extension": extension, "timeout": timeout},
+                "payload": payload,
             }
         )
         return request_id

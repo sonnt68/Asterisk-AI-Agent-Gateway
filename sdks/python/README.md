@@ -50,6 +50,38 @@ transport failures can increase the next authentication retry's delay.
 
 See `examples/echo_agent.py` and `docs/partner/integration-guide.html`.
 
+## Optional outbound caller number
+
+The current repository source accepts `caller_number` on
+`GatewayClient.originate()` and sends the optional wire field
+`caller_number`:
+
+```python
+request_id = await client.originate(
+    "<operator-context>",
+    "<allowlisted-destination>",
+    caller_number="<enabled-assigned-number>",
+)
+```
+
+This is an additive source extension; it does not bump or republish the
+published `0.4.0` package. A published `0.4.0` client still works when its
+Partner App has one eligible enabled outbound number, because the Gateway
+selects that number automatically. If the app has no outbound assignments,
+omitting the field preserves native default behavior. If multiple eligible
+numbers are assigned, an exact `caller_number` is required; if assignments
+exist but none are eligible because the number or app is disabled, the request
+is rejected. The number must be an exact optional `+` followed by 1 to 32
+digits, and `calls:originate` plus the destination allowlist still apply.
+
+The Gateway currently forwards a selected number to ARI as caller-ID inputs.
+The 2026-10-21 operator evidence covers native macro consumption and bounded
+carrier signaling/caller-ID behavior; external-handset delivery and reliable
+media for every PSTN call remain unverified. See the [operator validation
+record](../../docs/operations/sip-trunks-and-phone-numbers.md#live-validation--2026-10-21).
+Use the source option only with a number assigned to this Partner App by the
+operator.
+
 ## Durable call history
 
 SDK 0.4.0 includes the durable history GET helpers alongside the realtime

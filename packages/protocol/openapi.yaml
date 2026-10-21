@@ -132,6 +132,118 @@ paths:
       operationId: getAsteriskConfiguration
       responses:
         '200': { description: Sanitized singular Asterisk configuration and transport }
+  /asterisk/provisioning:
+    get:
+      operationId: getAsteriskProvisioning
+      summary: Read PBX bridge readiness for the configured operator organization
+      responses:
+        '200':
+          description: Sanitized provisioning status; non-operator principals see no PBX details.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AsteriskProvisioningStatus' }
+  /asterisk/trunks:
+    get:
+      operationId: listAsteriskTrunks
+      responses:
+        '200':
+          description: Sanitized FreePBX PJSIP trunk inventory
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Trunk' }
+        '403': { description: Owner/Admin of the configured operator organization required }
+    post:
+      operationId: createAsteriskTrunk
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TrunkCreate' }
+      responses:
+        '201':
+          description: Sanitized trunk after bridge save
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Trunk' }
+        '403': { description: Owner/Admin of the configured operator organization required }
+  /asterisk/trunks/{trunk_id}:
+    parameters:
+      - in: path
+        name: trunk_id
+        required: true
+        schema: { type: string, maxLength: 120 }
+    patch:
+      operationId: updateAsteriskTrunk
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TrunkPatch' }
+      responses:
+        '200':
+          description: Sanitized trunk after bridge save
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Trunk' }
+        '403': { description: Owner/Admin of the configured operator organization required }
+  /asterisk/apply:
+    post:
+      operationId: applyAsteriskConfiguration
+      responses:
+        '200':
+          description: Exact managed DID routes applied after guarded PBX reload/readback
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApplyResponse' }
+        '409': { description: Active gateway calls prevent reload }
+        '403': { description: Owner/Admin of the configured operator organization required }
+  /phone-numbers:
+    get:
+      operationId: listPhoneNumbers
+      responses:
+        '200':
+          description: Tenant-scoped exact DID mappings
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PhoneNumber' }
+        '403': { description: Owner/Admin of the configured operator organization required }
+    post:
+      operationId: createPhoneNumber
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PhoneNumberCreate' }
+      responses:
+        '201':
+          description: Mapping saved and left pending until explicit apply
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PhoneNumber' }
+        '409': { description: Exact number is already mapped }
+  /phone-numbers/{phone_id}:
+    parameters:
+      - in: path
+        name: phone_id
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      operationId: updatePhoneNumber
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PhoneNumberPatch' }
+      responses:
+        '200':
+          description: Local mapping update; PBX reload is not required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PhoneNumber' }
   /runtime:
     get:
       operationId: getRuntimeSummary
@@ -383,3 +495,149 @@ components:
           const: ok
         version:
           type: string
+    AsteriskProvisioningStatus:
+      type: object
+      additionalProperties: false
+      required: [configured, can_manage, connected, needs_apply, transports]
+      properties:
+        configured: { type: boolean }
+        can_manage: { type: boolean }
+        connected: { type: boolean }
+        needs_apply: { type: boolean }
+        transports:
+          type: array
+          items: { type: string }
+        error: { type: string }
+    Trunk:
+      type: object
+      additionalProperties: false
+      required: [id, name, host, port, transport, authentication, registration, username, auth_username, match, from_domain, from_user, contact_user, outbound_caller_id, codecs, enabled, password_set]
+      properties:
+        id: { type: string }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        host: { type: string, maxLength: 253 }
+        port: { type: integer, minimum: 1, maximum: 65535, default: 5060 }
+        transport: { type: string, description: Exact existing PBX transport name }
+        authentication: { type: string, description: Common managed values are none and outbound; other native values are returned for inventory and are read-only. }
+        registration: { type: string, description: Common managed values are none and send; other native values are returned for inventory and are read-only. }
+        username: { type: string, maxLength: 120 }
+        auth_username: { type: string, maxLength: 120 }
+        match: { type: string, description: Comma-separated IP/CIDR list }
+        from_domain: { type: string, maxLength: 253 }
+        from_user: { type: string, maxLength: 120 }
+        contact_user: { type: string, maxLength: 120 }
+        outbound_caller_id: { type: string, maxLength: 120 }
+        codecs: { type: array, items: { type: string } }
+        enabled: { type: boolean }
+        password_set: { type: boolean, readOnly: true }
+    TrunkCreate:
+      type: object
+      additionalProperties: false
+      required: [name, host]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        host: { type: string, maxLength: 253 }
+        port: { type: integer, minimum: 1, maximum: 65535, default: 5060 }
+        transport: { type: string }
+        authentication: { type: string, enum: [none, outbound] }
+        registration: { type: string, enum: [none, send] }
+        username: { type: string, maxLength: 120 }
+        auth_username: { type: string, maxLength: 120 }
+        password: { type: string, writeOnly: true, maxLength: 256 }
+        match: { type: string }
+        from_domain: { type: string, maxLength: 253 }
+        from_user: { type: string, maxLength: 120 }
+        contact_user: { type: string, maxLength: 120 }
+        outbound_caller_id: { type: string, maxLength: 120 }
+        codecs: { type: array, items: { type: string } }
+        enabled: { type: boolean, default: true }
+    TrunkPatch:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        host: { type: string, maxLength: 253 }
+        port: { type: integer, minimum: 1, maximum: 65535 }
+        transport: { type: string }
+        authentication: { type: string, enum: [none, outbound] }
+        registration: { type: string, enum: [none, send] }
+        username: { type: string, maxLength: 120 }
+        auth_username: { type: string, maxLength: 120 }
+        password: { type: string, writeOnly: true, maxLength: 256 }
+        match: { type: string }
+        from_domain: { type: string, maxLength: 253 }
+        from_user: { type: string, maxLength: 120 }
+        contact_user: { type: string, maxLength: 120 }
+        outbound_caller_id: { type: string, maxLength: 120 }
+        codecs: { type: array, items: { type: string } }
+        enabled: { type: boolean }
+    PhoneNumber:
+      type: object
+      additionalProperties: false
+      required: [id, number, label, partner_app_id, partner_app_name, agent_slug, outbound_partner_app_ids, outbound_partner_apps, enabled, pbx_applied, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        number: { type: string, pattern: '^\+?[0-9]{1,32}$' }
+        label: { type: string, maxLength: 120 }
+        partner_app_id: { type: string, format: uuid }
+        partner_app_name: { type: string }
+        agent_slug: { type: string }
+        outbound_partner_app_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string, format: uuid }
+        outbound_partner_apps:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, name, agent_slug, enabled]
+            properties:
+              id: { type: string, format: uuid }
+              name: { type: string }
+              agent_slug: { type: string }
+              enabled: { type: boolean }
+        enabled: { type: boolean }
+        pbx_applied: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    PhoneNumberCreate:
+      type: object
+      additionalProperties: false
+      required: [number, label, partner_app_id]
+      properties:
+        number: { type: string, pattern: '^\+?[0-9]{1,32}$' }
+        label: { type: string, minLength: 1, maxLength: 120 }
+        partner_app_id: { type: string, format: uuid }
+        outbound_partner_app_ids:
+          type: array
+          uniqueItems: true
+          default: []
+          items: { type: string, format: uuid }
+        enabled: { type: boolean, default: true }
+    PhoneNumberPatch:
+      type: object
+      additionalProperties: false
+      properties:
+        label: { type: string, minLength: 1, maxLength: 120 }
+        partner_app_id: { type: string, format: uuid }
+        outbound_partner_app_ids:
+          type: array
+          uniqueItems: true
+          description: Replace outbound app assignments; omit to preserve, or send an empty array to clear. Inbound partner_app_id remains independent.
+          items: { type: string, format: uuid }
+        enabled: { type: boolean }
+    ApplyResponse:
+      type: object
+      additionalProperties: false
+      required: [applied_routes]
+      properties:
+        applied_routes:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [route_id, number]
+            properties:
+              route_id: { type: string, format: uuid }
+              number: { type: string, pattern: '^\+?[0-9]{1,32}$' }

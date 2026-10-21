@@ -12,9 +12,11 @@ from app.ari_requests import AriRequests
 from app.call_events import CallEvents
 from app.call_media import CallMedia
 from app.call_signals import publish_status, remember_completed, termination
+from app.database import SessionLocal
 from app.metrics import call_outcomes, call_setup_seconds
 from app.realtime_registry import ActiveCall, Connection, ConnectionRegistry
 from app.settings import Settings
+from app.telephony import resolve_managed_route_async
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +45,7 @@ class CallLifecycle:
         external_media: ExternalMediaManager,
     ) -> None:
         self.registry = registry
+        self.session_factory = SessionLocal
         self.ari = AriRequests(settings)
         self.media = CallMedia(settings, registry, audio_server, external_media, self.ari)
 
@@ -138,16 +141,41 @@ class CallLifecycle:
         channel: dict[str, object],
         session: aiohttp.ClientSession,
     ) -> None:
-        agent_slug = await self.ari.channel_variable(
-            session, channel_id, "AI_GATEWAY_AGENT"
-        )
-        connection = self.registry.find_agent(agent_slug or "")
+        agent_slug = await self.ari.channel_variable(session, channel_id, "AI_GATEWAY_AGENT")
+        called_number, routing_context = _inbound_destination(channel)
+        managed_number: str | None = None
+        if agent_slug:
+            connection = self.registry.find_agent(agent_slug)
+        else:
+            managed_number = await self.ari.channel_variable(
+                session, channel_id, "AI_GATEWAY_DID"
+            )
+            route = None
+            if managed_number:
+                try:
+                    route = await resolve_managed_route_async(
+                        managed_number, getattr(self, "session_factory", SessionLocal)
+                    )
+                except Exception:
+                    route = None
+            connection = None
+            if route:
+                connection = next(
+                    (
+                        item
+                        for item in self.registry.connections.values()
+                        if item.organization_id == route.organization_id
+                        and item.partner_app_id == route.partner_app_id
+                        and item.agent_slug == route.agent_slug
+                    ),
+                    None,
+                )
+                agent_slug = route.agent_slug
         if not connection:
             await self.ari.delete(session, f"/channels/{quote(channel_id, safe='')}")
             return
-        called_number, routing_context = _inbound_destination(channel)
         call = self.registry.create_call(channel_id, connection)
-        call.called_number = called_number
+        call.called_number = managed_number if managed_number else called_number
         call.routing_context = routing_context
         try:
             await self.registry.persist_start(call)

@@ -186,7 +186,7 @@ export class GatewayClient extends EventEmitter {
   originate(
     context: string,
     extension: string,
-    options?: { timeout?: number; requestId?: string },
+    options?: { timeout?: number; requestId?: string; callerNumber?: string },
   ): string;
   cancelOutbound(callId: string): void;
 

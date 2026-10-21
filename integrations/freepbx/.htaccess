@@ -1,0 +1,4 @@
+# Apache's mod_php does not expose Authorization by default in this image.
+# Keep forwarding directory-scoped and let the bridge perform bearer checks.
+RewriteEngine On
+RewriteRule ^ - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]

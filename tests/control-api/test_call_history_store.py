@@ -219,6 +219,17 @@ def test_originate_http_failure_is_durable_without_call_status_notification(
         def get(self, model, app_id):
             return SimpleNamespace(allowed_destinations="from-internal:123")
 
+        def scalar(self, statement):
+            return SimpleNamespace(
+                id="app-1",
+                organization_id="org-1",
+                enabled=True,
+                allowed_destinations="from-internal:123",
+            )
+
+        def execute(self, statement):
+            return SimpleNamespace(all=lambda: [])
+
     class Response:
         def __init__(self, status):
             self.status = status

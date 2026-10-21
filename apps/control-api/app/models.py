@@ -63,6 +63,43 @@ class PartnerApp(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class PhoneNumber(Base):
+    """Exact DID ownership and local PBX-apply state."""
+
+    __tablename__ = "phone_numbers"
+    __table_args__ = (UniqueConstraint("number", name="uq_phone_numbers_number"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    organization_id: Mapped[str] = mapped_column(
+        ForeignKey("organizations.id"), index=True
+    )
+    partner_app_id: Mapped[str] = mapped_column(
+        ForeignKey("partner_apps.id"), index=True
+    )
+    number: Mapped[str] = mapped_column(String(33), nullable=False)
+    label: Mapped[str] = mapped_column(String(120), nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    pbx_applied: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, onupdate=now
+    )
+
+
+class PhoneNumberOutboundApp(Base):
+    """Outbound caller-number grants; inbound ownership stays on PhoneNumber."""
+
+    __tablename__ = "phone_number_outbound_apps"
+    __table_args__ = (Index("ix_phone_number_outbound_apps_partner_app_id", "partner_app_id"),)
+
+    phone_number_id: Mapped[str] = mapped_column(
+        ForeignKey("phone_numbers.id", ondelete="CASCADE"), primary_key=True
+    )
+    partner_app_id: Mapped[str] = mapped_column(
+        ForeignKey("partner_apps.id", ondelete="CASCADE"), primary_key=True
+    )
+
+
 class ApiKey(Base):
     __tablename__ = "api_keys"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)

@@ -1,6 +1,7 @@
 """Contract tests for the partner Python SDK."""
 
 import asyncio
+import contextlib
 
 import pytest
 from asterisk_ai_gateway import (
@@ -9,6 +10,7 @@ from asterisk_ai_gateway import (
     decode_audio_frame,
     encode_audio_frame,
 )
+from partner_sdk_retry_loopback import LoopbackGateway
 
 CALL_ID = "8c1f4b2e-0d5a-4f77-9a51-6b0c7e2d3a44"
 
@@ -80,3 +82,111 @@ def test_version_constant_tracks_the_installed_distribution():
     import asterisk_ai_gateway
 
     assert asterisk_ai_gateway.__version__ == version("asterisk-ai-agent-gateway-sdk")
+
+
+def test_originate_wire_omits_caller_number_for_legacy_payload():
+    async def scenario():
+        server = LoopbackGateway([], ["ready"], capture_messages=True)
+        await server.start()
+        client = GatewayClient(
+            server.url,
+            "agw_live_wire_test",
+            "wire-agent",
+            reconnect=False,
+            heartbeat_interval=60,
+        )
+        source = client.stream()
+        try:
+            assert (await source.__anext__())["type"] == "session.ready"
+            request_id = await client.originate(
+                "from-internal", "123", timeout=4, request_id="legacy-request"
+            )
+            await asyncio.wait_for(server.message_received.wait(), 1)
+            return request_id, server.messages
+        finally:
+            await client.close()
+            with contextlib.suppress(Exception):
+                await source.aclose()
+            await server.stop()
+
+    request_id, messages = asyncio.run(scenario())
+    assert request_id == "legacy-request"
+    assert messages == [
+        {
+            "type": "outbound.originate",
+            "request_id": "legacy-request",
+            "payload": {"context": "from-internal", "extension": "123", "timeout": 4},
+        }
+    ]
+
+
+def test_originate_wire_includes_exact_explicit_caller_number():
+    async def scenario():
+        server = LoopbackGateway([], ["ready"], capture_messages=True)
+        await server.start()
+        client = GatewayClient(
+            server.url,
+            "agw_live_wire_test",
+            "wire-agent",
+            reconnect=False,
+            heartbeat_interval=60,
+        )
+        source = client.stream()
+        try:
+            assert (await source.__anext__())["type"] == "session.ready"
+            await client.originate(
+                "from-internal",
+                "123",
+                timeout=4,
+                request_id="explicit-request",
+                caller_number="+84900000061",
+            )
+            await asyncio.wait_for(server.message_received.wait(), 1)
+            return server.messages
+        finally:
+            await client.close()
+            with contextlib.suppress(Exception):
+                await source.aclose()
+            await server.stop()
+
+    assert asyncio.run(scenario()) == [
+        {
+            "type": "outbound.originate",
+            "request_id": "explicit-request",
+            "payload": {
+                "context": "from-internal",
+                "extension": "123",
+                "timeout": 4,
+                "caller_number": "+84900000061",
+            },
+        }
+    ]
+
+
+def test_originate_rejects_invalid_caller_number_without_wire_message():
+    async def scenario():
+        server = LoopbackGateway([], ["ready"], capture_messages=True)
+        await server.start()
+        client = GatewayClient(
+            server.url,
+            "agw_live_wire_test",
+            "wire-agent",
+            reconnect=False,
+            heartbeat_interval=60,
+        )
+        source = client.stream()
+        try:
+            assert (await source.__anext__())["type"] == "session.ready"
+            with pytest.raises(ValueError, match="Caller number"):
+                await client.originate(
+                    "from-internal", "123", caller_number="+84-90000062"
+                )
+            await asyncio.sleep(0)
+            return server.messages
+        finally:
+            await client.close()
+            with contextlib.suppress(Exception):
+                await source.aclose()
+            await server.stop()
+
+    assert asyncio.run(scenario()) == []

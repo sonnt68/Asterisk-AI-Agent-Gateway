@@ -13,7 +13,7 @@ from gateway.control_policy import require_command_scope
 from app.call_signals import call_snapshot, publish_status
 from app.database import SessionLocal
 from app.destination_policy import destination_allowed
-from app.models import PartnerApp
+from app.outbound_number_policy import resolve_outbound_policy_async
 from app.realtime_registry import Connection, registry
 from app.settings import get_settings
 
@@ -35,10 +35,20 @@ async def originate(connection: Connection, message: dict[str, object]) -> None:
         r"[A-Za-z0-9*#+_-]{1,80}", extension
     ):
         raise PermissionError("Outbound destination syntax is not allowed")
-    with SessionLocal() as session:
-        app = session.get(PartnerApp, connection.partner_app_id)
-        allowed = set(app.allowed_destinations.split(",")) if app else set()
-    if not destination_allowed(context, extension, allowed):
+    if "caller_number" in payload:
+        policy = await resolve_outbound_policy_async(
+            connection.organization_id,
+            connection.partner_app_id,
+            payload["caller_number"],
+            session_factory=SessionLocal,
+        )
+    else:
+        policy = await resolve_outbound_policy_async(
+            connection.organization_id,
+            connection.partner_app_id,
+            session_factory=SessionLocal,
+        )
+    if not destination_allowed(context, extension, policy.allowed_destinations):
         raise PermissionError("Outbound destination is not in the partner app allowlist")
     timeout = int(payload.get("timeout", 30))
     if timeout < 1 or timeout > 120:
@@ -75,9 +85,16 @@ async def originate(connection: Connection, message: dict[str, object]) -> None:
         "channelId": call.channel_id,
         "otherChannelId": call.other_channel_id,
     }
+    body = None
+    if policy.caller_number is not None:
+        params["callerId"] = policy.caller_number
+        body = {"variables": {"__TRUNKCIDOVERRIDE": policy.caller_number}}
     try:
         async with aiohttp.ClientSession(auth=auth, timeout=aiohttp.ClientTimeout(total=10)) as session:
-            async with session.post(f"{settings.ari_base_url}/channels", params=params) as response:
+            request = {"params": params}
+            if body is not None:
+                request["json"] = body
+            async with session.post(f"{settings.ari_base_url}/channels", **request) as response:
                 if response.status >= 400:
                     raise RuntimeError(f"ARI originate returned {response.status}")
                 await response.json()

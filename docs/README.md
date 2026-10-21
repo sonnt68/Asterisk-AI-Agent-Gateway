@@ -7,6 +7,12 @@ Start with the smallest authoritative surface.
 - [`getting-started.md`](getting-started.md): first partner call.
 - [`operations/asterisk-connection.md`](operations/asterisk-connection.md):
   connect and verify the single Asterisk.
+- [`operations/sip-trunks-and-phone-numbers.md`](operations/sip-trunks-and-phone-numbers.md):
+  manage the deployment-bound FreePBX SIP subset and exact DID-to-Partner-App
+  mappings, including the save/apply boundary.
+- [`../integrations/freepbx/README.md`](../integrations/freepbx/README.md):
+  install and configure the private FreePBX BMO bridge used by that operator
+  flow.
 - [`partner/authentication.md`](partner/authentication.md): API keys and tokens.
 - [`partner/realtime-protocol.md`](partner/realtime-protocol.md): events/audio.
 - [`partner/call-control.md`](partner/call-control.md): scopes and commands.

@@ -17,6 +17,9 @@ const Header = () => {
             'connections': 'Connections',
             'calls': 'Active Calls',
             'asterisk': 'Asterisk',
+            'sip-trunks': 'SIP Trunks',
+            'call-routing': 'Call Routing',
+            'phone-numbers': 'Call Routing',
             'audit': 'Audit Events',
         };
         return map[segment] || segment.charAt(0).toUpperCase() + segment.slice(1);

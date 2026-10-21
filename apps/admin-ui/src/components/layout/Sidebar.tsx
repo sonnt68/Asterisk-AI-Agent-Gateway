@@ -11,9 +11,12 @@ import {
     ScrollText,
     ExternalLink,
     LogOut,
+    Hash,
+    Cable,
 } from 'lucide-react';
 
 import { useAuth } from '../../auth/AuthContext';
+import { useTelephonyManagement } from '../../telephony/hooks/useTelephonyManagement';
 
 const SidebarItem = ({ to, icon: Icon, label, end = false }: { to: string, icon: any, label: string, end?: boolean }) => (
     <NavLink
@@ -44,6 +47,7 @@ const SidebarGroup = ({ title, children }: { title: string, children: React.Reac
 
 const Sidebar = () => {
     const { session, logout } = useAuth();
+    const { provisioning } = useTelephonyManagement(false);
 
     return (
         <aside className="w-64 border-r border-border bg-card/50 backdrop-blur flex flex-col h-full">
@@ -68,6 +72,12 @@ const Sidebar = () => {
                     <SidebarItem to="/partner-apps" icon={AppWindow} label="Partner Apps" />
                     <SidebarItem to="/api-keys" icon={KeyRound} label="API Keys" />
                     <SidebarItem to="/members" icon={Users} label="Members" />
+                    {provisioning?.can_manage && (
+                        <>
+                            <SidebarItem to="/sip-trunks" icon={Cable} label="SIP Trunks" />
+                            <SidebarItem to="/call-routing" icon={Hash} label="Call Routing" />
+                        </>
+                    )}
                 </SidebarGroup>
 
                 <SidebarGroup title="Runtime">

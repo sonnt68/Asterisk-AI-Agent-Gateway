@@ -15,6 +15,8 @@ import Dashboard from './pages/Dashboard';
 import LoginPage from './pages/LoginPage';
 import MembersPage from './pages/MembersPage';
 import PartnerAppsPage from './pages/PartnerAppsPage';
+import PhoneNumbersPage from './telephony/components/PhoneNumbersPage';
+import SipTrunksPage from './telephony/components/SipTrunksPage';
 
 function App() {
     return (
@@ -39,6 +41,9 @@ function App() {
                                                 <Route path="/connections" element={<ConnectionsPage />} />
                                                 <Route path="/calls" element={<CallsPage />} />
                                                 <Route path="/asterisk" element={<AsteriskPage />} />
+                                                <Route path="/sip-trunks" element={<SipTrunksPage />} />
+                                                <Route path="/call-routing" element={<PhoneNumbersPage />} />
+                                                <Route path="/phone-numbers" element={<Navigate to="/call-routing" replace />} />
                                                 <Route path="/audit" element={<AuditPage />} />
                                                 <Route path="*" element={<Navigate to="/" replace />} />
                                             </Route>

@@ -27,6 +27,9 @@ class Settings:
     external_media_host: str
     external_media_advertise_host: str
     token_rate_limit_per_minute: int
+    freepbx_bridge_url: str | None = None
+    freepbx_bridge_token: str | None = None
+    freepbx_operator_organization_id: str | None = None
 
 
 def get_settings() -> Settings:
@@ -54,4 +57,7 @@ def get_settings() -> Settings:
         token_rate_limit_per_minute=int(
             getenv("GATEWAY_TOKEN_RATE_LIMIT_PER_MINUTE", "60")
         ),
+        freepbx_bridge_url=getenv("FREEPBX_BRIDGE_URL"),
+        freepbx_bridge_token=getenv("FREEPBX_BRIDGE_TOKEN"),
+        freepbx_operator_organization_id=getenv("FREEPBX_OPERATOR_ORGANIZATION_ID"),
     )

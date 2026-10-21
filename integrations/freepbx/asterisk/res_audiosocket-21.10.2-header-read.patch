@@ -1,0 +1,85 @@
+--- a/res/res_audiosocket.c
++++ b/res/res_audiosocket.c
+@@ -43,6 +43,7 @@
+ #define	MODULE_DESCRIPTION	"AudioSocket support functions for Asterisk"
+ 
+ #define MAX_CONNECT_TIMEOUT_MSEC 2000
++#define AUDIO_SOCKET_HEADER_POLL_MSEC 5
+ 
+ /*!
+  * \internal
+@@ -262,6 +263,7 @@
+ 	int *const hangup)
+ {
+ 	int i = 0, n = 0, ret = 0;
++	int header_bytes = 0;
+ 	struct ast_frame f = {
+ 		.frametype = AST_FRAME_VOICE,
+ 		.subclass.format = ast_format_slin,
+@@ -277,14 +279,61 @@
+ 		*hangup = 0;
+ 	}
+ 
+-	n = read(svc, &header, 3);
+-	if (n == -1) {
+-		ast_log(LOG_WARNING, "Failed to read header from AudioSocket because: %s\n", strerror(errno));
++	/*
++	 * The AudioSocket connection is nonblocking. A single read is not enough
++	 * for a TCP frame header: it may return a partial header or EAGAIN after
++	 * the channel wait reports readiness. Yield immediately when no header byte
++	 * was consumed, but never discard a partial header: wait once using the
++	 * payload reader's 5 ms bound and fail closed if it remains incomplete.
++	 */
++	while (header_bytes < (int)sizeof(header)) {
++		n = read(svc, header + header_bytes, sizeof(header) - header_bytes);
++		if (n > 0) {
++			header_bytes += n;
++			continue;
++		}
++		if (n == 0) {
++			if (header_bytes == 0) {
++				/* Socket closure before the next frame is a normal hangup. */
++				if (hangup) {
++					*hangup = 1;
++				}
++				return NULL;
++			}
++			ast_log(LOG_ERROR, "Insufficient header read from AudioSocket\n");
++			return NULL;
++		}
++		if (errno == EINTR) {
++			continue;
++		}
++		if (errno == EAGAIN || errno == EWOULDBLOCK) {
++			if (header_bytes == 0) {
++				/* No bytes were consumed, so retrying later cannot desync a frame. */
++				return &ast_null_frame;
++			}
++			int poll_result = ast_wait_for_input(svc, AUDIO_SOCKET_HEADER_POLL_MSEC);
++			if (poll_result == 1) {
++				continue;
++			}
++			if (poll_result == 0) {
++				ast_log(LOG_WARNING, "Poll timed out while waiting for header data\n");
++			} else if (errno == EINTR) {
++				continue;
++			} else {
++				ast_log(LOG_WARNING, "Poll error while reading AudioSocket header: %s\n",
++					strerror(errno));
++			}
++			ast_log(LOG_ERROR, "Failed to read header from AudioSocket because: %s\n",
++				strerror(errno));
++			return NULL;
++		}
++		ast_log(LOG_WARNING, "Failed to read header from AudioSocket because: %s\n",
++			strerror(errno));
+ 		return NULL;
+ 	}
+ 
+-	if (n == 0 || *kind == AST_AUDIOSOCKET_KIND_HANGUP) {
+-		/* Socket closure or requested hangup. */
++	if (*kind == AST_AUDIOSOCKET_KIND_HANGUP) {
++		/* Requested hangup. */
+ 		if (hangup) {
+ 			*hangup = 1;
+ 		}

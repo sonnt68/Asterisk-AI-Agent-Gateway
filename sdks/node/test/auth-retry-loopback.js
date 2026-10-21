@@ -3,16 +3,19 @@ import { once } from "node:events";
 import { WebSocketServer } from "ws";
 
 export class LoopbackGateway {
-  constructor({ tokenStatuses = [], wsActions = [], blockToken = false } = {}) {
+  constructor({ tokenStatuses = [], wsActions = [], blockToken = false, captureMessages = false } = {}) {
     this.tokenStatuses = [...tokenStatuses];
     this.wsActions = [...wsActions];
     this.blockToken = blockToken;
+    this.captureMessages = captureMessages;
     this.tokenRequests = 0;
     this.wsRequests = 0;
     this.registered = 0;
     this.tokens = [];
     this.wsTokens = [];
     this.authHeaders = [];
+    this.messages = [];
+    this.messageReceived = new Promise((resolve) => { this.releaseMessage = resolve; });
     this.clients = new Set();
     this.hold = new Promise((resolve) => { this.releaseHold = resolve; });
     this.tokenStarted = new Promise((resolve) => { this.releaseTokenStarted = resolve; });
@@ -88,6 +91,13 @@ export class LoopbackGateway {
       if (action === "ready-superseded") {
         socket.send(JSON.stringify({ type: "error", code: "session-superseded" }));
         socket.close(4409);
+      }
+      if (this.captureMessages && action === "ready") {
+        socket.on("message", (message) => {
+          const payload = JSON.parse(message.toString());
+          this.messages.push(payload);
+          this.releaseMessage?.(payload);
+        });
       }
     });
     if (action === "ready") this.hold.then(() => socket.close(1000));
