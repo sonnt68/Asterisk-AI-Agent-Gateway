@@ -2,7 +2,6 @@ import { FormEvent, useState } from 'react';
 import { AppWindow, Plus } from 'lucide-react';
 
 import PartnerAppCard from '../components/PartnerAppCard';
-import RevealedKeyBanner from '../components/RevealedKeyBanner';
 import Button from '../components/ui/Button';
 import { ConfigCard } from '../components/ui/ConfigCard';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -15,7 +14,7 @@ import { useGatewayData } from '../hooks/useGatewayData';
 const DEFAULT_SCOPES = ['calls:read', 'media:stream', 'calls:hangup'];
 
 const PartnerAppsPage = () => {
-    const { apps, keys, loading, error, createApp, deleteApp, savePolicy, issueKey, rotateKey, revokeKey } =
+    const { apps, keys, loading, error, createApp, deleteApp, savePolicy, saveAppName, issueKey, rotateKey, revealKey, hasEphemeralSecret, revokeKey, deleteRevokedKey } =
         useGatewayData();
     const [name, setName] = useState('');
     const [slug, setSlug] = useState('');
@@ -48,8 +47,6 @@ const PartnerAppsPage = () => {
             />
 
             {error && <ErrorPanel type="error" message={error} className="mb-6" />}
-
-            <RevealedKeyBanner />
 
             <ConfigCard className="mb-6">
                 <h3 className="text-lg font-semibold tracking-tight mb-1">Create partner app</h3>
@@ -96,7 +93,11 @@ const PartnerAppsPage = () => {
                             onIssueKey={issueKey}
                             onRevokeKey={revokeKey}
                             onRotateKey={rotateKey}
+                            onRevealKey={revealKey}
+                            hasEphemeralSecret={hasEphemeralSecret}
+                            onDeleteRevokedKey={deleteRevokedKey}
                             onSavePolicy={savePolicy}
+                            onSaveName={saveAppName}
                             onDelete={deleteApp}
                         />
                     ))}

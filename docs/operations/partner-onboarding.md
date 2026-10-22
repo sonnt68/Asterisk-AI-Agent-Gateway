@@ -14,7 +14,7 @@ would like ARI credentials to move faster.
 |---|---|---|
 | Gateway base URL | the deployment | any |
 | `agent_slug` | you choose it; globally unique | any |
-| API key (`agw_live_…`) | dashboard, at creation time | **secret channel only** |
+| API key (`agw_live_…`) | dashboard issue or app-card Copy config | **secret channel only** |
 | Granted scopes | the partner app | any |
 | Destination allowlist | the partner app | any |
 | Integration guide | `docs/partner/integration-guide.html` | any |
@@ -25,16 +25,44 @@ should — a partner who has the allowlist in writing raises fewer tickets.
 
 ### The key
 
-Shown once, at creation. We store an HMAC hash and a prefix, so a lost key is
-replaced, never recovered. Send it through a secret channel with an expiry
-(a password manager share, not chat, not email, never a commit).
+Create and explicit rotate responses still include plaintext `key` for API
+compatibility. Treat it as a secret handoff. For a newly issued hash-only key,
+the response may live only in ephemeral React state until refresh or logout
+for the handoff fallback; never persist it in browser storage, logs or URLs,
+and never commit it. Send it through a secret channel with an expiry (a
+password manager share, not chat or email). The gateway always stores an HMAC
+hash for authentication. When the deployment has the optional dedicated
+`GATEWAY_API_KEY_ENCRYPTION_KEY`, newly issued and replacement keys also keep a
+Fernet-encrypted secret for deliberate recovery; ciphertext is never returned
+by a list response or logged.
 
-Tell the partner in the same message: it goes in the `Authorization` header of
-the token endpoint and nowhere else — never a URL, never a log line.
+Existing hash-only keys, and keys issued while that optional setting is unset,
+cannot be recovered. Use deliberate Issue or Rotate to replace one; Copy
+configuration never rotates a key automatically. The app-card action is
+available only when the key is active and non-expired, its Partner App is
+enabled and not deleted, and `copy_available` is true.
 
-Use the dashboard's API Keys page to choose a partner app and issue a key.
-The plaintext is shown once. Revoke a key before permanently deleting its
-record; deletion remains visible as an `api_key.deleted` audit event.
+The app card's Copy config action calls the tenant-scoped
+`POST /api/v1/api-keys/{key_id}/reveal` endpoint as an Owner, Admin or
+Developer. It returns the plaintext only for an eligible key and sends
+`Cache-Control: no-store` and `Pragma: no-cache`. The browser copies exactly
+these three lines, using the deployment's actual base URL with `/api/v1`
+removed:
+
+```text
+GATEWAY_URL=<deployment-base-url-without-/api/v1>
+GATEWAY_API_KEY=<fresh-plaintext-key>
+AGENT_SLUG=<partner-app-agent_slug>
+```
+
+Tell the partner in the same message: the key goes in the `Authorization`
+header of the token endpoint and nowhere else — never a URL or a log line.
+
+Use the dashboard's Partner Apps card to issue or rotate a key. After refresh,
+copyable active keys expose Copy config; hash-only or unavailable keys
+require a deliberate new issue or Rotate action. A revoked key can be
+permanently deleted from its app card only after revocation, and the
+`api_key.deleted` audit event remains the durable record of that deletion.
 
 ## Before you create anything
 
@@ -153,9 +181,27 @@ Run through this with the partner on a real call, not a staging simulation:
 
 ## Rotation and offboarding
 
-Rotation: create the replacement, have them switch and confirm registration,
-then revoke the old key. Calls in progress are not interrupted.
+### Editing the app card
 
-Offboarding: revoke the key first — that blocks new tokens and new sessions
-immediately — then disable the partner app. Existing calls finish; they do not
-get cut mid-sentence.
+An authorized Owner, Admin or Developer can choose **Edit name** on a Partner
+App card, change the display name, then **Save** or **Cancel**. Save trims
+surrounding whitespace and accepts 1–120 characters after trimming. It changes
+only the display name: `agent_slug`, API keys, scopes, destination policy,
+call history and phone-number references remain unchanged. Cancel discards the
+unsaved text. A logically deleted app cannot be edited.
+
+Rotation: create the replacement, have them switch and confirm registration,
+then revoke the old key. Use Copy config on the replacement when
+`copy_available` is true; otherwise perform a deliberate replacement again
+after configuring the optional encrypted-secret setting. Calls in progress are
+not interrupted.
+
+Offboarding: an Owner or Admin can Delete partner app only after every API-key
+row is explicitly revoked, including expired keys. If any key is still
+unrevoked, the endpoint returns `409` and leaves the app, keys and audit log
+unchanged; revoke those keys first. Once the precondition holds, the logical
+delete removes the app from the dashboard, marks it disabled and clears
+recoverable ciphertext while retaining key rows, call history, phone-number
+references and outbound assignments. The app's slug remains reserved, and the
+app cannot be edited or issue, rotate or reveal keys after deletion. Existing
+calls finish; the gateway does not forcibly tear down an active call.

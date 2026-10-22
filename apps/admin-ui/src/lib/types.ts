@@ -14,7 +14,15 @@ export type ApiKey = {
     prefix: string;
     scopes?: string[];
     created_at?: string;
+    expires_at?: string | null;
+    copy_available: boolean;
     revoked_at?: string | null;
+};
+
+export type ApiKeyReveal = {
+    key: string;
+    partner_app_id: string;
+    agent_slug: string;
 };
 
 export type Runtime = {

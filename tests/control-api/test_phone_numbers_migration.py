@@ -3,10 +3,11 @@
 import os
 import subprocess
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from app.models import Organization, PartnerApp, PhoneNumber
+from app.models import PhoneNumber
 from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -46,6 +47,24 @@ def test_fresh_upgrade_creates_exact_phone_number_schema(tmp_path: Path) -> None
     unique_constraints = inspector.get_unique_constraints("phone_numbers")
     assert {item["name"] for item in unique_constraints} == {"uq_phone_numbers_number"}
 
+    partner_columns = {
+        column["name"] for column in inspector.get_columns("partner_apps")
+    }
+    assert "deleted_at" in partner_columns
+    assert next(
+        column["nullable"]
+        for column in inspector.get_columns("partner_apps")
+        if column["name"] == "deleted_at"
+    ) is True
+
+    api_key_columns = {column["name"] for column in inspector.get_columns("api_keys")}
+    assert "encrypted_secret" in api_key_columns
+    assert next(
+        column["nullable"]
+        for column in inspector.get_columns("api_keys")
+        if column["name"] == "encrypted_secret"
+    ) is True
+
     outbound = inspector.get_columns("phone_number_outbound_apps")
     assert {column["name"] for column in outbound} == {"phone_number_id", "partner_app_id"}
     primary_key = inspector.get_pk_constraint("phone_number_outbound_apps")
@@ -68,29 +87,86 @@ def test_outbound_upgrade_preserves_existing_numbers_without_backfill(tmp_path: 
     database_url = f"sqlite:///{tmp_path / 'upgrade.sqlite3'}"
     _upgrade(database_url, "0005_phone_numbers")
     engine = create_engine(database_url)
-    with Session(engine) as session:
-        organization = Organization(id="org-existing", name="Existing")
-        partner_app = PartnerApp(
-            id="app-existing",
-            organization_id=organization.id,
-            name="Existing app",
-            agent_slug="existing-agent",
+    when = datetime(2026, 10, 21, 8, 0, tzinfo=UTC)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO organizations (id, name, created_at) "
+                "VALUES (:id, :name, :created_at)"
+            ),
+            {"id": "org-existing", "name": "Existing", "created_at": when},
         )
-        phone = PhoneNumber(
-            id="phone-existing",
-            organization_id=organization.id,
-            partner_app_id=partner_app.id,
-            number="+84900000001",
-            label="Existing DID",
+        connection.execute(
+            text(
+                "INSERT INTO partner_apps "
+                "(id, organization_id, name, agent_slug, enabled, scopes, "
+                "allowed_destinations, created_at) VALUES "
+                "(:id, :organization_id, :name, :agent_slug, :enabled, :scopes, "
+                ":allowed_destinations, :created_at)"
+            ),
+            {
+                "id": "app-existing",
+                "organization_id": "org-existing",
+                "name": "Existing app",
+                "agent_slug": "existing-agent",
+                "enabled": True,
+                "scopes": "calls:read",
+                "allowed_destinations": "",
+                "created_at": when,
+            },
         )
-        session.add_all([organization, partner_app, phone])
-        session.commit()
+        connection.execute(
+            text(
+                "INSERT INTO api_keys "
+                "(id, organization_id, partner_app_id, name, prefix, secret_hash, "
+                "scopes, created_at) VALUES "
+                "(:id, :organization_id, :partner_app_id, :name, :prefix, "
+                ":secret_hash, :scopes, :created_at)"
+            ),
+            {
+                "id": "key-existing",
+                "organization_id": "org-existing",
+                "partner_app_id": "app-existing",
+                "name": "Existing key",
+                "prefix": "existing01",
+                "secret_hash": "a" * 64,
+                "scopes": "calls:read",
+                "created_at": when,
+            },
+        )
+        connection.execute(
+            text(
+                "INSERT INTO phone_numbers "
+                "(id, organization_id, partner_app_id, number, label, enabled, "
+                "pbx_applied, created_at, updated_at) VALUES "
+                "(:id, :organization_id, :partner_app_id, :number, :label, :enabled, "
+                ":pbx_applied, :created_at, :updated_at)"
+            ),
+            {
+                "id": "phone-existing",
+                "organization_id": "org-existing",
+                "partner_app_id": "app-existing",
+                "number": "+84900000001",
+                "label": "Existing DID",
+                "enabled": True,
+                "pbx_applied": False,
+                "created_at": when,
+                "updated_at": when,
+            },
+        )
 
     _upgrade(database_url, "head")
     with Session(engine) as session:
         stored = session.get(PhoneNumber, "phone-existing")
         assert stored is not None
         assert stored.number == "+84900000001"
+        assert stored.partner_app_id == "app-existing"
+        assert session.execute(
+            text("SELECT deleted_at FROM partner_apps WHERE id = 'app-existing'")
+        ).scalar_one() is None
+        assert session.execute(
+            text("SELECT encrypted_secret FROM api_keys WHERE id = 'key-existing'")
+        ).scalar_one() is None
         assert session.execute(text("SELECT COUNT(*) FROM phone_number_outbound_apps")).scalar_one() == 0
 
 

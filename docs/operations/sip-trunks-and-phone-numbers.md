@@ -264,23 +264,24 @@ final database proof found 61 terminal records and zero `CallRecord` rows with
 `media_failed`.
 
 The final batch used a two-second tone and a 100-frame counter: all four calls
-completed the test, both native legs transmitted 100 frames, three received
-100 and one received 99, and every call reported transmit/receive packet loss
-of zero. An earlier fourth-batch strict receive threshold recorded 49 frames
-against a 50-frame threshold despite non-silent PCM in both directions; treat
-that as a measurement-limit observation, not a silence result or a claim that
-every strict counter reached 100.
+completed the test, all eight native legs transmitted 100 frames, seven
+received 100 and one received 99, and every leg reported transmit/receive
+packet loss of zero. An earlier fourth-batch strict receive threshold recorded
+49 frames against a 50-frame threshold despite non-silent PCM in both
+directions; treat that as a measurement-limit observation, not a silence result
+or a claim that every strict counter reached 100.
 
 The full internal four-DID and eight shared-outbound set passed. Post-run state
 was zero Gateway calls, zero Gateway connections and zero native channels; the
-four outbound grants and original inbound mappings remained present. The
-A bounded external-handset listening check then covered all four source calls:
-all answered and delivered non-silent microphone audio. The initial two-second
-tone began before handset listening, so a delayed Gateway tone and native
-prompt were used to confirm audibility across all four calls; one busy first
-attempt required a retry. Handset-displayed Caller ID was not confirmed, and
-no NAT or network setting changed. This resolves the bounded handset evidence
-gap but does not establish every network path or an end-to-end PSTN media SLO.
+four outbound grants and original inbound mappings remained present. A bounded
+external-handset listening check then covered all four source calls: all
+answered, and non-silent handset voice audio was observed by the Gateway across
+attempts. The immediate two-second tone was not heard. A delayed Gateway tone
+was confirmed clear on all four calls; one diagnostic call also confirmed the
+native prompt. One busy first attempt required a retry. Handset-displayed
+Caller ID was not confirmed, and no NAT or network setting changed. This
+resolves the bounded handset evidence gap but does not establish every network
+path or an end-to-end PSTN media SLO.
 
 ## Rollout limits
 

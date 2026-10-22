@@ -12,8 +12,9 @@ import type {
     Member,
     PartnerApp,
     Runtime,
+    ApiKeyReveal,
 } from '../lib/types';
-import { apiErrorMessage } from '../utils/apiErrors';
+import { apiErrorMessage, describeApiError } from '../utils/apiErrors';
 
 const EMPTY_RUNTIME: Runtime = {
     active_connections: 0,
@@ -36,14 +37,15 @@ interface GatewayData {
     members: Member[];
     loading: boolean;
     error: string | null;
-    revealedKey: { value: string; appId: string } | null;
-    dismissRevealedKey: () => void;
     refresh: () => Promise<void>;
     createApp: (input: { name: string; agent_slug: string; scopes: string[] }) => Promise<void>;
     deleteApp: (appId: string) => Promise<void>;
     savePolicy: (app: PartnerApp, allowedDestinations: string[]) => Promise<void>;
+    saveAppName: (app: PartnerApp, name: string) => Promise<void>;
     issueKey: (app: PartnerApp) => Promise<void>;
     rotateKey: (keyId: string) => Promise<void>;
+    revealKey: (keyId: string, app: Pick<PartnerApp, 'id' | 'agent_slug'>) => Promise<ApiKeyReveal>;
+    hasEphemeralSecret: (keyId: string) => boolean;
     revokeKey: (keyId: string) => Promise<void>;
     deleteRevokedKey: (keyId: string) => Promise<void>;
     revokeKeys: (keyIds: string[]) => Promise<{ failedKeyIds: string[] }>;
@@ -66,8 +68,7 @@ export const GatewayDataProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const [members, setMembers] = useState<Member[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [revealedKey, setRevealedKey] = useState<{ value: string; appId: string } | null>(null);
-
+    const [ephemeralSecrets, setEphemeralSecrets] = useState<Record<string, { secret: string; appId: string }>>({});
     // Guards the polling timer against overlapping in-flight refreshes.
     const refreshing = useRef(false);
 
@@ -100,6 +101,16 @@ export const GatewayDataProvider: React.FC<{ children: React.ReactNode }> = ({ c
                 ),
             );
             setKeys(Object.fromEntries(entries));
+            const listedKeys = new Map(
+                entries.flatMap(([appId, rows]) => rows.map((key) => [key.id, { appId, key }] as const)),
+            );
+            setEphemeralSecrets((current) => Object.fromEntries(
+                Object.entries(current).filter(([keyId, entry]) => {
+                    const listed = listedKeys.get(keyId);
+                    if (!listed || listed.appId !== entry.appId || listed.key.revoked_at) return false;
+                    return !listed.key.expires_at || Date.parse(listed.key.expires_at) > Date.now();
+                }),
+            ));
             setError(null);
         } catch (err) {
             setError(apiErrorMessage(err));
@@ -110,6 +121,8 @@ export const GatewayDataProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }, [organizationId]);
 
     useEffect(() => {
+        // Do not retain a plaintext fallback across logout or organization changes.
+        setEphemeralSecrets({});
         if (!isAuthenticated || !organizationId) {
             setLoading(false);
             return;
@@ -182,6 +195,9 @@ export const GatewayDataProvider: React.FC<{ children: React.ReactNode }> = ({ c
         (appId) =>
             run(async () => {
                 await api.delete(`/partner-apps/${appId}`);
+                setEphemeralSecrets((current) => Object.fromEntries(
+                    Object.entries(current).filter(([, entry]) => entry.appId !== appId),
+                ));
             }, 'Partner app deleted.'),
         [run],
     );
@@ -194,31 +210,85 @@ export const GatewayDataProvider: React.FC<{ children: React.ReactNode }> = ({ c
         [run],
     );
 
+    const saveAppName: GatewayData['saveAppName'] = useCallback(
+        (app, name) =>
+            run(async () => {
+                const trimmedName = name.trim();
+                if (trimmedName.length < 1 || trimmedName.length > 120) {
+                    throw new Error('Partner app name must be between 1 and 120 characters.');
+                }
+                await api.patch(`/partner-apps/${app.id}`, { name: trimmedName });
+            }, 'Partner app name saved.'),
+        [run],
+    );
+
     const issueKey: GatewayData['issueKey'] = useCallback(
         (app) =>
             run(async () => {
-                const response = await api.post<{ key: string }>(`/partner-apps/${app.id}/api-keys`, {
+                const response = await api.post<{ id: string; key?: string; partner_app_id?: string }>(`/partner-apps/${app.id}/api-keys`, {
                     name: `${app.agent_slug}-key`,
                     scopes: app.scopes,
                 });
-                setRevealedKey({ value: response.data.key, appId: app.id });
-            }, 'API key issued. Copy it now — it will not be shown again.'),
+                if (response.data.key) {
+                    setEphemeralSecrets((current) => ({
+                        ...current,
+                        [response.data.id]: { secret: response.data.key ?? '', appId: response.data.partner_app_id ?? app.id },
+                    }));
+                }
+            }, 'API key issued. Use Copy config on the new key.'),
         [run],
     );
 
     const rotateKey: GatewayData['rotateKey'] = useCallback(
         (keyId) =>
             run(async () => {
-                const response = await api.post<{ key: string }>(`/api-keys/${keyId}/rotate`);
-                setRevealedKey({ value: response.data.key, appId: '' });
-            }, 'Key rotated. Copy the replacement now; the old key is revoked.'),
+                const response = await api.post<{ id: string; key?: string; partner_app_id?: string; replaces?: string }>(`/api-keys/${keyId}/rotate`);
+                const secret = response.data.key;
+                const appId = response.data.partner_app_id;
+                setEphemeralSecrets((current) => {
+                    const next = { ...current };
+                    delete next[keyId];
+                    if (response.data.replaces) delete next[response.data.replaces];
+                    if (secret && appId) next[response.data.id] = { secret, appId };
+                    return next;
+                });
+            }, 'API key rotated. Use Copy config on the replacement key.'),
         [run],
+    );
+
+    const revealKey: GatewayData['revealKey'] = useCallback(async (keyId, app) => {
+        try {
+            const response = await api.post<ApiKeyReveal>(`/api-keys/${keyId}/reveal`);
+            return response.data;
+        } catch (err) {
+            const details = describeApiError(err);
+            const fallback = ephemeralSecrets[keyId];
+            if (
+                details.status === 409
+                && details.detail === 'API key secret is unavailable'
+                && fallback?.appId === app.id
+            ) {
+                return { key: fallback.secret, partner_app_id: fallback.appId, agent_slug: app.agent_slug };
+            }
+            toast.error('Unable to copy configuration', { description: apiErrorMessage(err) });
+            throw err;
+        }
+    }, [ephemeralSecrets]);
+
+    const hasEphemeralSecret: GatewayData['hasEphemeralSecret'] = useCallback(
+        (keyId) => Boolean(ephemeralSecrets[keyId]),
+        [ephemeralSecrets],
     );
 
     const revokeKey: GatewayData['revokeKey'] = useCallback(
         (keyId) =>
             run(async () => {
                 await api.delete(`/api-keys/${keyId}`);
+                setEphemeralSecrets((current) => {
+                    const next = { ...current };
+                    delete next[keyId];
+                    return next;
+                });
             }, 'API key revoked. New realtime sessions are blocked.'),
         [run],
     );
@@ -226,21 +296,40 @@ export const GatewayDataProvider: React.FC<{ children: React.ReactNode }> = ({ c
         (keyId) =>
             run(async () => {
                 await api.delete(`/api-keys/${keyId}/purge`);
+                setEphemeralSecrets((current) => {
+                    const next = { ...current };
+                    delete next[keyId];
+                    return next;
+                });
             }, 'Revoked API key deleted permanently.'),
         [run],
     );
 
     const revokeKeys: GatewayData['revokeKeys'] = useCallback(
-        (keyIds) => runKeyBatch(keyIds, (keyId) => api.delete(`/api-keys/${keyId}`), 'revoked'),
+        async (keyIds) => {
+            const result = await runKeyBatch(keyIds, (keyId) => api.delete(`/api-keys/${keyId}`), 'revoked');
+            setEphemeralSecrets((current) => {
+                const next = { ...current };
+                keyIds.filter((keyId) => !result.failedKeyIds.includes(keyId)).forEach((keyId) => delete next[keyId]);
+                return next;
+            });
+            return result;
+        },
         [runKeyBatch],
     );
 
     const deleteRevokedKeys: GatewayData['deleteRevokedKeys'] = useCallback(
-        (keyIds) => runKeyBatch(keyIds, (keyId) => api.delete(`/api-keys/${keyId}/purge`), 'deleted'),
+        async (keyIds) => {
+            const result = await runKeyBatch(keyIds, (keyId) => api.delete(`/api-keys/${keyId}/purge`), 'deleted');
+            setEphemeralSecrets((current) => {
+                const next = { ...current };
+                keyIds.filter((keyId) => !result.failedKeyIds.includes(keyId)).forEach((keyId) => delete next[keyId]);
+                return next;
+            });
+            return result;
+        },
         [runKeyBatch],
     );
-
-    const dismissRevealedKey = useCallback(() => setRevealedKey(null), []);
 
     return (
         <GatewayDataContext.Provider
@@ -255,14 +344,15 @@ export const GatewayDataProvider: React.FC<{ children: React.ReactNode }> = ({ c
                 members,
                 loading,
                 error,
-                revealedKey,
-                dismissRevealedKey,
                 refresh,
                 createApp,
                 deleteApp,
                 savePolicy,
+                saveAppName,
                 issueKey,
                 rotateKey,
+                revealKey,
+                hasEphemeralSecret,
                 revokeKey,
                 deleteRevokedKey,
                 revokeKeys,

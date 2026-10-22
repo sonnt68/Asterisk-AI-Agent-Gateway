@@ -35,6 +35,85 @@ tenant traffic, and set `GATEWAY_COOKIE_SECURE=true` once it does.
 Back up PostgreSQL before migration. Roll back by restoring that backup and the
 matching previous image, not by running a downgrade under active writers.
 
+## Partner App deletion and persistent key configuration
+
+The additive `0007_partner_app_logical_delete` migration adds nullable
+`partner_apps.deleted_at` and `api_keys.encrypted_secret`. Its migration file
+is the schema authority:
+[`0007_partner_app_tombstones_and_encrypted_secrets.py`](../../migrations/versions/0007_partner_app_tombstones_and_encrypted_secrets.py).
+Before rollout, back up the database and matching application image, restore
+that backup into an isolated database, run the migration there, and confirm
+that existing call history, phone-number references, outbound assignments and
+API-key rows survive. Validate migration head and application health before
+touching the live database. The final bounded live proof is recorded below;
+it is feature evidence, not a general production or carrier/SLO claim.
+
+`GATEWAY_API_KEY_ENCRYPTION_KEY` is an optional, deployment-only secret for
+Fernet encryption of newly issued and deliberately rotated API-key plaintext.
+Keep it in the API secret store, never in the browser or logs, and back it up
+with the database if persistent Copy configuration must remain recoverable.
+The application setting and implementation are authoritative in
+[`settings.py`](../../apps/control-api/app/settings.py) and
+[`api_key_secrets.py`](../../apps/control-api/app/api_key_secrets.py). Use the
+[`cryptography` Fernet reference](https://cryptography.io/en/stable/fernet/)
+for the key format and generation guidance; do not copy a real value into this
+document.
+
+When the setting is valid, new and replacement keys retain encrypted recovery
+material while authentication still uses the HMAC hash. The management list
+remains metadata-only and exposes `copy_available`; it never returns plaintext
+or ciphertext. The app-card Copy configuration action uses the explicit
+tenant-scoped `POST /api/v1/api-keys/{key_id}/reveal` operation for an active,
+non-expired key in an enabled, non-deleted app, with `Cache-Control: no-store`
+and `Pragma: no-cache`. It copies `GATEWAY_URL` using the actual deployment
+base URL with `/api/v1` removed, plus `GATEWAY_API_KEY` and the matching
+`AGENT_SLUG`.
+
+If the setting is unset, existing authentication remains hash-based but newly
+issued and rotated keys are hash-only and `copy_available=false`; existing
+hash-only keys cannot be recovered. Use a deliberate new issue or Rotate
+action after configuring the setting. Create and rotate responses retain their
+plaintext `key` field for API compatibility. For a newly issued hash-only key,
+the response may live only in ephemeral React state until refresh or logout for
+the handoff fallback; it must never be persisted in browser storage, URLs or
+logs.
+
+Owner/Admin `DELETE /api/v1/partner-apps/{app_id}` requires every API-key row
+to be explicitly revoked, including expired keys. If any key is unrevoked it
+returns `409` without changing the app, keys or audit log; revoke those keys
+first. Once the precondition holds, the logical delete hides the app from
+management, marks it disabled and clears recoverable ciphertext. It retains
+key rows, history, phone-number references and outbound assignments; the slug
+remains reserved. Existing active calls continue to completion. A revoked key
+can be permanently purged only through the confirmed tenant-scoped purge
+action; this does not delete app history.
+
+The isolated-restore evidence preserved 46 Partner Apps, 78 API keys, 4 phone
+numbers, 4 outbound grants, 1,036 calls and 663 signals with identical common
+columns and digests. The bounded [name-editing tester report](../../plans/reports/tester-20261021-app-name-patch.md)
+records `254` repository tests, `24` Node SDK tests and a passing Admin UI
+build, including the name contract checks. PostgreSQL row-lock races were
+verified separately below.
+
+Final bounded live proof used API image `3b7ade64cb1fd6bbd484331369bf1d4addf6277d921fb1595446f452951ef759`
+and UI image `c53ffb9a55f545f945a006c39772bb8faf9c46b2a869355360bd6d5dd534bfb9`
+at `http://118.107.77.136:15173`; only the API and UI containers were
+recreated, with zero calls or connections before and after. Isolated PostgreSQL
+races passed: simultaneous rotation produced exactly one `201` and one `409`,
+delete-before-issue produced `204` and `404` with no issue, and issue-before-
+delete produced `201` and `409`. The live tenant fixture verified encrypted
+recovery, metadata-only lists, no-store reveal headers, authentication and
+rotation, delete-before-revoke `409` with no app/key/audit mutation, explicit revoke then
+`204` deletion and idempotent repeat, hidden/rejected updates, and tenant-owned
+revoked-key purge. The UI verified edit/save/cancel, blank-name validation,
+reload, changed name with preserved slug, and native Copy output containing the
+actual URL, key prefix and slug without rendering the plaintext key. Existing
+four-number assignments and the 1,036 CallRecord / 663 CallSignal digests were
+unchanged; cleanup ended with zero calls/connections and ARI plus AudioSocket
+healthy. This is bounded feature proof; it does not establish carrier/PSTN
+coverage or a general network/media SLO. Owned fixtures were cleaned without
+revoking existing active keys.
+
 ## Durable history rollout
 
 The durable history baseline is the additive `0003_call_history` migration.

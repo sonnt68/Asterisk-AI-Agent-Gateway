@@ -58,6 +58,9 @@ class PartnerApp(Base):
     name: Mapped[str] = mapped_column(String(120))
     agent_slug: Mapped[str] = mapped_column(String(80), unique=True, index=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     scopes: Mapped[str] = mapped_column(Text, default="calls:read,media:stream")
     allowed_destinations: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
@@ -108,6 +111,7 @@ class ApiKey(Base):
     name: Mapped[str] = mapped_column(String(120))
     prefix: Mapped[str] = mapped_column(String(16), unique=True, index=True)
     secret_hash: Mapped[str] = mapped_column(String(64))
+    encrypted_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
     scopes: Mapped[str] = mapped_column(Text)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

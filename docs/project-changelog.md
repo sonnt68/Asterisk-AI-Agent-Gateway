@@ -1,5 +1,62 @@
 # Project changelog
 
+## Shorter copy action label — 2026-10-21
+
+- Shortened the shared API-key button to **Copy config** and kept its label
+  on one line in Partner Apps and API Keys. Copied content is unchanged.
+
+## Partner App logical deletion and persistent key configuration — 2026-10-21
+
+- Added additive migration `0007_partner_app_logical_delete` with nullable
+  `partner_apps.deleted_at` and `api_keys.encrypted_secret`. Partner App Delete
+  now requires every API-key row to be explicitly revoked, including expired
+  keys. An unrevoked key returns `409` with no app, key or audit mutation; after
+  the precondition, the app leaves the management dashboard, becomes disabled
+  and recoverable ciphertext is cleared, while key rows, call history,
+  phone-number references and outbound assignments remain. Existing active
+  calls continue to completion; no hard delete or forced live-session teardown
+  was added.
+- Added optional `GATEWAY_API_KEY_ENCRYPTION_KEY` Fernet recovery for newly
+  issued and deliberately rotated keys. API-key list responses remain
+  metadata-only and expose `copy_available`; existing hash-only keys and keys
+  issued without the setting require deliberate Issue or Rotate replacement.
+  Create and rotate responses retain plaintext `key` for API compatibility,
+  while a newly issued hash-only flow may hold it only in ephemeral React state
+  until refresh/logout; it is never persisted in browser storage, URLs or logs.
+- Added tenant-scoped `POST /api/v1/api-keys/{key_id}/reveal` for eligible
+  Owner/Admin/Developer actions with `no-store`/`no-cache` headers. The
+  per-app Copy configuration action copies only the three-line
+  `GATEWAY_URL` (base URL without `/api/v1`), `GATEWAY_API_KEY` and matching
+  `AGENT_SLUG` configuration. Revoked keys can be permanently deleted from
+  the app card after confirmation; Copy configuration never rotates a key.
+- No SDK release or partner protocol change was made. Deployment, migration
+  and runtime proof are recorded below as bounded evidence for this feature.
+- Added Partner App display-name editing on the dashboard card. **Edit name**
+  offers **Save** and **Cancel**; the existing tenant-scoped PATCH trims the
+  value and accepts 1–120 characters after trimming, while preserving
+  `agent_slug`, API keys and routing/history references.
+- Isolated-restore evidence preserved 46 apps, 78 keys, 4 numbers, 4 outbound
+  grants, 1,036 calls and 663 signals with identical common-column values and
+  digests. The [bounded name-editing tester report](../plans/reports/tester-20261021-app-name-patch.md)
+  records `254` repository tests, `24` Node SDK tests and a passing Admin UI
+  build, including the name contract checks. PostgreSQL row-lock races were
+  verified separately in the final bounded proof below.
+- Final bounded live proof used API image
+  `3b7ade64cb1fd6bbd484331369bf1d4addf6277d921fb1595446f452951ef759` and UI
+  image `c53ffb9a55f545f945a006c39772bb8faf9c46b2a869355360bd6d5dd534bfb9`
+  at `http://118.107.77.136:15173`. Isolated PostgreSQL rotation and
+  delete/issue race checks passed with the expected `201`/`409` and `204`/`404`
+  outcomes. Live API and UI checks covered encrypted recovery, metadata-only
+  lists, no-store reveal headers, auth/rotation, explicit revoke-before-delete,
+  idempotent deletion,
+  hidden/rejected updates, name edit/save/cancel/validation/reload, preserved
+  slug, and native Copy output without rendering the plaintext key. Existing
+  phone-number assignments and the 1,036 CallRecord / 663 CallSignal digests
+  were unchanged; cleanup ended with zero calls/connections and healthy ARI
+  plus AudioSocket. Owned fixtures were cleaned without revoking existing
+  active keys. This bounded proof does not establish carrier/PSTN coverage or
+  a general network/media SLO.
+
 ## Admin selection and ordering — 2026-10-21
 
 - Partner Apps displays the newest apps first by creation time, including
@@ -64,23 +121,24 @@
   made.
 - Five four-number SIP batches (20 calls) then observed non-silent PCM in both
   directions, with no AudioSocket errors after `11:14:24 UTC`. The final batch's
-  two-second, 100-frame check completed for all four calls: native legs sent
-  100 frames, received 100 except one 99, and all reported zero transmit and
-  receive packet loss. An earlier strict 50-frame receive threshold measured
-  49 despite PCM in both directions; this is a measurement-limit observation,
-  not a silence result or an all-20 strict-counter pass claim.
+  two-second, 100-frame check completed for all four calls: all eight native
+  legs sent 100 frames, seven received 100 and one received 99, and all
+  reported zero transmit and receive packet loss. An earlier strict 50-frame
+  receive threshold measured 49 despite PCM in both directions; this is a
+  measurement-limit observation, not a silence result or an all-20
+  strict-counter pass claim.
 - The full internal four-DID and eight shared-outbound set passed, and cleanup
   left zero Gateway calls/connections and zero native channels while preserving
   the four outbound grants and original inbound mappings. Final database proof
   found 61 terminal records and zero `CallRecord` rows with `media_failed`.
 - A bounded external-handset listening check covered all four source calls:
-  all answered and delivered non-silent microphone audio. The initial
-  two-second tone began before handset listening; a delayed Gateway tone and
-  native prompt then confirmed audibility across all four calls, with one busy
-  first attempt retried. Handset-displayed Caller ID was not confirmed, and no
-  NAT or network setting changed. The bounded handset evidence is complete;
-  coverage of every network path and an end-to-end PSTN media SLO remain
-  unverified.
+  all answered, and non-silent handset voice audio was observed by the Gateway
+  across attempts. The immediate two-second tone was not heard. A delayed
+  Gateway tone was confirmed clear on all four calls, and one diagnostic call
+  also confirmed the native prompt. One busy first attempt required a retry.
+  Handset-displayed Caller ID was not confirmed, and no NAT or network setting
+  changed. The bounded handset evidence is complete; coverage of every network
+  path and an end-to-end PSTN media SLO remain unverified.
 
 ## SIP trunks and exact phone-number routing — 2026-10-21
 

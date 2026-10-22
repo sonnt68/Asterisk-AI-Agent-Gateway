@@ -426,7 +426,7 @@ footer {
           </tr>
           <tr>
             <td><span class="v">API key</span><span class="e">API key</span> (<code>agw_live_…</code>)</td>
-            <td><span class="v">dashboard, ngay lúc tạo</span><span class="e">dashboard, at creation time</span></td>
+            <td><span class="v">dashboard lúc cấp hoặc Copy config trên app card</span><span class="e">dashboard issue or app-card Copy config</span></td>
             <td><span class="chip-secret"><span class="v">kênh bí mật</span><span class="e">secret only</span></span></td>
           </tr>
           <tr>
@@ -461,12 +461,23 @@ footer {
     <div class="note">
       <p class="note-title"><span class="v">Về API key</span><span class="e">About the key</span></p>
       <p>
-        <span class="v">Key chỉ hiện <strong>một lần duy nhất</strong> lúc tạo. Hệ thống chỉ lưu bản băm HMAC và phần tiền tố, nên key mất thì chỉ có thể thay mới, không thể khôi phục. Gửi qua kênh bí mật có hạn dùng — chia sẻ qua trình quản lý mật khẩu, không phải chat, không phải email, và tuyệt đối không nằm trong commit.</span>
-        <span class="e">The key is shown <strong>once</strong>, at creation. We store an HMAC hash and a prefix, so a lost key is replaced, never recovered. Send it through a secret channel with an expiry — a password-manager share, not chat, not email, and never a commit.</span>
+        <span class="v">Response khi cấp hoặc xoay key vẫn có plaintext <code>key</code> để giữ tương thích API. Với key hash-only mới cấp, response chỉ được phép nằm tạm thời trong React state cho tới khi refresh hoặc logout; không được lưu vào browser storage, URL, log hay commit. Hệ thống luôn lưu HMAC hash để xác thực; nếu deployment có <code>GATEWAY_API_KEY_ENCRYPTION_KEY</code> riêng thì key mới và key thay thế còn được lưu dưới dạng secret mã hoá Fernet để khôi phục có chủ đích. Ciphertext không bao giờ xuất hiện trong list response hay log. Key hash-only, hoặc key cấp khi setting chưa có, không thể khôi phục.</span>
+        <span class="e">Create and explicit rotate responses still include plaintext <code>key</code> for API compatibility. For a newly issued hash-only key, the response may live only in ephemeral React state until refresh or logout for the handoff fallback; never persist it in browser storage, URLs, logs or commits. The gateway always stores an HMAC hash for authentication; when the deployment has the dedicated <code>GATEWAY_API_KEY_ENCRYPTION_KEY</code>, newly issued and replacement keys also keep a Fernet-encrypted secret for deliberate recovery. Ciphertext never appears in list responses or logs. Hash-only keys, or keys issued while the setting is unset, cannot be recovered.</span>
       </p>
       <p>
-        <span class="v">Nói rõ trong cùng tin nhắn: key chỉ nằm ở header <code>Authorization</code> của endpoint đổi token, không ở đâu khác — không bao giờ trong URL, không bao giờ trong log.</span>
-        <span class="e">Say in the same message: it goes in the <code>Authorization</code> header of the token endpoint and nowhere else — never a URL, never a log line.</span>
+        <span class="v">Trên app card, Copy config chỉ có khi key đang active, chưa hết hạn, Partner App đang bật và chưa bị xoá, đồng thời metadata có <code>copy_available=true</code>. Nút gọi endpoint tenant-scoped <code>POST /api/v1/api-keys/{key_id}/reveal</code> với Owner, Admin hoặc Developer; response đặt <code>Cache-Control: no-store</code> và <code>Pragma: no-cache</code>. Copy config không tự xoay key.</span>
+        <span class="e">On the app card, Copy config is available only for an active, non-expired key whose Partner App is enabled and not deleted and whose metadata has <code>copy_available=true</code>. It calls the tenant-scoped <code>POST /api/v1/api-keys/{key_id}/reveal</code> as an Owner, Admin or Developer; the response sets <code>Cache-Control: no-store</code> and <code>Pragma: no-cache</code>. Copy config never rotates a key automatically.</span>
+      </p>
+      <p>
+        <span class="v">Nút copy ghi đúng ba dòng; URL là base URL thật của deployment, bỏ hậu tố <code>/api/v1</code>:</span>
+        <span class="e">Copy writes exactly three lines; the URL is the deployment's actual base URL with the <code>/api/v1</code> suffix removed:</span><br>
+        <code>GATEWAY_URL=&lt;deployment-base-url-without-/api/v1&gt;</code><br>
+        <code>GATEWAY_API_KEY=&lt;fresh-plaintext-key&gt;</code><br>
+        <code>AGENT_SLUG=&lt;partner-app-agent_slug&gt;</code>
+      </p>
+      <p>
+        <span class="v">Key gửi cho đối tác phải qua kênh bí mật có hạn dùng — chia sẻ qua trình quản lý mật khẩu, không phải chat, không phải email, và tuyệt đối không nằm trong commit. Nói rõ trong cùng tin nhắn: key chỉ nằm ở header <code>Authorization</code> của endpoint đổi token, không bao giờ trong URL hay log.</span>
+        <span class="e">Send the key through a secret channel with an expiry — a password-manager share, not chat, not email, and never a commit. Say in the same message: it goes in the <code>Authorization</code> header of the token endpoint and nowhere else — never a URL or a log line.</span>
       </p>
     </div>
   </section>
@@ -525,6 +536,15 @@ footer {
         </div>
       </li>
     </ol>
+  </section>
+
+  <section>
+    <p class="eyebrow"><span class="v">Tên hiển thị</span><span class="e">Display name</span></p>
+    <h2><span class="v">Đổi tên trên app card</span><span class="e">Edit the app card name</span></h2>
+    <p>
+      <span class="v">Owner, Admin hoặc Developer được phép chọn <strong>Edit name</strong>, sửa tên rồi <strong>Save</strong> hoặc <strong>Cancel</strong>. Save tự trim khoảng trắng đầu/cuối và chấp nhận 1–120 ký tự sau khi trim. Chỉ tên hiển thị đổi; <code>agent_slug</code>, API key, scope, destination policy, history và tham chiếu phone number giữ nguyên. Cancel bỏ phần chưa lưu; app đã xoá logic không thể sửa.</span>
+      <span class="e">An authorized Owner, Admin or Developer can choose <strong>Edit name</strong>, change the display name, then <strong>Save</strong> or <strong>Cancel</strong>. Save trims surrounding whitespace and accepts 1–120 characters after trimming. Only the display name changes; <code>agent_slug</code>, API keys, scopes, destination policy, history and phone-number references stay unchanged. Cancel discards unsaved text; a logically deleted app cannot be edited.</span>
+    </p>
   </section>
 
   <section>
@@ -646,12 +666,16 @@ footer {
     <p class="eyebrow"><span class="v">Vòng đời</span><span class="e">Lifecycle</span></p>
     <h2><span class="v">Xoay key và ngắt kết nối</span><span class="e">Rotation and offboarding</span></h2>
     <p>
-      <span class="v"><strong>Xoay key:</strong> tạo key thay thế, để họ chuyển sang và xác nhận đăng ký được, rồi mới thu hồi key cũ. Cuộc gọi đang chạy không bị ngắt.</span>
-      <span class="e"><strong>Rotation:</strong> create the replacement, have them switch and confirm registration, then revoke the old key. Calls in progress are not interrupted.</span>
+      <span class="v"><strong>Xoay key:</strong> tạo key thay thế, để họ chuyển sang và xác nhận đăng ký được, rồi mới thu hồi key cũ. Dùng Copy config trên key thay thế nếu <code>copy_available=true</code>; key hash-only cần thao tác cấp hoặc xoay có chủ đích sau khi bật encrypted-secret. Cuộc gọi đang chạy không bị ngắt.</span>
+      <span class="e"><strong>Rotation:</strong> create the replacement, have them switch and confirm registration, then revoke the old key. Use Copy config on the replacement when <code>copy_available=true</code>; hash-only keys need a deliberate issue or rotate after encrypted-secret recovery is configured. Calls in progress are not interrupted.</span>
     </p>
     <p>
-      <span class="v"><strong>Ngắt kết nối:</strong> thu hồi key trước — thao tác này chặn token mới và phiên mới ngay lập tức — rồi mới vô hiệu hoá partner app. Cuộc gọi đang chạy vẫn kết thúc bình thường, không bị cắt giữa chừng.</span>
-      <span class="e"><strong>Offboarding:</strong> revoke the key first — that blocks new tokens and new sessions immediately — then disable the partner app. Existing calls finish; they do not get cut mid-sentence.</span>
+      <span class="v"><strong>Xoá Partner App:</strong> Owner hoặc Admin chỉ có thể xoá logic sau khi đã thu hồi rõ ràng mọi key, kể cả key đã hết hạn. Nếu còn key chưa thu hồi, endpoint trả <code>409</code> và không đổi app, key hay audit log; hãy thu hồi trước. Khi đủ điều kiện, app biến khỏi dashboard, bị đánh dấu disabled và ciphertext khôi phục bị xoá; history cuộc gọi, row key, tham chiếu phone number và outbound assignment vẫn giữ nguyên. Slug vẫn được giữ, app không còn sửa/cấp/xoay/reveal key, và cuộc gọi đang chạy vẫn kết thúc bình thường.</span>
+      <span class="e"><strong>Delete Partner App:</strong> an Owner or Admin can perform this logical delete only after every API-key row is explicitly revoked, including expired keys. If any key remains unrevoked, the endpoint returns <code>409</code> with no app, key or audit-log mutation; revoke those keys first. Once satisfied, the app disappears from the dashboard, is disabled and recoverable ciphertext is cleared; call history, key rows, phone-number references and outbound assignments remain. The slug stays reserved, the app can no longer be edited or issue, rotate or reveal keys, and active calls finish normally.</span>
+    </p>
+    <p>
+      <span class="v"><strong>Xoá key revoked:</strong> trên app card, key đã thu hồi có thể bị xoá vĩnh viễn sau khi xác nhận; đây không phải thao tác xoá Partner App hay history.</span>
+      <span class="e"><strong>Delete revoked key:</strong> a revoked key can be permanently deleted from its app card after confirmation; this does not delete the Partner App or call history.</span>
     </p>
   </section>
 

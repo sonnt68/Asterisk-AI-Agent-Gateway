@@ -4,8 +4,8 @@ Date: 2026-10-21
 
 ## Status
 
-Feature deployed; native AudioSocket repair authorized by the user ("Sửa đi").
-Repair and repeated four-number validation in progress; keep active for recovery.
+Completed: routing feature and matching-version AudioSocket repair deployed.
+Owned-number loops and user-confirmed external-handset checks completed.
 
 ## Outcome
 
@@ -160,7 +160,7 @@ Out of scope:
 - [x] Run API/runtime, migration, protocol/SDK, browser, and live internal tests.
 - [x] Complete backup, rollout, readback, and rollback evidence before deployment.
 - [x] Execute the user-authorized four-number SIP loop tests and report failures.
-- [ ] Resolve the native Asterisk AudioSocket failure before claiming stable end-to-end media.
+- [x] Resolve the native Asterisk AudioSocket failure and validate bounded end-to-end media.
 
 ## Decisions
 
@@ -202,8 +202,9 @@ Out of scope:
 Deployed API migration `0006_outbound_phone_apps` and Call Routing UI on
 2026-10-21. Existing four inbound mappings, enabled/applied state and user app
 settings preserved. No outbound grants were backfilled; temporary test grants
-were removed after probes. No SDK publication, native configuration reload,
-Asterisk binary replacement, commit or push was performed.
+were removed after probes. The later user-authorized native repair replaced
+only the AudioSocket module in a derived image; the Asterisk core remains
+21.10.2. No SDK publication, commit or push was performed.
 
 - Local validation: focused Python 61 passed; full `scripts/validate.sh` 234
   passed; canonical Node SDK 24 passed; Admin UI production build passed.
@@ -227,7 +228,7 @@ Asterisk binary replacement, commit or push was performed.
 - Live internal: all four existing DID mappings reached their actual assigned
   app and carried PCM. Both temporary outbound apps used each number, eight
   internal echo calls total, with exact caller ID and PCM.
-- Final SIP loop: all four calls answered, reached the correct inbound app,
+- Before native repair, final SIP loop: all four calls answered, reached the correct inbound app,
   and presented the selected exact caller ID. Two calls carried non-silent PCM
   both ways, with 50 TX/50 RX packets and zero reported loss on both PJSIP legs;
   two ended as `media_failed` within 0.1–0.2 seconds of answering. Native logs
@@ -237,7 +238,7 @@ Asterisk binary replacement, commit or push was performed.
 - An initial short-beep/silent-peer probe produced media timeouts. Longer
   internal playback and simultaneous active signals improved the test, but
   the final four-call test still reproduced two genuine native failures.
-- Cleanup verified: all 24 short-lived test keys revoked, eight fixture apps
+- Before the native repair, cleanup verified: all 24 short-lived test keys revoked, eight fixture apps
   disabled, zero temporary grants, original inbound assignments unchanged,
   zero active calls/connections, ARI and AudioSocket healthy.
 
@@ -248,14 +249,14 @@ workstation and matching `/tmp/gateway-shared-routing-*.jsonl` on the server.
 
 ## Unresolved Questions And Limits
 
-- Native Asterisk 21.10.2 reads the AudioSocket header once and treats EAGAIN
-  as fatal; the deployed logs and durable call records match that failure.
-  Native repair/backport/upgrade is not implemented or validated. Do not claim
-  a specific later release or upstream commit is a tested drop-in repair.
-- Four owned numbers called each other through the configured SIP trunk. No
-  external handset/mobile-network call or sustained audio quality test occurred.
+- The original Asterisk 21.10.2 module read the AudioSocket header once and
+  treated EAGAIN as fatal; pre-repair logs and call records match that failure.
+  A matching-version module repair is now deployed and validated; no specific
+  later upstream release is claimed as a tested drop-in replacement.
+- Four owned numbers called each other through the configured SIP trunk.
+  A later user-authorized handset test confirmed listening from all four sources; sustained audio quality and other networks remain untested.
 - Docker does not publish Asterisk's configured RTP range. This is an untested
-  external-handset boundary, not the demonstrated cause of these loop failures:
+  broader-network boundary, not the demonstrated cause of these loop failures:
   passing loop calls had bidirectional native RTP counters.
 - Actual Partner Apps had no live sessions before/after temporary verification;
   operators must connect their agents for normal inbound service.
@@ -269,18 +270,44 @@ SIP loop with bidirectional PCM and native RTP counters. User explicitly
 authorized repair after the 2/4 media-failure report. No routing, trunk, RTP
 exposure, or SDK policy changes are needed.
 
-- [ ] Inventory exact native build, module ABI and persistent deployment owner.
-- [ ] Back up original module, matching image identity and deployment configuration.
-- [ ] Implement matching-version bounded idle read and fragmented-header handling.
-- [ ] Compile and prove idle EAGAIN, fragmentation, PCM, disconnect and errors.
-- [ ] Review native patch and recovery before zero-call module replacement.
-- [ ] Persist the replacement across container recreation and verify loaded hash.
-- [ ] Repeat all four SIP loops; require all four passing in repeated batches, no
+- [x] Inventory exact native build, module ABI and persistent deployment owner.
+- [x] Back up original module, matching image identity and deployment configuration.
+- [x] Implement matching-version bounded idle read and fragmented-header handling.
+- [x] Compile and prove idle EAGAIN, fragmentation, PCM, disconnect and errors.
+- [x] Review native patch and recovery before zero-call module replacement.
+- [x] Persist the replacement across container recreation and verify loaded hash.
+- [x] Repeat all four SIP loops; require all four passing in repeated batches, no
       correlated native header-read errors, exact caller ID and inbound owner.
-- [ ] Verify fixture cleanup, zero active calls/connections, unchanged assignments.
+- [x] Verify fixture cleanup, zero active calls/connections, unchanged assignments.
 
 Recovery: retain exact original module and image before mutation. Build without
 modifying the running process. Before reload/restart, require zero native calls
 and no real agent sessions. If module fails to load or focused native probes
 regress, restore the original module/deployment configuration and reload only
 AudioSocket dependents; avoid a broad FreePBX or host upgrade.
+
+
+## Final Native Repair And Handset Result
+
+The user additionally authorized calls from every source to their own handset.
+The reviewed matching-version module is deployed as part of derived image
+`gateway-freepbx:21.10.2-audiosocket-20261021`; exact build/ABI, backup,
+recovery and module load proof are in the [native live report](../../../plans/reports/tester-20261021-native-audiosocket-live.md).
+
+- Four inbound and eight internal shared-outbound calls passed. Five owned-number
+  SIP batches (20 calls) observed non-silent PCM both ways with exact caller ID.
+  The final four-call batch passed the longer-signal/native-counter check; a
+  strict startup packet-count diagnostic and reported-loss limits are preserved
+  in the report rather than treated as packet-perfect proof.
+- The user confirmed delayed Gateway tone audibility from all four caller
+  numbers on their handset. Initial immediate tones were not heard; the
+  diagnostic native prompt and delayed Gateway tone were both confirmed. One
+  later attempt returned BUSY and succeeded on retry. Handset-to-Gateway
+  non-silent PCM was observed for all four during the initial calls.
+- 61 terminal durable records, zero `media_failed`, zero new AudioSocket errors
+  since the post-rollout log boundary. All 38 keys revoked, 18 fixture apps
+  disabled, no temporary grants, user assignments preserved; zero Gateway
+  calls/connections and zero native channels/calls, with ARI/listener healthy.
+- No NAT, RTP exposure, provider configuration or core upgrade was required.
+  Startup greeting latency, handset-displayed caller ID, sustained quality,
+  other networks and PSTN-wide SLO remain unverified.

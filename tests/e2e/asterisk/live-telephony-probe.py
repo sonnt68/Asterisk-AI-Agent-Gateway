@@ -237,6 +237,8 @@ class PartnerSession:
             async for message in self.socket:
                 await self.messages.put(message)
         except Exception:
+            pass
+        finally:
             await self.messages.put(None)
 
     async def close(self) -> None:
@@ -387,6 +389,8 @@ async def wait_for_no_start(
                 if message is None:
                     raise ProbeFailure("partner_socket_closed")
                 data = event_data(message)
+                if data and data.get("type") == "error":
+                    raise ProbeFailure("partner_protocol_error")
                 if data and data.get("type") == "call.started":
                     raise ProbeFailure("disabled_route_delivered_call")
     finally:

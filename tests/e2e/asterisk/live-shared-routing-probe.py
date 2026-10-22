@@ -1,7 +1,7 @@
 """Probe existing DID routes and shared caller IDs without changing inbound owners.
 
-Run inside the deployed API container. Carrier calls require --carrier and are
-limited to a cycle through the explicitly supplied existing managed numbers.
+Run inside the deployed API container. Carrier calls require --carrier and use
+the supplied managed-number cycle or an explicitly authorized --destination.
 Secrets remain in memory. Only this run's grants, sessions and keys are removed.
 """
 
@@ -40,6 +40,8 @@ async def next_event(session, predicate, timeout=20):
         if remaining <= 0:
             raise probe.ProbeFailure("partner_event_timeout")
         message = await asyncio.wait_for(session.messages.get(), remaining)
+        if message is None:
+            raise probe.ProbeFailure("partner_socket_closed")
         data = probe.event_data(message)
         if data and data.get("type") == "error":
             raise probe.ProbeFailure("partner_protocol_error")
@@ -65,6 +67,11 @@ async def wait_signal(session, call_id):
     deadline = asyncio.get_running_loop().time() + 8
     while asyncio.get_running_loop().time() < deadline:
         message = await asyncio.wait_for(session.messages.get(), max(0.1, deadline - asyncio.get_running_loop().time()))
+        if message is None:
+            raise probe.ProbeFailure("partner_socket_closed")
+        data = probe.event_data(message)
+        if data and data.get("type") == "error":
+            raise probe.ProbeFailure("partner_protocol_error")
         if isinstance(message, bytes) and message[:16] == UUID(call_id).bytes:
             pcm = message[16:]
             if len(pcm) >= 2 and any(abs(v[0]) > 100 for v in struct.iter_unpack("<h", pcm)):
@@ -196,17 +203,25 @@ async def run(args):
             async def outbound_call(source, destination, session, receiver=None):
                 drain(sessions)
                 request_id = uuid4().hex
-                await session.socket.send(json.dumps({
-                    "type": "outbound.originate", "request_id": request_id,
-                    "payload": {"context": "from-internal", "extension": destination,
-                                "caller_number": source, "timeout": 30 if args.destination else 15},
-                }))
-                accepted = await next_event(session, lambda d: d.get("type") == "outbound.accepted" and d.get("request_id") == request_id)
+                try:
+                    await session.socket.send(json.dumps({
+                        "type": "outbound.originate", "request_id": request_id,
+                        "payload": {"context": "from-internal", "extension": destination,
+                                    "caller_number": source, "timeout": 30 if args.destination else 15},
+                    }))
+                    accepted = await next_event(session, lambda d: d.get("type") == "outbound.accepted" and d.get("request_id") == request_id)
+                except Exception:
+                    # The originate may have succeeded before its reply was lost.
+                    # Disconnect only this fixture so Gateway releases its calls.
+                    await session.close()
+                    await cleanup_channels()
+                    raise
                 call_id = accepted["call_id"]
                 row = {"source": source, "destination": destination, "call_id": call_id}
-                channels = await probe.ari_request(ari, ari_base, "GET", "/channels", stage="accepted_channel_read")
-                owned_ids = [c["id"] for c in channels if c.get("name", "").startswith("Local/" + destination + "@") and c.get("caller", {}).get("number") == source]
+                owned_ids = []
                 try:
+                    channels = await probe.ari_request(ari, ari_base, "GET", "/channels", stage="accepted_channel_read")
+                    owned_ids = [c["id"] for c in channels if c.get("name", "").startswith("Local/" + destination + "@") and c.get("caller", {}).get("number") == source]
                     started = await next_event(session, lambda d: d.get("call_id") == call_id and (d.get("type") == "call.started" or d.get("terminal") is True), 40 if args.destination else 20)
                     if started.get("terminal"):
                         row.update({k: started.get(k) for k in ("status", "reason", "hangup_cause", "dial_status", "answered")})
@@ -320,7 +335,7 @@ async def run(args):
                         receiver = None if args.destination else inbound[target["partner_app_id"]]
                         row = await outbound_call(source["number"], destination, outbound[index % 2], receiver)
                     except Exception as error:
-                        row = {"source": source["number"], "destination": target["number"], "result": "failed", "stage": str(error) if isinstance(error, probe.ProbeFailure) else type(error).__name__}
+                        row = {"source": source["number"], "destination": args.destination or target["number"], "result": "failed", "stage": str(error) if isinstance(error, probe.ProbeFailure) else type(error).__name__}
                     results["carrier"].append(row)
                     print(json.dumps({"carrier": row}), flush=True)
         finally:
@@ -336,6 +351,10 @@ async def run(args):
                     failures.append("assignment_cleanup")
             for session in sessions:
                 await session.close()
+            try:
+                await cleanup_channels()
+            except Exception:
+                failures.append("call_cleanup")
             for key_id in keys:
                 try:
                     await api("DELETE", f"/api-keys/{key_id}", expected={204})

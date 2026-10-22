@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api_key_secrets import ApiKeySecretConfigurationError, encrypt_api_key_secret
 from app.audit_log import audit
 from app.auth import Principal, require_principal, require_role
 from app.database import get_session
@@ -97,7 +98,10 @@ def list_partner_apps(
     if organization_id != principal.organization_id:
         raise HTTPException(status_code=404, detail="Organization not found")
     apps = session.scalars(
-        select(PartnerApp).where(PartnerApp.organization_id == organization_id)
+        select(PartnerApp).where(
+            PartnerApp.organization_id == organization_id,
+            PartnerApp.deleted_at.is_(None),
+        )
     )
     return [serialize_app(app) for app in apps]
 
@@ -138,8 +142,10 @@ def create_key(
 ) -> dict[str, object]:
     app = session.scalar(
         select(PartnerApp).where(
-            PartnerApp.id == app_id, PartnerApp.organization_id == principal.organization_id
-        )
+            PartnerApp.id == app_id,
+            PartnerApp.organization_id == principal.organization_id,
+            PartnerApp.deleted_at.is_(None),
+        ).with_for_update()
     )
     if not app:
         raise HTTPException(status_code=404, detail="Partner application not found")
@@ -162,7 +168,20 @@ def create_key(
         expires_at=payload.expires_at,
     )
     session.add(key)
-    session.flush()
+    try:
+        session.flush()
+        key.encrypted_secret = encrypt_api_key_secret(
+            key_id=key.id,
+            organization_id=key.organization_id,
+            partner_app_id=key.partner_app_id,
+            plaintext=plaintext,
+            settings=settings,
+        )
+    except ApiKeySecretConfigurationError:
+        session.rollback()
+        raise HTTPException(
+            status_code=503, detail="Secret recovery is unavailable"
+        ) from None
     audit(session, principal, "api_key.created", key.id)
     session.commit()
     return {"id": key.id, "prefix": key.prefix, "key": plaintext, "scopes": scopes}
@@ -182,6 +201,7 @@ def revoke_key(
     if not key:
         raise HTTPException(status_code=404, detail="API key not found")
     key.revoked_at = datetime.now(UTC)
+    key.encrypted_secret = None
     audit(session, principal, "api_key.revoked", key.id)
     session.commit()
     return Response(status_code=204)

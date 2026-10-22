@@ -5,6 +5,7 @@ RUN pip install --no-cache-dir \
   "alembic>=1.14,<2.0" \
   "aiohttp>=3.10,<4.0" \
   "argon2-cffi>=23.1,<24.0" \
+  "cryptography>=46,<51" \
   "fastapi>=0.115,<1.0" \
   "itsdangerous>=2.2,<3.0" \
   "psycopg[binary]>=3.2,<4.0" \

@@ -51,7 +51,13 @@ paths:
     get:
       operationId: listApiKeys
       responses:
-        '200': { description: Key metadata without recoverable secrets }
+        '200':
+          description: Key metadata without plaintext or recoverable ciphertext
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ApiKeyMetadata' }
     post:
       operationId: createApiKey
       requestBody:
@@ -65,6 +71,49 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/IssuedApiKey' }
+  /partner-apps/{app_id}:
+    patch:
+      operationId: updatePartnerApp
+      summary: Update a Partner App display name or management policy
+      description: >-
+        Tenant-scoped Owner/Admin/Developer action. When name is supplied, the
+        server trims surrounding whitespace and accepts 1-120 characters after
+        trimming. Renaming changes only the display name; agent_slug, API keys,
+        call history and phone-number references remain unchanged. Deleted
+        Partner Apps cannot be updated.
+      parameters:
+        - in: path
+          name: app_id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PartnerAppUpdate' }
+      responses:
+        '200': { description: Updated tenant-scoped Partner App }
+        '404': { description: Partner App not found in the authenticated organization }
+        '422': { description: Name is empty or exceeds 120 characters after trimming }
+    delete:
+      operationId: deletePartnerApp
+      summary: Logically delete a Partner App after explicit key revocation
+      description: >-
+        Owner/Admin action scoped to the authenticated organization. Every API
+        key row, including expired keys, must be explicitly revoked first. If
+        any key remains unrevoked, return 409 with no app, key or audit-log
+        mutation. A successful delete hides and disables the app, clears
+        recoverable key ciphertext, retains history and phone-number references,
+        and does not force active calls to end.
+      parameters:
+        - in: path
+          name: app_id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Partner App logically deleted }
+        '404': { description: Partner App not found in the authenticated organization }
+        '409': { description: All API keys must be explicitly revoked before deletion; no mutation is made }
   /api-keys/{key_id}:
     delete:
       operationId: revokeApiKey
@@ -89,6 +138,38 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/IssuedApiKey' }
+  /api-keys/{key_id}/reveal:
+    post:
+      operationId: revealApiKey
+      summary: Recover an eligible API key for app configuration copy
+      description: >-
+        Tenant-scoped management action for an Owner, Admin or Developer. It
+        returns plaintext only for an active, non-expired key belonging to an
+        enabled, non-deleted Partner App with configured encrypted recovery.
+        Revoked, expired, deleted or hash-only keys are rejected. The response
+        is sent with Cache-Control: no-store and Pragma: no-cache and the
+        plaintext is never included in list metadata.
+      parameters:
+        - in: path
+          name: key_id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Plaintext key for the explicit copy action only
+          headers:
+            Cache-Control:
+              description: Prevent response caching.
+              schema: { type: string, const: no-store }
+            Pragma:
+              description: Legacy cache prevention header.
+              schema: { type: string, const: no-cache }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiKeyReveal' }
+        '404': { description: Key not found in the authenticated organization }
+        '409': { description: Key is revoked, expired, hash-only, or attached to an unavailable app }
+        '503': { description: Encrypted secret recovery is unavailable }
   /api-keys/{key_id}/purge:
     delete:
       operationId: deleteRevokedApiKey
@@ -384,6 +465,17 @@ components:
         agent_slug: { type: string, pattern: '^[a-z0-9-]{3,80}$' }
         scopes: { type: array, items: { type: string } }
         allowed_destinations: { type: array, items: { type: string } }
+    PartnerAppUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+          description: Display name; the server trims surrounding whitespace before validation.
+        enabled: { type: boolean }
+        scopes: { type: array, items: { type: string } }
+        allowed_destinations: { type: array, items: { type: string } }
     ApiKeyRequest:
       type: object
       required: [name]
@@ -391,6 +483,30 @@ components:
         name: { type: string, maxLength: 120 }
         scopes: { type: array, items: { type: string } }
         expires_at: { type: [string, 'null'], format: date-time }
+    ApiKeyMetadata:
+      type: object
+      description: >-
+        Tenant-scoped key metadata. Plaintext and encrypted secrets are never
+        returned. copy_available is true only when the explicit reveal action
+        can recover an active, non-expired key for an enabled app.
+      required: [id, name, prefix, scopes, created_at, last_used_at, revoked_at, expires_at, copy_available]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        prefix: { type: string }
+        scopes: { type: array, items: { type: string } }
+        created_at: { type: string, format: date-time }
+        last_used_at: { type: [string, 'null'], format: date-time }
+        revoked_at: { type: [string, 'null'], format: date-time }
+        expires_at: { type: [string, 'null'], format: date-time }
+        copy_available: { type: boolean }
+    ApiKeyReveal:
+      type: object
+      required: [key, partner_app_id, agent_slug]
+      properties:
+        key: { type: string, description: Plaintext API key returned only by the explicit no-store reveal action. }
+        partner_app_id: { type: string, format: uuid }
+        agent_slug: { type: string }
     IssuedApiKey:
       type: object
       required: [id, prefix, key, scopes]

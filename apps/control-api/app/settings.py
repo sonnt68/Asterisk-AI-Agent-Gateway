@@ -30,6 +30,7 @@ class Settings:
     freepbx_bridge_url: str | None = None
     freepbx_bridge_token: str | None = None
     freepbx_operator_organization_id: str | None = None
+    api_key_encryption_key: str | None = None
 
 
 def get_settings() -> Settings:
@@ -60,4 +61,5 @@ def get_settings() -> Settings:
         freepbx_bridge_url=getenv("FREEPBX_BRIDGE_URL"),
         freepbx_bridge_token=getenv("FREEPBX_BRIDGE_TOKEN"),
         freepbx_operator_organization_id=getenv("FREEPBX_OPERATOR_ORGANIZATION_ID"),
+        api_key_encryption_key=getenv("GATEWAY_API_KEY_ENCRYPTION_KEY"),
     )

@@ -1,53 +1,129 @@
 import { useState } from 'react';
-import { Check, Copy, KeyRound, X } from 'lucide-react';
+import { Check, Copy } from 'lucide-react';
+import { toast } from 'sonner';
 
-import { useGatewayData } from '../hooks/useGatewayData';
+import type { ApiKey, ApiKeyReveal, PartnerApp } from '../lib/types';
+import Button from './ui/Button';
 
-/**
- * One-time secret display. The control plane hashes API keys, so this is the
- * only moment the plaintext exists in the browser.
- */
-export const RevealedKeyBanner = () => {
-    const { revealedKey, dismissRevealedKey } = useGatewayData();
+type Props = {
+    app?: PartnerApp;
+    apiKey?: ApiKey;
+    onReveal?: (keyId: string, app: Pick<PartnerApp, 'id' | 'agent_slug'>) => Promise<ApiKeyReveal>;
+    hasEphemeralSecret?: boolean;
+    className?: string;
+};
+
+const gatewayOrigin = () => {
+    const currentOrigin = typeof window === 'undefined' ? '' : window.location.origin;
+    const configuredApiUrl = import.meta.env.VITE_GATEWAY_API_URL;
+    if (!configuredApiUrl) return currentOrigin;
+    try {
+        const parsed = new URL(configuredApiUrl, currentOrigin);
+        const gatewayPath = parsed.pathname.replace(/\/api\/v1\/?$/, '');
+        return `${parsed.origin}${gatewayPath === '/' ? '' : gatewayPath}`;
+    } catch {
+        return currentOrigin;
+    }
+};
+
+const copyText = async (value: string): Promise<boolean> => {
+    if (typeof navigator !== 'undefined') {
+        try {
+            if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(value);
+                return true;
+            }
+        } catch {
+            // Fall through to the DOM copy path for HTTP deployments or denied permissions.
+        }
+    }
+
+    if (typeof document === 'undefined' || typeof document.execCommand !== 'function' || !document.body) return false;
+    const textarea = document.createElement('textarea');
+    textarea.value = value;
+    textarea.setAttribute('readonly', '');
+    textarea.setAttribute('aria-hidden', 'true');
+    textarea.style.position = 'fixed';
+    textarea.style.top = '-1000px';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    try {
+        textarea.focus();
+        textarea.select();
+        return document.execCommand('copy');
+    } catch {
+        return false;
+    } finally {
+        textarea.remove();
+    }
+};
+
+const RevealedKeyBanner = ({ app, apiKey, onReveal, hasEphemeralSecret = false, className = '' }: Props) => {
+    const [copying, setCopying] = useState(false);
     const [copied, setCopied] = useState(false);
 
-    if (!revealedKey) return null;
+    if (!app || !apiKey || !onReveal || apiKey.revoked_at) return null;
 
-    const copy = async () => {
-        await navigator.clipboard.writeText(revealedKey.value);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+    if (!app.enabled) {
+        return (
+            <span className={`text-xs text-muted-foreground ${className}`}>
+                Copy unavailable while this Partner App is disabled.
+            </span>
+        );
+    }
+
+    const expired = Boolean(apiKey.expires_at && Date.parse(apiKey.expires_at) <= Date.now());
+    if (expired || (!apiKey.copy_available && !hasEphemeralSecret)) {
+        return (
+            <span className={`text-xs text-muted-foreground ${className}`}>
+                {expired ? 'Expired key. Issue a new key to create a copyable configuration.' : 'Copy unavailable. Create or rotate a key to enable copying.'}
+            </span>
+        );
+    }
+
+    const copyConfiguration = async () => {
+        if (copying) return;
+        setCopying(true);
+        setCopied(false);
+        try {
+            const revealed = await onReveal(apiKey.id, app);
+            if (revealed.partner_app_id !== app.id) {
+                toast.error('Unable to copy configuration', { description: 'The key is assigned to a different Partner App.' });
+                return;
+            }
+            const configuration = [
+                `GATEWAY_URL=${gatewayOrigin()}`,
+                `GATEWAY_API_KEY=${revealed.key}`,
+                `AGENT_SLUG=${revealed.agent_slug}`,
+            ].join('\n');
+            if (!await copyText(configuration)) {
+                toast.error('Unable to copy configuration', { description: 'Copy the configuration manually from a trusted environment.' });
+                return;
+            }
+            setCopied(true);
+            toast.success('Configuration copied.');
+        } catch {
+            // The data layer already surfaced the request failure.
+        } finally {
+            setCopying(false);
+        }
     };
 
     return (
-        <div className="mb-6 rounded-lg border border-yellow-500/50 bg-yellow-500/10 p-4">
-            <div className="flex items-start gap-3">
-                <KeyRound className="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
-                <div className="flex-1 min-w-0">
-                    <h4 className="font-semibold text-yellow-600 dark:text-yellow-400 mb-1">One-time API key</h4>
-                    <p className="text-sm text-yellow-600 dark:text-yellow-400">
-                        Copy this key now. It is hashed at rest and will never be shown again.
-                    </p>
-                    <code className="mt-2 block break-all rounded bg-background/60 p-2 text-xs font-mono">
-                        {revealedKey.value}
-                    </code>
-                    <button
-                        onClick={copy}
-                        className="mt-3 inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
-                    >
-                        {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                        {copied ? 'Copied' : 'Copy key'}
-                    </button>
-                </div>
-                <button
-                    onClick={dismissRevealedKey}
-                    aria-label="Dismiss"
-                    className="text-yellow-600 dark:text-yellow-400 opacity-75 hover:opacity-100"
-                >
-                    <X className="w-4 h-4" />
-                </button>
-            </div>
-        </div>
+        <span className={`inline-flex ${className}`}>
+            <Button
+                size="sm"
+                variant="outline"
+                className="whitespace-nowrap"
+                onClick={() => void copyConfiguration()}
+                disabled={copying}
+                aria-busy={copying}
+                title="Copy GATEWAY_URL, GATEWAY_API_KEY, and AGENT_SLUG"
+            >
+                {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                {copying ? 'Copying…' : copied ? 'Copied' : 'Copy config'}
+            </Button>
+        </span>
     );
 };
 

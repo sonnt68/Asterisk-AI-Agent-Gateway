@@ -36,7 +36,12 @@ def authenticate_api_key(authorization: str | None, session: Session) -> Partner
     ):
         raise HTTPException(status_code=401, detail="Invalid API key")
     app = session.get(PartnerApp, key.partner_app_id)
-    if not app or not app.enabled or app.organization_id != key.organization_id:
+    if (
+        not app
+        or not app.enabled
+        or app.deleted_at is not None
+        or app.organization_id != key.organization_id
+    ):
         raise HTTPException(status_code=403, detail="Partner application disabled")
     # An app scope reduction also applies immediately to existing keys.
     scopes = frozenset(key.scopes.split(",")) & frozenset(app.scopes.split(","))
