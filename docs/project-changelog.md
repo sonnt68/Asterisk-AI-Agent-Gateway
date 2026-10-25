@@ -1,5 +1,54 @@
 # Project changelog
 
+## Verified new-app outbound scope and agent-slug rollout — 2026-10-22
+
+- Full validation passed (`259` tests), focused scope-boundary validation passed
+  (`8`), the skill package checks passed (`9`), and Ruff plus the API/UI builds
+  passed. The live API image was
+  `86650fa6d617b05d97e8ee31ac500a94ce07ff17321525a560cfc42d28a0d378`; the UI
+  image was `0d631021932d1e676fecaa08984f73809a6ebcd6974fb3a3d13cad5f63aba03a`.
+  Deployment used the backup
+  `/opt/asterisk-ai-agent-gateway/backups/default-originate-env-20261022T105755Z`
+  and completed with zero calls/connections before and after; ARI and
+  AudioSocket remained healthy.
+- Live REST fixtures at `11:00:37 UTC` verified a default new app/key with
+  `calls:originate`, explicit `calls:read` and `[]` preservation, `422` for
+  null/ungranted scopes, and a restricted app receiving neither implicit
+  `calls:transfer` nor `calls:originate`. Two owned fixture apps were logically
+  deleted and four owned keys were revoked and purged.
+- The public UI asset confirmed the `GATEWAY_AGENT_SLUG` Copy label and the
+  dashboard default scope array including `calls:originate`. Authenticated
+  browser click validation was limited because the Chrome session expired to
+  login; no signed-in visual or Copy click pass is claimed.
+- The exported
+  `sdks/python/examples/vindynamics-1-dial-out.py` is based on the direct
+  `dial_out.py` example. Its live `--check` at `11:00:49–11:00:59 UTC` reached
+  `session.ready` and `heartbeat.ack` without dialing or disturbing existing
+  connections. Three separately granted live Vindynamics keys then produced
+  public SDK `0.4` tokens effective for `calls:originate`; old key material was
+  preserved and no rotation was part of this change.
+- Current setup and Copy examples use `GATEWAY_AGENT_SLUG`, with
+  `AGENT_SLUG` retained only as a sample-reader compatibility fallback. SDK
+  argument names remain unchanged. The bounded proof does not claim a full
+  PSTN/carrier test. See the [completed default-scope plan](plans/completed/20261022-default-outbound-scope.md)
+  for the evidence record and remaining UI boundary.
+
+## New-app scope defaults and agent-slug environment name — 2026-10-22
+
+- REST creation of a new Partner App with omitted `scopes` defaults to
+  `calls:read`, `media:stream` and `calls:originate`. An omitted REST key
+  scope uses the intersection of that set with the owning app's current
+  scopes; explicit `[]` or restricted lists remain exact and the existing
+  key-subset check still applies. The dashboard create form retains
+  `calls:hangup` alongside the other three defaults, and dashboard-issued keys
+  inherit the app scopes.
+- Current setup and Copy config examples use `GATEWAY_AGENT_SLUG`. Sample
+  readers retain `AGENT_SLUG` as a compatibility fallback where supported; the
+  SDK argument names remain `agent_slug` and `agentSlug`. Existing apps and
+  keys are not upgraded or rotated automatically. Separately authorized live
+  Vindynamics grants and preserved old credentials remain outside this change;
+  default-scope deployment verification is pending. No SDK release was made.
+
 ## Shorter copy action label — 2026-10-21
 
 - Shortened the shared API-key button to **Copy config** and kept its label

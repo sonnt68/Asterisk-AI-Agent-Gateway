@@ -6,6 +6,7 @@
  *
  *   npm install asterisk-ai-agent-gateway-sdk
  *   export GATEWAY_URL=https://gateway.example.com
+ *   export GATEWAY_AGENT_SLUG=support-agent
  *   export GATEWAY_API_KEY=...        # from a secret store, not a file
  *   node echo-agent.mjs
  */
@@ -15,7 +16,7 @@ import { GatewayClient } from "asterisk-ai-agent-gateway-sdk";
 const client = new GatewayClient({
   gatewayUrl: process.env.GATEWAY_URL,
   apiKey: process.env.GATEWAY_API_KEY,
-  agentSlug: "support-agent",
+  agentSlug: process.env.GATEWAY_AGENT_SLUG ?? process.env.AGENT_SLUG ?? "support-agent",
 });
 
 // The rate is announced per call, so it belongs to the call, not to the module.

@@ -52,7 +52,7 @@ removed:
 ```text
 GATEWAY_URL=<deployment-base-url-without-/api/v1>
 GATEWAY_API_KEY=<fresh-plaintext-key>
-AGENT_SLUG=<partner-app-agent_slug>
+GATEWAY_AGENT_SLUG=<partner-app-agent_slug>
 ```
 
 Tell the partner in the same message: the key goes in the `Authorization`
@@ -67,6 +67,21 @@ permanently deleted from its app card only after revocation, and the
 ## Before you create anything
 
 Agree these first; changing them later means the partner reworks code.
+
+### Defaults for a new app and key
+
+When the REST create-app request omits `scopes`, the new app defaults to
+`calls:read`, `media:stream`, and `calls:originate`. The REST default does not
+add `calls:hangup`. When a REST key request omits `scopes`, the key receives the
+intersection of that default set and the app's current scopes. An explicit
+list, including `[]` or a restricted list, remains exact after normalization
+and must still be a subset of the app scopes. Destination policy and the
+existing command-scope checks remain in force.
+
+The dashboard's new-app form retains `calls:hangup` alongside
+`calls:read`, `media:stream`, and `calls:originate`; a key issued from that
+dashboard inherits the app's scopes. Existing apps and keys are not upgraded,
+and no key is rotated automatically.
 
 1. **`agent_slug`** — globally unique across all partners, and one live
    connection per slug. Include the partner's name in it. Two of their

@@ -67,7 +67,7 @@ tenant-scoped `POST /api/v1/api-keys/{key_id}/reveal` operation for an active,
 non-expired key in an enabled, non-deleted app, with `Cache-Control: no-store`
 and `Pragma: no-cache`. It copies `GATEWAY_URL` using the actual deployment
 base URL with `/api/v1` removed, plus `GATEWAY_API_KEY` and the matching
-`AGENT_SLUG`.
+`GATEWAY_AGENT_SLUG`.
 
 If the setting is unset, existing authentication remains hash-based but newly
 issued and rotated keys are hash-only and `copy_available=false`; existing

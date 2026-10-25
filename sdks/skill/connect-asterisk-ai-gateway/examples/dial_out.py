@@ -14,6 +14,7 @@ Both are the operator's to set. Settle them before writing code against them.
 
     pip install asterisk-ai-agent-gateway-sdk
     export GATEWAY_URL=https://gateway.example.com
+    export GATEWAY_AGENT_SLUG=support-agent
     export GATEWAY_API_KEY=...          # from a secret store, not a file
     python dial_out.py 84900000000
 """
@@ -31,7 +32,7 @@ ECHO_SECONDS = 30
 client = GatewayClient(
     gateway_url=os.environ["GATEWAY_URL"],
     api_key=os.environ["GATEWAY_API_KEY"],
-    agent_slug="support-agent",
+    agent_slug=os.environ.get("GATEWAY_AGENT_SLUG") or os.environ.get("AGENT_SLUG", "support-agent"),
     # One shot. A reconnect would re-register and dial nothing, which reads as
     # a hang rather than a failure.
     reconnect=False,

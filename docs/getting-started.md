@@ -10,9 +10,12 @@ Choose one SDK:
 pip install asterisk-ai-agent-gateway-sdk
 export GATEWAY_URL=https://gateway.example.com
 export GATEWAY_API_KEY=agw_live_REDACTED
-export AGENT_SLUG=support-agent
+export GATEWAY_AGENT_SLUG=support-agent
 python sdks/python/examples/echo_agent.py
 ```
+
+The sample reads `GATEWAY_AGENT_SLUG` first and accepts `AGENT_SLUG` as a
+compatibility fallback.
 
 Node instead:
 

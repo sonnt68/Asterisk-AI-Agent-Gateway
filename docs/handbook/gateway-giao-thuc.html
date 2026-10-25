@@ -199,7 +199,7 @@ byte 16..N   PCM signed 16-bit little-endian, mono</code></pre>
 <pre><code>pip install asterisk-ai-agent-gateway-sdk
 export GATEWAY_URL=https://gateway.example.com
 export GATEWAY_API_KEY=agw_live_…
-export AGENT_SLUG=support-agent
+export GATEWAY_AGENT_SLUG=support-agent
 python sdks/python/examples/echo_agent.py</code></pre>
     <p><code>GatewayClient.run(on_event=…, on_audio=…)</code>; <code>on_audio</code> nhận <code>(call_id, pcm)</code>; gửi lại bằng <code>send_audio(call_id, pcm)</code>. Dùng <code>stream()</code> nếu muốn tự kéo sự kiện qua async iterator.</p>
   </div>

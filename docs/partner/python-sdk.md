@@ -5,9 +5,12 @@
 pip install asterisk-ai-agent-gateway-sdk==0.4.0
 export GATEWAY_URL=https://gateway.example.com
 export GATEWAY_API_KEY=agw_live_REDACTED
-export AGENT_SLUG=support-agent
+export GATEWAY_AGENT_SLUG=support-agent
 python sdks/python/examples/echo_agent.py
 ```
+
+The example reads `GATEWAY_AGENT_SLUG`; current sample readers retain
+`AGENT_SLUG` as a compatibility fallback.
 
 SDK 0.4.0 includes the realtime client and durable history helpers. For a
 controlled rollout where the operator supplies a direct artifact, use it as a

@@ -463,7 +463,13 @@ components:
       properties:
         name: { type: string, maxLength: 120 }
         agent_slug: { type: string, pattern: '^[a-z0-9-]{3,80}$' }
-        scopes: { type: array, items: { type: string } }
+        scopes:
+          type: array
+          items: { type: string }
+          default: [calls:read, media:stream, calls:originate]
+          description: >-
+            Defaults to calls:read, media:stream and calls:originate. Explicit
+            scope lists are normalized and validated against the allowlist.
         allowed_destinations: { type: array, items: { type: string } }
     PartnerAppUpdate:
       type: object
@@ -481,7 +487,15 @@ components:
       required: [name]
       properties:
         name: { type: string, maxLength: 120 }
-        scopes: { type: array, items: { type: string } }
+        scopes:
+          type: array
+          items: { type: string }
+          description: >-
+            Optional. When omitted, the key receives the intersection of the
+            default scopes calls:read, media:stream and calls:originate with
+            the current Partner App scopes. An explicit list, including an
+            empty list, is preserved after normalization and must be a subset
+            of the Partner App scopes.
         expires_at: { type: [string, 'null'], format: date-time }
     ApiKeyMetadata:
       type: object

@@ -2,11 +2,18 @@ from datetime import UTC, datetime
 
 import pytest
 from app.auth import Principal
-from app.control_routes import KeyRequest, create_key, list_partner_apps
+from app.control_routes import (
+    AppRequest,
+    KeyRequest,
+    create_key,
+    create_partner_app,
+    list_partner_apps,
+)
 from app.database import Base
 from app.key_management_routes import delete_revoked_key
 from app.models import ApiKey, AuditEvent, Organization, PartnerApp
 from fastapi import HTTPException
+from pydantic import ValidationError
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
@@ -40,6 +47,123 @@ def test_tenant_cannot_list_another_organizations_apps(database_session: Session
             database_session,
         )
     assert error.value.status_code == 404
+
+
+def test_new_partner_app_default_scopes_include_originate(database_session: Session) -> None:
+    organization = Organization(name="Owner")
+    database_session.add(organization)
+    database_session.flush()
+    principal = Principal("user-owner", organization.id, "owner")
+
+    result = create_partner_app(
+        AppRequest(name="Default agent", agent_slug="default-agent"),
+        organization.id,
+        principal,
+        database_session,
+    )
+
+    assert set(result["scopes"]) == {"calls:read", "media:stream", "calls:originate"}
+
+
+def test_omitted_key_scopes_use_default_intersection(database_session: Session) -> None:
+    organization = Organization(name="Owner")
+    database_session.add(organization)
+    database_session.flush()
+    app = PartnerApp(
+        organization_id=organization.id,
+        name="Broad agent",
+        agent_slug="broad-agent",
+        scopes="calls:read,media:stream,calls:originate,calls:transfer",
+    )
+    database_session.add(app)
+    database_session.commit()
+
+    result = create_key(
+        KeyRequest(name="Default key"),
+        app.id,
+        Principal("user-owner", organization.id, "owner"),
+        database_session,
+    )
+
+    assert result["scopes"] == ["calls:originate", "calls:read", "media:stream"]
+    assert "calls:transfer" not in result["scopes"]
+
+
+def test_omitted_key_scopes_respect_restricted_app(database_session: Session) -> None:
+    organization = Organization(name="Owner")
+    database_session.add(organization)
+    database_session.flush()
+    app = PartnerApp(
+        organization_id=organization.id,
+        name="Restricted agent",
+        agent_slug="restricted-agent",
+        scopes="calls:read,media:stream,calls:transfer",
+    )
+    database_session.add(app)
+    database_session.commit()
+
+    result = create_key(
+        KeyRequest(name="Restricted default"),
+        app.id,
+        Principal("user-owner", organization.id, "owner"),
+        database_session,
+    )
+
+    assert result["scopes"] == ["calls:read", "media:stream"]
+    assert "calls:transfer" not in result["scopes"]
+
+
+def test_key_scopes_reject_explicit_null() -> None:
+    with pytest.raises(ValidationError):
+        KeyRequest.model_validate({"name": "Null scopes", "scopes": None})
+
+
+def test_explicit_empty_and_originate_scopes_are_preserved_and_validated(
+    database_session: Session,
+) -> None:
+    organization = Organization(name="Owner")
+    database_session.add(organization)
+    database_session.flush()
+    app = PartnerApp(
+        organization_id=organization.id,
+        name="Originator",
+        agent_slug="originator",
+        scopes="calls:read,media:stream,calls:originate",
+    )
+    database_session.add(app)
+    database_session.commit()
+    principal = Principal("user-owner", organization.id, "owner")
+
+    empty = create_key(KeyRequest(name="Empty", scopes=[]), app.id, principal, database_session)
+    assert empty["scopes"] == []
+
+    originate = create_key(
+        KeyRequest(name="Originate", scopes=["calls:originate"]),
+        app.id,
+        principal,
+        database_session,
+    )
+    assert originate["scopes"] == ["calls:originate"]
+
+    before_rejected = len(database_session.scalars(select(ApiKey)).all())
+    with pytest.raises(HTTPException) as forbidden:
+        create_key(
+            KeyRequest(name="Forbidden", scopes=["calls:transfer"]),
+            app.id,
+            principal,
+            database_session,
+        )
+    assert forbidden.value.status_code == 422
+
+    with pytest.raises(HTTPException) as unsupported:
+        create_key(
+            KeyRequest(name="Unsupported", scopes=["unknown:scope"]),
+            app.id,
+            principal,
+            database_session,
+        )
+    assert unsupported.value.status_code == 422
+    assert len(database_session.scalars(select(ApiKey)).all()) == before_rejected
 
 
 def test_key_scope_must_be_subset_and_plaintext_is_not_stored(

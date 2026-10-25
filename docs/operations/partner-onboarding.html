@@ -473,7 +473,7 @@ footer {
         <span class="e">Copy writes exactly three lines; the URL is the deployment's actual base URL with the <code>/api/v1</code> suffix removed:</span><br>
         <code>GATEWAY_URL=&lt;deployment-base-url-without-/api/v1&gt;</code><br>
         <code>GATEWAY_API_KEY=&lt;fresh-plaintext-key&gt;</code><br>
-        <code>AGENT_SLUG=&lt;partner-app-agent_slug&gt;</code>
+        <code>GATEWAY_AGENT_SLUG=&lt;partner-app-agent_slug&gt;</code>
       </p>
       <p>
         <span class="v">Key gửi cho đối tác phải qua kênh bí mật có hạn dùng — chia sẻ qua trình quản lý mật khẩu, không phải chat, không phải email, và tuyệt đối không nằm trong commit. Nói rõ trong cùng tin nhắn: key chỉ nằm ở header <code>Authorization</code> của endpoint đổi token, không bao giờ trong URL hay log.</span>
@@ -489,6 +489,18 @@ footer {
       <span class="v">Đổi những thứ này về sau đồng nghĩa đối tác phải sửa code.</span>
       <span class="e">Changing them later means the partner reworks code.</span>
     </p>
+
+    <div class="note">
+      <p class="note-title"><span class="v">Mặc định của app và key mới</span><span class="e">Defaults for a new app and key</span></p>
+      <p>
+        <span class="v">Nếu request REST tạo app bỏ qua <code>scopes</code>, app mới nhận mặc định <code>calls:read</code>, <code>media:stream</code> và <code>calls:originate</code>; mặc định REST không thêm <code>calls:hangup</code>. Nếu request REST cấp key bỏ qua <code>scopes</code>, key nhận giao của bộ mặc định đó với scope hiện tại của app. Danh sách tường minh, kể cả <code>[]</code> hoặc danh sách bị giới hạn, vẫn giữ nguyên sau chuẩn hoá và phải là subset của scope app. Allowlist đích và kiểm tra scope của lệnh vẫn có hiệu lực.</span>
+        <span class="e">When a REST create-app request omits <code>scopes</code>, the new app defaults to <code>calls:read</code>, <code>media:stream</code> and <code>calls:originate</code>; the REST default does not add <code>calls:hangup</code>. When a REST key request omits <code>scopes</code>, the key receives the intersection of that default set and the app's current scopes. An explicit list, including <code>[]</code> or a restricted list, remains exact after normalization and must be a subset of the app scopes. Destination allowlists and command-scope checks remain in force.</span>
+      </p>
+      <p>
+        <span class="v">Form tạo app trên dashboard vẫn giữ <code>calls:hangup</code> cùng <code>calls:read</code>, <code>media:stream</code> và <code>calls:originate</code>; key cấp từ dashboard kế thừa scope của app. App và key hiện có không tự được nâng quyền, không tự xoay key.</span>
+        <span class="e">The dashboard's new-app form retains <code>calls:hangup</code> alongside <code>calls:read</code>, <code>media:stream</code> and <code>calls:originate</code>; a dashboard-issued key inherits the app's scopes. Existing apps and keys are not upgraded automatically, and no key is rotated automatically.</span>
+      </p>
+    </div>
 
     <ol class="decisions">
       <li>

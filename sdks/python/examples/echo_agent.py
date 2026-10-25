@@ -2,7 +2,7 @@
 
     export GATEWAY_URL=https://gateway.example.com
     export GATEWAY_API_KEY=agw_live_...
-    export AGENT_SLUG=support-agent
+    export GATEWAY_AGENT_SLUG=support-agent
     python examples/echo_agent.py
 
 Every frame the caller speaks is sent straight back, so hearing yourself
@@ -25,7 +25,7 @@ async def main() -> None:
     client = GatewayClient(
         gateway_url=os.environ["GATEWAY_URL"],
         api_key=os.environ["GATEWAY_API_KEY"],
-        agent_slug=os.environ.get("AGENT_SLUG", "support-agent"),
+        agent_slug=os.environ.get("GATEWAY_AGENT_SLUG") or os.environ.get("AGENT_SLUG", "support-agent"),
     )
 
     async def on_event(event: dict) -> None:

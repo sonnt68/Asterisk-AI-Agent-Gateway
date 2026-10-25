@@ -2,7 +2,7 @@
 //
 //   export GATEWAY_URL=https://gateway.example.com
 //   export GATEWAY_API_KEY=agw_live_...
-//   export AGENT_SLUG=support-agent
+//   export GATEWAY_AGENT_SLUG=support-agent
 //   node examples/echo-agent.mjs
 //
 // Every frame the caller speaks is sent straight back, so hearing yourself
@@ -13,7 +13,7 @@ import { GatewayClient } from "../src/index.js";
 const client = new GatewayClient({
   gatewayUrl: process.env.GATEWAY_URL,
   apiKey: process.env.GATEWAY_API_KEY,
-  agentSlug: process.env.AGENT_SLUG ?? "support-agent",
+  agentSlug: process.env.GATEWAY_AGENT_SLUG ?? process.env.AGENT_SLUG ?? "support-agent",
 });
 
 client.on("session.ready", () => console.log("registered as", client.connectionId));

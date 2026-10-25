@@ -50,7 +50,7 @@
       </div>
       <pre><code>export GATEWAY_URL="https://gateway.example.com"
 export GATEWAY_API_KEY="agw_live_your_key"
-export AGENT_SLUG="support-agent"</code></pre>
+export GATEWAY_AGENT_SLUG="support-agent"</code></pre>
       <p class="muted">Dùng Node.js 18.17+ hoặc Python 3.10+. Thay URL, API key và slug bằng thông tin được cấp. SDK tự xác thực, giữ phiên và kết nối lại khi cần. Mỗi <code>agent_slug</code> chỉ nên có một kết nối đang chạy; kết nối mới nhất sẽ tiếp quản.</p>
     </section>
 
@@ -102,7 +102,7 @@ function statusRecord(event, type = "call.status") {
 const client = new GatewayClient({
   gatewayUrl: process.env.GATEWAY_URL,
   apiKey: process.env.GATEWAY_API_KEY,
-  agentSlug: process.env.AGENT_SLUG ?? "support-agent",
+  agentSlug: process.env.GATEWAY_AGENT_SLUG ?? process.env.AGENT_SLUG ?? "support-agent",
 });
 
 client.on("call.status", (event) =&gt; {
@@ -167,7 +167,7 @@ async def main() -&gt; None:
     client = GatewayClient(
         gateway_url=os.environ["GATEWAY_URL"],
         api_key=os.environ["GATEWAY_API_KEY"],
-        agent_slug=os.environ.get("AGENT_SLUG", "support-agent"),
+        agent_slug=os.environ.get("GATEWAY_AGENT_SLUG") or os.environ.get("AGENT_SLUG", "support-agent"),
     )
     await client.run(on_event=on_event)
 

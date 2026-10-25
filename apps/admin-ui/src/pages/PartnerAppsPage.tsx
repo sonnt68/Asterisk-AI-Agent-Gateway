@@ -11,7 +11,7 @@ import { PageLoader } from '../components/ui/LoadingSpinner';
 import PageHeader from '../components/ui/PageHeader';
 import { useGatewayData } from '../hooks/useGatewayData';
 
-const DEFAULT_SCOPES = ['calls:read', 'media:stream', 'calls:hangup'];
+const DEFAULT_SCOPES = ['calls:read', 'media:stream', 'calls:hangup', 'calls:originate'];
 
 const PartnerAppsPage = () => {
     const { apps, keys, loading, error, createApp, deleteApp, savePolicy, saveAppName, issueKey, rotateKey, revealKey, hasEphemeralSecret, revokeKey, deleteRevokedKey } =

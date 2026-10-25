@@ -24,6 +24,7 @@ from app.settings import get_settings
 
 router = APIRouter(tags=["control"])
 settings = get_settings()
+DEFAULT_SCOPES = ("calls:read", "media:stream", "calls:originate")
 ALLOWED_SCOPES = {
     "calls:read",
     "media:stream",
@@ -44,13 +45,13 @@ ALLOWED_SCOPES = {
 class AppRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     agent_slug: str = Field(pattern=r"^[a-z0-9-]{3,80}$")
-    scopes: list[str] = ["calls:read", "media:stream"]
+    scopes: list[str] = Field(default_factory=lambda: list(DEFAULT_SCOPES))
     allowed_destinations: list[str] = []
 
 
 class KeyRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
-    scopes: list[str] = ["calls:read", "media:stream"]
+    scopes: list[str] = Field(default_factory=lambda: list(DEFAULT_SCOPES))
     expires_at: datetime | None = None
 
 
@@ -149,8 +150,13 @@ def create_key(
     )
     if not app:
         raise HTTPException(status_code=404, detail="Partner application not found")
-    scopes = validate_scopes(payload.scopes)
     app_scopes = set(app.scopes.split(","))
+    requested_scopes = (
+        [scope for scope in DEFAULT_SCOPES if scope in app_scopes]
+        if "scopes" not in payload.model_fields_set
+        else payload.scopes
+    )
+    scopes = validate_scopes(requested_scopes)
     if not set(scopes).issubset(app_scopes):
         raise HTTPException(status_code=422, detail="Key scopes must be a subset of app scopes")
     if payload.expires_at and (

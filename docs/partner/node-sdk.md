@@ -5,9 +5,12 @@
 npm install asterisk-ai-agent-gateway-sdk@0.4.0
 export GATEWAY_URL=https://gateway.example.com
 export GATEWAY_API_KEY=agw_live_REDACTED
-export AGENT_SLUG=support-agent
+export GATEWAY_AGENT_SLUG=support-agent
 node sdks/node/examples/echo-agent.mjs
 ```
+
+The example reads `GATEWAY_AGENT_SLUG` first and retains `AGENT_SLUG` as a
+compatibility fallback.
 
 SDK 0.4.0 includes the realtime client and durable history helpers. For a
 controlled rollout where the operator supplies a direct artifact, use it as a
@@ -25,7 +28,7 @@ import { GatewayClient } from "asterisk-ai-agent-gateway-sdk";
 const client = new GatewayClient({
   gatewayUrl: process.env.GATEWAY_URL,
   apiKey: process.env.GATEWAY_API_KEY,
-  agentSlug: "support-agent",
+  agentSlug: process.env.GATEWAY_AGENT_SLUG ?? process.env.AGENT_SLUG ?? "support-agent",
 });
 
 client.on("call.started", (event) => console.log("call up", event.call_id));

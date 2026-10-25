@@ -5,6 +5,7 @@ without needing a model. Replace `on_audio` with your own pipeline.
 
     pip install asterisk-ai-agent-gateway-sdk
     export GATEWAY_URL=https://gateway.example.com
+    export GATEWAY_AGENT_SLUG=support-agent
     export GATEWAY_API_KEY=...          # from a secret store, not a file
     python echo_agent.py
 """
@@ -17,7 +18,7 @@ from asterisk_ai_gateway import GatewayClient
 client = GatewayClient(
     gateway_url=os.environ["GATEWAY_URL"],
     api_key=os.environ["GATEWAY_API_KEY"],
-    agent_slug="support-agent",
+    agent_slug=os.environ.get("GATEWAY_AGENT_SLUG") or os.environ.get("AGENT_SLUG", "support-agent"),
 )
 
 # The rate is announced per call, so it belongs to the call, not to the module.

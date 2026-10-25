@@ -6,7 +6,7 @@ from asterisk_ai_gateway import GatewayClient
 
 async def main() -> None:
     client = GatewayClient(
-        os.environ["GATEWAY_URL"], os.environ["GATEWAY_API_KEY"], os.environ["AGENT_SLUG"]
+        os.environ["GATEWAY_URL"], os.environ["GATEWAY_API_KEY"], os.environ.get("GATEWAY_AGENT_SLUG") or os.environ["AGENT_SLUG"]
     )
     await client.connect()
     try:

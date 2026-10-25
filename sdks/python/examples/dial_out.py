@@ -4,7 +4,7 @@
     export GATEWAY_API_KEY=agw_live_...
     export GATEWAY_AGENT_SLUG=support-agent
     export OUTBOUND_CONTEXT=from-internal
-    python examples/dial_out.py 84969097109
+    python examples/dial_out.py 84969097xxx
 
 Two things have to be true before this rings, and only the first one produces
 an error you can see: the destination must be allowlisted on the partner app
@@ -26,7 +26,7 @@ from asterisk_ai_gateway import Audio, AuthenticationError, GatewayClient
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 LOGGER = logging.getLogger("dial-out")
 
-DEFAULT_NUMBER = "84969097109"
+DEFAULT_NUMBER = "84969097xxx"
 
 #: Long enough to hear yourself and know the media path works, short enough
 #: that a forgotten run does not sit on a live trunk.

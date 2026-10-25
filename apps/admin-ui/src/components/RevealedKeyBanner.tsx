@@ -94,7 +94,7 @@ const RevealedKeyBanner = ({ app, apiKey, onReveal, hasEphemeralSecret = false, 
             const configuration = [
                 `GATEWAY_URL=${gatewayOrigin()}`,
                 `GATEWAY_API_KEY=${revealed.key}`,
-                `AGENT_SLUG=${revealed.agent_slug}`,
+                `GATEWAY_AGENT_SLUG=${revealed.agent_slug}`,
             ].join('\n');
             if (!await copyText(configuration)) {
                 toast.error('Unable to copy configuration', { description: 'Copy the configuration manually from a trusted environment.' });
@@ -118,7 +118,7 @@ const RevealedKeyBanner = ({ app, apiKey, onReveal, hasEphemeralSecret = false, 
                 onClick={() => void copyConfiguration()}
                 disabled={copying}
                 aria-busy={copying}
-                title="Copy GATEWAY_URL, GATEWAY_API_KEY, and AGENT_SLUG"
+                title="Copy GATEWAY_URL, GATEWAY_API_KEY, and GATEWAY_AGENT_SLUG"
             >
                 {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                 {copying ? 'Copying…' : copied ? 'Copied' : 'Copy config'}
